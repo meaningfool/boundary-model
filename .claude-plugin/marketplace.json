@@ -1,0 +1,14 @@
+{
+  "name": "meaningfool",
+  "description": "Agent skills by meaningfool.",
+  "owner": {
+    "name": "meaningfool"
+  },
+  "plugins": [
+    {
+      "name": "boundary-model",
+      "source": "./",
+      "description": "Map a system's boundaries as its consumers see them, keep the map reviewed and current, and plan changes from shape to GitHub issues."
+    }
+  ]
+}

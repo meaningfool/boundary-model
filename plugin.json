@@ -1,0 +1,32 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "boundary-model",
+  "version": "0.1.0",
+  "description": "Map a system's boundaries as its consumers see them, keep the map reviewed and current, and plan changes from shape to GitHub issues.",
+  "author": {
+    "name": "meaningfool"
+  },
+  "homepage": "https://github.com/meaningfool/boundary-model",
+  "repository": "https://github.com/meaningfool/boundary-model",
+  "license": "MIT",
+  "keywords": [
+    "boundaries",
+    "boundary-map",
+    "architecture",
+    "system-design",
+    "planning",
+    "github-issues"
+  ],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Boundary Model",
+        "shortDescription": "Map boundaries, plan changes",
+        "longDescription": "Nine skills built around one boundary model: who uses a system, for what, and through which interfaces, kept apart from how it is built. Extract a boundary map from a repository, review it with a person, bring it up to date after changes land, and draw it as a page or as still images. Shape a change as the boundary changes it leads to, compare ways to slice it, settle its details, and publish GitHub issues that each carry a proof of done. The map scripts need Node 18 or later, still images need Chrome, Chromium or Edge, and publishing issues needs access to GitHub.",
+        "developerName": "meaningfool",
+        "category": "Developer Tools",
+        "websiteURL": "https://github.com/meaningfool/boundary-model"
+      }
+    }
+  }
+}
