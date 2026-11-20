@@ -17,3 +17,4 @@ jobs:
         with:
           node-version: 18
       - run: node scripts/check-versions.mjs
+      - run: node scripts/check-skills.mjs
