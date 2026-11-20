@@ -19,15 +19,18 @@ folder next to theirs, so the skills must sit side by side.
 ### With npx skills
 
 ```bash
-npx skills add meaningfool/boundary-model
+npx skills add meaningfool/boundary-model --skill '*'
 ```
 
-It supports Claude Code, Codex, and most other agents. By default it installs
-into the current project.
+It supports Claude Code, Codex, and most other agents.
 
-- `--skill '*'` installs every skill.
-- `-a <agent>` picks the agent, such as `claude-code` or `codex`.
-- `-g` installs for your user instead of the project.
+- `-a <agent>` picks an agent, such as `-a claude-code -a codex`.
+- `-y` skips the confirmation prompts.
+- `-g` installs for your user instead of the current project.
+
+In a project, the skills go in `.agents/skills/`, linked into each agent's own
+folder such as `.claude/skills/`, and `skills-lock.json` records the version.
+To update, run `npx skills update`. To remove, run `npx skills remove --all`.
 
 ### In Claude Code
 
@@ -50,7 +53,9 @@ codex plugin marketplace add meaningfool/boundary-model
 codex plugin add boundary-model@meaningfool
 ```
 
-Start a new session to use the skills.
+Start a new session to use the skills. To fetch a newer version of the
+marketplace, run `codex plugin marketplace upgrade meaningfool`. To remove,
+run `codex plugin remove boundary-model@meaningfool`.
 
 Both plugins install the nine skills as one plugin, so each skill's name
 becomes `boundary-model:<skill>`, such as `boundary-model:extract-boundaries`.
