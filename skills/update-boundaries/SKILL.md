@@ -1,6 +1,6 @@
 ---
 name: update-boundaries
-description: Bring a boundary map up to date with the code: list what changed since its revision, work out what that does to the map, and review the result. Use after changes land, or when someone asks whether the map is current.
+description: Bring a boundary map up to date with the code. List what changed since its revision, work out what that does to the map, and review the result. Use after changes land, or when someone asks whether the map is current.
 ---
 
 # Update boundaries

@@ -25,15 +25,18 @@ them as one plugin for Claude Code and for Codex.
   conditions that trigger the skill in the description.
 - Link bundled references from `SKILL.md` by relative path, such as
   `[references/map-format.md](references/map-format.md)`.
-- Before committing a changed skill, run `claude plugin validate .` and fix
-  every error it reports.
+- Before committing a changed skill, run `claude plugin validate .` and
+  `node scripts/check-skills.mjs`, and fix every error they report. The second
+  catches frontmatter that strict YAML parsers reject, such as an unquoted
+  value containing ": ". Some installers skip a skill whose frontmatter fails.
 
 ## Adding a skill
 
 1. Create `skills/<name>/SKILL.md` by the rules above.
 2. Add the skill to the README's skill list.
 3. Update the skill count in the `longDescription` of the root `plugin.json`.
-4. Run `claude plugin validate .` and check that it lists the new skill.
+4. Run `claude plugin validate .` and check that it lists the new skill, then run
+   `node scripts/check-skills.mjs`.
 
 Both plugins find the skills in `skills/` on their own, so no manifest lists
 them.
