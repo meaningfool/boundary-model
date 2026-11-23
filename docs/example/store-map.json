@@ -1,0 +1,127 @@
+{
+  "system": {
+    "name": "Store",
+    "description": "An online shop where shoppers browse products, place orders and follow their loyalty balance.",
+    "corpus": { "included": "An invented example, written to show the map format.", "excluded": "Nothing." },
+    "revision": "unknown"
+  },
+  "consumers": [
+    { "name": "Shopper", "description": "A person who buys products from the shop." }
+  ],
+  "providers": [
+    {
+      "name": "Store",
+      "description": "The shop as shoppers know it, on the web and in the mobile app.",
+      "resources": ["Product", "Order", "Loyalty balance", "Charge"],
+      "parts": [
+        { "name": "Web app", "why": "a client that presents the shop, part of the web shop interface" },
+        { "name": "Mobile app", "why": "a client that presents the shop, part of the mobile app interface" }
+      ],
+      "components": [
+        {
+          "name": "Storefront",
+          "description": "Shows the catalogue, takes orders and keeps loyalty balances.",
+          "resources": ["Product", "Order", "Loyalty balance"],
+          "serves": [
+            { "consumer": "Shopper", "area": "Shop" },
+            { "consumer": "Shopper", "area": "See loyalty balance" }
+          ],
+          "parts": [{ "name": "Routes", "why": "pass requests on" }]
+        },
+        {
+          "name": "Payments",
+          "description": "Charges orders and refunds them.",
+          "resources": ["Charge"],
+          "serves": [{ "consumer": "Shopper", "area": "Shop" }],
+          "parts": []
+        }
+      ]
+    }
+  ],
+  "outsideServices": [
+    { "name": "Card network", "description": "The service that authorizes card payments.", "resources": ["Card authorization"] }
+  ],
+  "resources": [
+    { "name": "Product", "description": "Something the shop sells.", "properties": ["price", "stock"] },
+    { "name": "Order", "description": "A shopper's purchase of one or more products.", "properties": ["status", "lines"] },
+    { "name": "Loyalty balance", "description": "The points a shopper has earned.", "properties": ["points"] },
+    { "name": "Charge", "description": "A payment taken for an order.", "properties": ["amount", "status"] },
+    { "name": "Card authorization", "description": "The card network's answer to a payment request.", "properties": ["outcome"] }
+  ],
+  "interfaces": [
+    { "name": "web shop", "description": "The shop's website." },
+    { "name": "mobile app", "description": "The shop's phone app." },
+    { "name": "charges API", "description": "The contract Storefront calls to charge and refund orders." },
+    { "name": "card network API", "description": "The card network's payment API." }
+  ],
+  "places": [
+    { "place": "Storefront", "kind": "component", "paths": ["src/storefront/**"] },
+    { "place": "Payments", "kind": "component", "paths": ["src/payments/**"] },
+    { "place": "web shop", "kind": "interface", "paths": ["web/**"] },
+    { "place": "mobile app", "kind": "interface", "paths": ["mobile/**"] }
+  ],
+  "boundaries": [
+    {
+      "consumer": "Shopper",
+      "provider": "Store",
+      "interfaces": ["web shop", "mobile app"],
+      "areas": [
+        {
+          "name": "Shop",
+          "type": "core",
+          "description": "Find products and buy them.",
+          "capabilities": [
+            { "name": "Browse products", "takes": "a search or a category", "gives": "matching products", "acts": [{ "mode": "observes", "resource": "Product" }] },
+            { "name": "Place order", "takes": "a cart and a card", "gives": "a confirmed order", "acts": [{ "mode": "produces", "resource": "Order" }, { "mode": "mutates", "resource": "Loyalty balance" }] },
+            { "name": "List past orders", "takes": "nothing", "gives": "the shopper's orders", "acts": [{ "mode": "observes", "resource": "Order" }] }
+          ]
+        },
+        {
+          "name": "See loyalty balance",
+          "type": "supporting",
+          "description": "Check the points earned.",
+          "capabilities": [
+            { "name": "See loyalty balance", "takes": "nothing", "gives": "the balance", "interfaces": ["mobile app"], "acts": [{ "mode": "observes", "resource": "Loyalty balance" }] }
+          ]
+        }
+      ],
+      "evidence": [{ "path": "docs/example/store-map.json", "shows": "an invented example" }]
+    },
+    {
+      "consumer": "Storefront",
+      "provider": "Payments",
+      "interfaces": ["charges API"],
+      "areas": [
+        {
+          "name": "Charge orders",
+          "type": "core",
+          "description": "Take and return payment for orders.",
+          "capabilities": [
+            { "name": "Charge order", "takes": "an order and a card", "gives": "the charge", "acts": [{ "mode": "produces", "resource": "Charge" }] },
+            { "name": "Refund order", "takes": "an order", "gives": "the refunded charge", "acts": [{ "mode": "mutates", "resource": "Charge" }] }
+          ]
+        }
+      ],
+      "evidence": [{ "path": "docs/example/store-map.json", "shows": "an invented example" }]
+    },
+    {
+      "consumer": "Payments",
+      "provider": "Card network",
+      "interfaces": ["card network API"],
+      "areas": [
+        {
+          "name": "Authorize card payment",
+          "type": "core",
+          "description": "Ask the card network to approve a payment.",
+          "capabilities": [
+            { "name": "Authorize card payment", "takes": "a card and an amount", "gives": "an authorization or a decline", "acts": [{ "mode": "produces", "resource": "Card authorization" }] }
+          ]
+        }
+      ],
+      "evidence": [{ "path": "docs/example/store-map.json", "shows": "an invented example" }]
+    }
+  ],
+  "questions": [],
+  "cleanupCandidates": [],
+  "excluded": []
+}
