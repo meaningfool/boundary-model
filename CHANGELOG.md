@@ -2,7 +2,7 @@
 
 Each release gets a `vX.Y.Z` tag in this repository.
 
-## 0.1.0 - Unreleased
+## 0.1.0 - 2026-11-23
 
 First release from this repository. The nine skills move here from `meaningfool/skills`, with their history. They work in any repository, without the context of the project they were built in, and are released under the MIT licence.
 
