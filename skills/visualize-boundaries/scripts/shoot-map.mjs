@@ -37,6 +37,8 @@ if (!browser) {
 }
 
 const profile = mkdtempSync(join(tmpdir(), "shoot-map-"));
+// Chrome refuses to start as root, as in many containers, unless its sandbox is off.
+const asRoot = process.getuid?.() === 0;
 const headless = (...args) =>
   spawnSync(
     browser,
@@ -44,6 +46,7 @@ const headless = (...args) =>
       "--headless=new",
       "--disable-gpu",
       "--hide-scrollbars",
+      ...(asRoot ? ["--no-sandbox"] : []),
       "--virtual-time-budget=3000",
       `--user-data-dir=${profile}`,
       ...args,

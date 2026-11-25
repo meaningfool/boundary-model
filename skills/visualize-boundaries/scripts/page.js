@@ -370,7 +370,9 @@ function box(name, where) {
   const n = node(name);
   const key = `b:${name}`;
   const inner = n.children.length + n.shared.length;
-  const shared = where === "inside" && n.also.includes(openBox) ? `Shared with ${n.parent}` : null;
+  // A box shared into the open one says where else it sits: inside the box that defines it, or,
+  // for a provider, among All providers.
+  const shared = where === "inside" && n.also.includes(openBox) ? (n.parent ? `Shared with ${n.parent}` : "Also a provider") : null;
   const canOpen = opens(name);
   const enter = (e) => (e.stopPropagation(), go(name));
   const note = current?.notes.get(name);
