@@ -2,7 +2,7 @@
 
 Each release gets a `vX.Y.Z` tag in this repository.
 
-## 0.1.1 - Unreleased
+## 0.1.1 - 2026-11-25
 
 Two fixes to `visualize-boundaries`.
 
