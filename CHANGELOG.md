@@ -2,6 +2,13 @@
 
 Each release gets a `vX.Y.Z` tag in this repository.
 
+## 0.1.1 - 2026-11-25
+
+Two fixes to `visualize-boundaries`.
+
+- A Level 1 provider that another provider also lists in its `sharedComponents` showed as "Shared with null" on that provider's screen. It now shows as "Also a provider".
+- `shoot-map.mjs` wrote no images when run as root, as in many containers and cloud sessions, because Chrome refuses to start as root with its sandbox on. It now turns the sandbox off when it runs as root, so a wrapper script passed as `CHROME_PATH` is no longer needed.
+
 ## 0.1.0 - 2026-11-23
 
 First release from this repository. The nine skills move here from `meaningfool/skills`, with their history. They work in any repository, without the context of the project they were built in, and are released under the MIT licence.
