@@ -10,7 +10,8 @@ Open each file in a browser. They need no build.
 - `sidebar-proposals.html`: the chosen navigation. Numbered pages in the left sidebar, one level. The current page's sections on the right.
 - `landing-proposals.html`: three early layouts for a separate home page. Superseded, since page 01 is now the home page, but its sections fed page 01.
 - `map-candidates.html`: open-source projects checked as candidates for maps, with a compare view.
-- `five-boundary-maps.html`: the interactive maps of Executor, T3 Code, Rivet, LangChain and Pi, embedded from `maps/`. They are drawn from the draft maps in `../maps/`.
+- `boundary-maps.html`: the interactive maps of the real projects in `../maps/`, embedded from `maps/`. It prefigures page 06, In the wild.
+- `walkthrough/`: three invented systems designed for page 05, A walkthrough, each with its map and its design notes (the walkthrough sequence, which concepts it shows, the change, and its weak spots). `review.md` compares them and recommends A, the Store. `walkthrough-examples.html` shows all three with the review.
 
 ## Decisions so far
 

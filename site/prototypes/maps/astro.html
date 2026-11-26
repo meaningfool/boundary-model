@@ -1,0 +1,1111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Astro boundary map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono&family=Public+Sans:wght@400;600&display=swap">
+<style>
+/* Thin ink lines on paper, with one colour per kind of thing: consumers grey, components green,
+   outside services stone, interfaces blue, capabilities violet, resources amber. Layout: a
+   breadcrumb, then one open box whose columns are headed by what they hold, and a panel docked
+   beside it when something is selected, so the map stays scrollable. */
+:root {
+  --paper: #ffffff;
+  --ink: #1a1a1a;
+  --graphite: #6b6b6b;
+  --pencil: #c9c9c9;
+  --panel: #f5f5f4;
+  --panel-line: #e3e3e1;
+  --k-consumer: #6b7280;
+  --k-component: #2e8b57;
+  --k-outside: #8a7f72;
+  --k-interface: #2f6fdb;
+  --k-capability: #7a4fd1;
+  --k-resource: #b7791f;
+  --sans: "Public Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #17181a; --ink: #ececea; --graphite: #a0a09c; --pencil: #55565a; --panel: #212225; --panel-line: #33343a;
+    --k-consumer: #9aa1ad; --k-component: #5cc18a; --k-outside: #b0a596; --k-interface: #6f9cf0; --k-capability: #a585ef; --k-resource: #e0a64a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #17181a; --ink: #ececea; --graphite: #a0a09c; --pencil: #55565a; --panel: #212225; --panel-line: #33343a;
+  --k-consumer: #9aa1ad; --k-component: #5cc18a; --k-outside: #b0a596; --k-interface: #6f9cf0; --k-capability: #a585ef; --k-resource: #e0a64a;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  --k: var(--graphite);
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  margin: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: var(--paper);
+  color: var(--ink);
+  font: 14px/1.4 var(--sans);
+}
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+code { font-family: var(--mono); font-size: 0.92em; }
+
+.k-consumer { --k: var(--k-consumer); }
+.k-component { --k: var(--k-component); }
+.k-outside { --k: var(--k-outside); }
+.k-interface { --k: var(--k-interface); }
+.k-capability { --k: var(--k-capability); }
+.k-resource { --k: var(--k-resource); }
+
+.top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; padding-block: 12px 10px; border-bottom: 1px solid var(--panel-line); }
+.top h1 { margin: 0; font-size: 15px; font-weight: 600; }
+.top .rev { font-family: var(--mono); font-size: 12px; color: var(--graphite); }
+.top p { margin: 0; font-size: 13px; color: var(--graphite); }
+#nav { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; padding-block: 10px 0; font-size: 13px; }
+#nav button { color: var(--graphite); border-bottom: 1px dotted var(--pencil); }
+#nav .b-back-nav { margin-right: 8px; padding: 1px 8px; color: var(--ink); border: 1px solid var(--panel-line); border-radius: 3px; }
+#nav .b-back-nav:hover { border-color: var(--ink); }
+#nav .b-back-nav:disabled { color: var(--pencil); border-color: var(--panel-line); cursor: default; }
+#nav button:hover { color: var(--ink); }
+.b-sep { color: var(--pencil); }
+main { display: flex; min-height: 0; min-width: 0; }
+#scroll { flex: 1 1 auto; min-width: 0; overflow: auto; }
+
+/* ---- stage and zones ---- */
+.b-stage { position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: max-content; gap: 0 64px; align-items: start; width: max-content; min-width: 100%; padding: 14px 4px 48px; }
+.b-wires { position: absolute; top: 0; left: 0; z-index: 1; overflow: visible; pointer-events: none; }
+.b-wires path { fill: none; stroke: var(--pencil); stroke-width: 1.25; }
+.b-wires path.lit { stroke: var(--ink); stroke-width: 1.75; opacity: 1; }
+.b-wires path.dim { opacity: 0.18; }
+.b-zone h3 { margin: 0 0 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--k); }
+.z-consumer { --k: var(--k-consumer); }
+.z-interface { --k: var(--k-interface); }
+.z-capability { --k: var(--k-capability); }
+.z-component { --k: var(--k-component); }
+.z-resource { --k: var(--k-resource); }
+.z-uses { --k: var(--graphite); }
+.b-left > .b-zone-body { position: relative; width: 170px; }
+.b-left > .b-zone-body > .b-box { position: absolute; left: 0; width: 170px; }
+.b-col { display: flex; flex-direction: column; gap: 14px; }
+.b-right > .b-zone-body { position: relative; width: 210px; }
+.b-right > .b-zone-body > .b-box { position: absolute; left: 0; }
+.b-col.b-placed { position: relative; display: block; width: 210px; }
+.b-placed > .b-box { position: absolute; left: 0; }
+.b-cols { display: flex; align-items: flex-start; gap: 48px; }
+.dim { opacity: 0.22; }
+
+/* ---- the open box ---- */
+.b-frame { position: relative; border: 1.5px solid var(--ink); }
+.b-frame-head { position: relative; z-index: 2; padding: 10px 14px 12px; border-bottom: 1px solid var(--panel-line); background: var(--paper); }
+.b-frame-head h2 { margin: 0 0 4px; font-size: 20px; font-weight: 600; }
+.b-frame-head p { margin: 0; max-width: 70ch; color: var(--graphite); font-size: 13px; }
+.b-frame-head .b-through { margin-top: 4px; color: var(--ink); }
+.b-body { display: grid; grid-auto-flow: column; grid-auto-columns: max-content; gap: 0 44px; padding: 14px 20px 20px 0; }
+.z-interface { width: 184px; }
+.z-interface > h3 { padding-left: 13px; }
+.z-interface > .b-zone-body, .z-capability > .b-zone-body, .z-resource > .b-zone-body { position: relative; }
+.z-capability > .b-zone-body { width: 196px; }
+.z-resource > .b-zone-body { width: 180px; }
+.b-keeps { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin-top: 8px; }
+.b-keeps-label { font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--k-resource); }
+.b-keeps .b-chips { margin-top: 0; }
+
+/* ---- boxes: one shape for every kind ---- */
+.b-box { position: relative; z-index: 2; display: block; width: 210px; padding: 6px 10px 7px; text-align: left; background: color-mix(in srgb, var(--k) 6%, var(--paper)); border: 1px solid color-mix(in srgb, var(--k) 45%, var(--paper)); cursor: pointer; }
+.b-box:hover { border-color: var(--k); }
+.b-box.provider { border-width: 1.5px; }
+.b-box.k-outside { border-style: dashed; }
+.b-box.opens:hover { background: color-mix(in srgb, var(--k) 13%, var(--paper)); border-color: var(--k); }
+.b-box.lit { border-color: var(--k); box-shadow: 0 0 0 1.5px var(--k); }
+.b-box.chosen { box-shadow: 0 0 0 1.5px var(--k), 0 0 0 4px color-mix(in srgb, var(--ink) 25%, transparent); }
+.b-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.b-kind { font-size: 10.5px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--k); }
+.b-qual { font-size: 11px; color: var(--graphite); white-space: nowrap; }
+.b-name { display: block; width: 100%; font-weight: 600; font-size: 13.5px; text-align: left; }
+.b-sub { display: block; font-size: 11.5px; color: var(--graphite); }
+.b-via { display: block; margin-top: 2px; font-size: 11.5px; font-style: italic; color: var(--ink); }
+.b-area { position: absolute; left: 0; width: 100%; }
+
+/* ---- the way in: a bar at the foot of the box ---- */
+.b-go { display: flex; justify-content: space-between; align-items: baseline; width: calc(100% + 20px); margin: 7px -10px -7px; padding: 4px 10px; font-size: 12px; font-weight: 600; color: var(--k); border-top: 1px solid color-mix(in srgb, var(--k) 40%, var(--paper)); }
+.b-go span:last-child { font-size: 15px; line-height: 1; }
+.b-go:hover { background: var(--k); color: var(--paper); }
+.b-go.wide { --k: var(--k-component); width: 100%; margin: 18px 0 0; padding: 6px 10px; font-size: 13px; border: 1px solid var(--k); }
+
+/* ---- interfaces: dots on the edge of the open box ---- */
+.b-port { position: relative; display: block; width: calc(100% + 10px); margin-left: -10px; padding: 2px 0 2px 13px; font-size: 12px; line-height: 1.3; color: var(--ink); text-align: left; }
+.b-port::before { content: ""; position: absolute; left: -5px; top: 50%; width: 8px; height: 8px; margin-top: -4px; border-radius: 50%; border: 1.5px solid var(--k-interface); background: var(--paper); }
+.b-port:hover, .b-port.lit { color: var(--k-interface); }
+.b-port.lit { font-weight: 600; }
+.b-port.lit::before { background: var(--k-interface); }
+.b-port.edge { position: absolute; left: 0; width: 184px; margin-left: 0; padding-right: 0; font-size: 12.5px; background: var(--paper); }
+
+/* ---- resources as chips ---- */
+.b-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.b-chip { --k: var(--k-resource); padding: 1px 7px; font-size: 11.5px; border: 1px solid color-mix(in srgb, var(--k) 50%, var(--paper)); background: color-mix(in srgb, var(--k) 8%, var(--paper)); border-radius: 999px; }
+.b-chip:hover, .b-chip.lit { border-color: var(--k); }
+.b-chip.lit { box-shadow: 0 0 0 1px var(--k); }
+
+/* ---- panel ---- */
+#panel { position: relative; flex: none; width: 340px; overflow: auto; padding: 16px 18px 24px; background: var(--panel); border-left: 1px solid var(--panel-line); }
+#panel[hidden] { display: none; }
+@media (max-width: 760px) {
+  main { flex-direction: column; }
+  #scroll { flex: 1 1 0; min-height: 0; }
+  #panel { width: auto; max-height: 50%; border-left: 0; border-top: 1px solid var(--panel-line); }
+}
+#panel h2 { margin: 2px 0 6px; font-size: 18px; font-weight: 600; padding-right: 24px; }
+#panel h3 { margin: 18px 0 6px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--graphite); }
+#panel p { margin: 0 0 6px; }
+.b-note { font-size: 12.5px; color: var(--graphite); }
+.b-back { margin-bottom: 10px; font-size: 12.5px; color: var(--graphite); }
+.b-back:hover { color: var(--k-capability); }
+.b-props { margin: 0; padding-left: 18px; }
+.b-props li + li { margin-top: 2px; }
+.b-close { position: absolute; top: 10px; right: 12px; font-size: 20px; line-height: 1; color: var(--graphite); }
+.b-caps { margin: 12px 0 0; padding: 0; list-style: none; }
+.b-caps li { padding: 4px 0 4px 10px; border-left: 2px solid color-mix(in srgb, var(--k-capability) 30%, var(--panel)); }
+.b-caps li + li { margin-top: 4px; }
+.b-caps button { display: block; font-size: 13.5px; }
+.b-caps button:hover, .b-caps li.on button { color: var(--k-capability); }
+.b-caps li.on { border-left-color: var(--k-capability); }
+.b-caps span { display: block; font-size: 12px; color: var(--graphite); }
+/* What leaves fades first, what arrives fades in after, while the boxes on both screens travel. */
+::view-transition-group(*) { animation-duration: 560ms; animation-timing-function: cubic-bezier(0.45, 0, 0.2, 1); }
+::view-transition-old(root) { animation: 200ms ease-out both b-fade-out; }
+/* New content, such as a consumer that was not on the last screen, is fully there when the
+   travelling boxes land, at 560ms. */
+::view-transition-new(root) { animation: 280ms ease-in 280ms both b-fade-in; }
+/* Opening a box grows it into the frame of the next screen; going back shrinks the frame into it. */
+/* The rectangle grows or shrinks; what is inside it is shown at its real size, never stretched. */
+::view-transition-group(zoom) { overflow: hidden; }
+::view-transition-old(zoom), ::view-transition-new(zoom) { width: 100%; height: 100%; object-fit: none; object-position: left top; mix-blend-mode: normal; }
+::view-transition-old(zoom) { animation: 220ms ease-out both b-fade-out; }
+::view-transition-new(zoom) { animation: 400ms ease-in 160ms both b-fade-in; }
+@keyframes b-fade-out { to { opacity: 0; } }
+@keyframes b-fade-in { from { opacity: 0; } }
+
+/* ---- still images: the whole screen, then what the panel would say about it ---- */
+html.still, html.still body { height: auto; }
+html.still body, html.still main { display: block; }
+html.still #scroll { overflow: visible; }
+html.still #panel, html.still .b-back-nav, html.still .top p { display: none; }
+.b-legend { columns: 3; column-gap: 32px; padding: 16px 4px; border-top: 1px solid var(--panel-line); }
+.b-legend section { break-inside: avoid; margin-bottom: 16px; }
+.b-legend h3 { margin: 0 0 6px; font-size: 13px; }
+.b-legend p { margin: 0 0 6px; font-size: 13px; color: var(--graphite); }
+.b-legend ul { margin: 0; padding-left: 16px; }
+.b-legend li { margin-bottom: 4px; font-size: 13px; }
+</style>
+</head>
+<body>
+<header class="top">
+<h1>Astro boundary map</h1><span class="rev">4c72ca5</span>
+<p>Click anything to light what it connects to. Open, at the foot of a box, goes inside.</p>
+</header>
+<nav id="nav" aria-label="Where you are"></nav>
+<main><div id="scroll"></div><aside id="panel" hidden></aside></main>
+<script type="application/json" id="map-data">{"system":{"name":"Astro","description":"Astro, the web framework for content-driven websites: the framework and its CLI, the component compiler and render runtime, the official integrations and deployment adapters, create-astro, the upgrade tool and the language tools.","corpus":{"included":"The whole withastro/astro repository at the revision below and its history since 2026-05-25, read only: packages/, examples/, the root configuration, .github/, .agents/, .changeset/, benchmark/, scripts/ and reference/.","excluded":"Dependencies (node_modules), generated output (dist/, .astro/) and secrets. The Astro compiler, Starlight and the docs site live in other repositories and are not in the corpus."},"revision":"4c72ca58f95c3f78fd51747a027184e711ba200e"},"consumers":[{"name":"Site developer","description":"A developer who builds a website with Astro: starts the project, writes its pages, components and content, runs it locally, builds it and deploys it to a host."},{"name":"Integration author","description":"A developer who writes an integration, deployment adapter, content loader or toolbar app that other Astro developers install."},{"name":"Vite app developer","description":"A developer who renders Astro components from their own server code in a Vite project, without Astro's pages, routing or CLI."}],"providers":[{"name":"Astro","description":"The Astro framework and the tools around it, as developers use them.","resources":["Project","Page","Component","Content collection","Content entry","Image","Font family","Action","Session","Cached response","Environment variable","Site build","Dev server","Preference","Renderer"],"parts":[{"name":"Deployment adapters","why":"Adapters to hosting platforms (packages/integrations/node, vercel, netlify, cloudflare): how the Site framework reaches each platform's output format, functions, image and cache services; variants of the AstroAdapter contract, not components by themselves."},{"name":"UI framework integrations and renderers","why":"Adapters to UI framework libraries (packages/integrations/react, preact, solid, svelte, vue and packages/renderers/*): each pairs the framework's Vite plugin with a renderer that fulfils the AstroRenderer contract."},{"name":"Content format integrations","why":"Adapters to the MDX and Markdoc libraries (packages/integrations/mdx, markdoc), added through the Integration API as page and content entry types."},{"name":"Markdown processors","why":"Libraries that turn Markdown into HTML (packages/markdown/satteri, the default, and packages/markdown/remark), two variants of the MarkdownProcessor contract chosen by markdown.processor."},{"name":"Feature integrations","why":"Adapters to libraries or libraries the developer calls: sitemap (the sitemap library), partytown, alpinejs, @astrojs/rss (rss() returns a Response from an endpoint) and @astrojs/prism."},{"name":"Shared helpers","why":"Libraries other packages import (packages/internal-helpers, packages/underscore-redirects)."},{"name":"Retired integration stubs","why":"packages/integrations/deno, web-vitals and tailwind hold only a README or changelog; see cleanup candidates."}],"components":[{"name":"Site framework","description":"The astro package: it sets up a project, runs the dev and preview servers, builds the site and answers requests for its pages.","resources":["Project","Page","Content collection","Content entry","Image","Font family","Action","Session","Cached response","Environment variable","Site build","Dev server","Preference"],"serves":[{"consumer":"Site developer","area":"Build sites"},{"consumer":"Site developer","area":"Run server logic"},{"consumer":"Site developer","area":"Localize and navigate"},{"consumer":"Site developer","area":"Check code"},{"consumer":"Site developer","area":"Inspect page"},{"consumer":"Site developer","area":"Change preferences"},{"consumer":"Site developer","area":"Get debug info"},{"consumer":"Integration author","area":"Extend Astro"},{"consumer":"Integration author","area":"Deploy to a host"},{"consumer":"Integration author","area":"Load content"}],"parts":[{"name":"astro CLI","why":"A client that passes each command to the part that runs it (packages/astro/src/cli/index.ts); info, docs and create-key only print, open a URL or generate a value. Part of the astro CLI interface."},{"name":"npm registry client","why":"An adapter to the npm registry (packages/astro/src/cli/install-package.ts) used by astro add, astro check and the dev server's update check."},{"name":"Dev toolbar","why":"A browser client that presents the dev server's view of the page, with audits and the toolbar app API (packages/astro/src/runtime/client/dev-toolbar/, src/toolbar/). Part of the dev toolbar interface."},{"name":"Container API","why":"It passes a component render on to the request handler's render path (packages/astro/src/container/index.ts). Part of the Astro APIs interface."},{"name":"Telemetry events","why":"Builds event payloads and hands them to Telemetry (packages/astro/src/events/); an adapter."},{"name":"Markdown pages","why":"Turns .md page files into page modules with the configured markdown processor (packages/astro/src/markdown/, src/vite-plugin-markdown/); an adapter."},{"name":"Runtime re-exports","why":"One-line re-exports of @astrojs/runtime kept so astro/runtime/* imports resolve (packages/astro/src/runtime/server/, runtime/client/*.ts, runtime/compiler/)."},{"name":"Shared code","why":"Libraries every part imports: types, logger, error definitions and overlay, messages, file and module helpers (packages/astro/src/types/, core/logger/, core/errors/, core/messages/)."},{"name":"Legacy adapter entrypoint","why":"Supports deprecated entrypointResolution 'explicit' adapters (packages/astro/src/entrypoints/legacy.ts); a cleanup candidate."}],"components":[{"name":"Project setup","description":"Resolves the project's config into the settings every part reads, runs the integration hooks, assembles the Vite config and syncs generated types.","resources":["Project"],"serves":[{"consumer":"Site developer","area":"Build sites"},{"consumer":"Integration author","area":"Extend Astro"},{"consumer":"Integration author","area":"Deploy to a host"}],"parts":[{"name":"Config resolution","why":"Loads and validates astro.config into the settings (core/config/); shares the settings object with the hooks."},{"name":"Integration hooks","why":"The registry through which integrations change the settings (integrations/hooks.ts); writes the same settings object as config resolution."},{"name":"Vite config assembly","why":"Builds the Vite config with Astro's plugins (core/create-vite.ts); wiring."},{"name":"Sync","why":"Runs content sync and the type generators in order (core/sync/index.ts); passes on."}]},{"name":"Dev server","description":"Runs the project on a local server that renders pages on request, restarts when the config changes and records itself for astro dev status, logs and stop.","resources":["Dev server"],"serves":[{"consumer":"Site developer","area":"Build sites"},{"consumer":"Site developer","area":"Inspect page"},{"consumer":"Integration author","area":"Extend Astro"}],"parts":[{"name":"Container and restart","why":"The running server and its restarts (core/dev/container.ts, restart.ts); the one deciding part."},{"name":"Adapter validation","why":"Checks that the adapter supports the features in use (core/dev/adapter-validation.ts); a check."},{"name":"Lockfile","why":"Storage: the record of a running server in .astro/dev.json (core/dev/lockfile.ts)."},{"name":"Update check","why":"Asks the npm registry for the latest Astro through the npm registry client (core/dev/update-check.ts)."},{"name":"Dev-only Vite plugins","why":"Error overlay client, dev status, Chrome DevTools workspace and dev CSS plugins (vite-plugin-overlay/, vite-plugin-dev-status/, vite-plugin-chromedevtools/, vite-plugin-css/); wiring."},{"name":"Background commands","why":"Start, check and stop a background server by reading the lockfile and logs (cli/dev/)."}]},{"name":"Preview server","description":"Serves a finished build locally, through the adapter's preview entrypoint or its own static server.","resources":["Site build"],"serves":[{"consumer":"Site developer","area":"Build sites"}],"parts":[]},{"name":"Site builder","description":"Builds the site: bundles client and server code, prerenders static pages, writes the manifest and the output for the adapter.","resources":["Site build"],"serves":[{"consumer":"Site developer","area":"Build sites"},{"consumer":"Integration author","area":"Extend Astro"},{"consumer":"Integration author","area":"Deploy to a host"}],"parts":[{"name":"Build orchestration","why":"Runs the hooks and the build phases in order (core/build/index.ts); passes on."},{"name":"Bundling","why":"Vite builds and their plugins (core/build/static-build.ts, plugins/); they write the shared BuildInternals (core/build/internal.ts)."},{"name":"Page generation","why":"Renders each static path and writes it (core/build/generate.ts); reads BuildInternals the bundling writes."},{"name":"Incremental build cache","why":"Keeps the previous build's manifest to skip unchanged pages (core/build/incremental.ts); its inputs are written into BuildInternals by plugins/plugin-incremental.ts."},{"name":"Prerenderers","why":"Variants of AstroPrerenderer that pass each render on to the built app (default-prerenderer.ts, parallel-prerenderer.ts)."},{"name":"Timings","why":"Build diagnostics (core/build/timings/)."}]},{"name":"Request handler","description":"Answers each request, in development, at build and in production: matches the route, runs redirects, actions and middleware, renders the page or endpoint, applies i18n routing and renders error pages.","resources":["Page"],"serves":[{"consumer":"Site developer","area":"Build sites"},{"consumer":"Site developer","area":"Localize and navigate"},{"consumer":"Integration author","area":"Deploy to a host"}],"parts":[{"name":"Routing","why":"Route list, route table, matching and rewrites (core/routing/); it shares and changes the per-request FetchState with the other stages."},{"name":"Middleware","why":"Loads and runs the middleware chain (core/middleware/); sets locals in FetchState that pages read."},{"name":"Localization","why":"i18n redirects, fallbacks and locale helpers (core/i18n/, src/i18n/); reads and changes FetchState."},{"name":"Server islands","why":"The island route and name map (core/server-islands/); an endpoint rendered by the same chain."},{"name":"Page rendering","why":"Renders the matched page or endpoint through the render runtime (core/pages/, core/render/, core/fetch/fetch-state.ts)."},{"name":"Facades","why":"App, NodeApp and the astro/fetch and astro/hono handlers pass requests into the chain (core/app/, core/fetch/index.ts, core/hono/)."},{"name":"Dev request plugins","why":"The Vite middleware and dev App that answer dev requests with the same chain, plus dev error pages (vite-plugin-astro-server/, vite-plugin-app/); they call routing, middleware, rewrites and render directly."},{"name":"Cookies and CSP","why":"Helpers for response cookies and Content-Security-Policy headers (core/cookies/, core/csp/)."},{"name":"Redirects and rewrites","why":"Configured redirects and Astro.rewrite, which re-run the chain on the same FetchState (core/redirects/, core/rewrites/)."}]},{"name":"Content layer","description":"Loads content collections into the data store, answers queries for their entries and generates their types and schemas.","resources":["Content collection","Content entry"],"serves":[{"consumer":"Site developer","area":"Build sites"},{"consumer":"Integration author","area":"Load content"},{"consumer":"Language tools","area":"Read collection schemas"}],"parts":[{"name":"Store classes and loader contract","why":"Shared code both inner components use: ImmutableDataStore and its sources (content/data-store.ts, data-store-source.ts), which MutableDataStore extends, and the Loader and LiveLoader types and errors (content/loaders/types.ts, errors.ts)."},{"name":"Config and helpers","why":"Content config loading and shared helpers (content/config.ts, utils.ts, config-prewarm.ts, consts.ts, paths.ts)."},{"name":"Content wiring","why":"Vite plugins for content imports and assets, and the dev server listeners that feed file changes to sync and type generation (content/vite-plugin-content-imports.ts, vite-plugin-content-assets.ts, server-listeners.ts)."}],"components":[{"name":"Content sync","description":"Runs each collection's loader, writes the entries into the content data store, and generates the collections' types and the schema files editors read.","resources":["Content collection","Content entry"],"serves":[{"consumer":"Dev server","area":"Keep content in sync"},{"consumer":"Project setup","area":"Keep content in sync"},{"consumer":"Integration author","area":"Load content"},{"consumer":"Language tools","area":"Read collection schemas"}],"parts":[{"name":"Content layer runner","why":"Runs the loaders with their context and keeps the store current (content/content-layer.ts); the deciding part."},{"name":"Types generator","why":"Writes content types and collection schemas (content/types-generator.ts); it and the runner both write .astro/collections/collections.json (types-generator.ts writes it, content-layer.ts regenerateCollectionFileManifest rewrites its entries), so they share one store."},{"name":"Data store","why":"Storage: the mutable store, its writer and the module that serves it (content/mutable-data-store.ts, data-store-writer.ts, vite-plugin-content-virtual-mod.ts)."},{"name":"Loaders","why":"glob() and file(), variants of the Loader contract that read the project's files; adapters to storage (content/loaders/glob.ts, file.ts)."},{"name":"Watcher","why":"Reacts to file changes in dev (content/watcher.ts)."}]},{"name":"Collection queries","description":"Answers getCollection, getEntry, render and the live collection functions from the synced store or from live loaders at request time.","resources":["Content collection","Content entry"],"serves":[{"consumer":"Site developer","area":"Build sites"},{"consumer":"Integration author","area":"Load content"}],"parts":[{"name":"Query functions","why":"getCollection, getEntry, getEntries, render and the live functions, read-only and request-time (content/runtime.ts, runtime-assets.ts); the deciding part."}]}]},{"name":"Images","description":"Optimizes images: decides each transform through the configured image service, serves the image endpoint and writes optimized files at build.","resources":["Image"],"serves":[{"consumer":"Site developer","area":"Build sites"}],"parts":[{"name":"getImage and layout","why":"Decides each transform, srcset and responsive layout (assets/internal.ts, layout.ts); the deciding part."},{"name":"Image services","why":"sharp, noop and adapters' services: adapters to the sharp library and to platform image services (assets/services/)."},{"name":"Image endpoint","why":"Passes /_image requests on to the service (assets/endpoint/)."},{"name":"Build generation","why":"Writes optimized images and their cache (assets/build/generate.ts); shares the static image list with getImage."},{"name":"SVG components","why":"Turns SVG files into components with svgo (assets/svg/); library use."}]},{"name":"Fonts","description":"Resolves the configured font families from their providers, downloads and caches their files, and computes fallbacks and preloads.","resources":["Font family"],"serves":[{"consumer":"Site developer","area":"Build sites"}],"parts":[{"name":"Font resolution","why":"Pure functions over the interfaces in definitions.ts that resolve families, fallbacks and preloads (assets/fonts/core/); the deciding part."},{"name":"Font providers","why":"Adapters to outside font services, and a local provider (assets/fonts/providers/)."},{"name":"Font infrastructure","why":"Storage, fetcher and font file readers (assets/fonts/infra/)."}]},{"name":"Actions","description":"Runs the server functions a project defines: validates each call's input, runs the handler and returns the result or error.","resources":["Action"],"serves":[{"consumer":"Site developer","area":"Run server logic"}],"parts":[{"name":"Action handler","why":"Validates input, runs the handler and serializes the result (actions/handler.ts, actions/runtime/server.ts); the deciding part."},{"name":"Browser client","why":"Presents actions as functions in the browser (actions/runtime/client.ts); part of the Astro APIs interface."}]},{"name":"Sessions","description":"Keeps per-visitor session data across requests in the storage the session driver names.","resources":["Session"],"serves":[{"consumer":"Site developer","area":"Run server logic"}],"parts":[{"name":"AstroSession","why":"Reads and changes one visitor's session data (core/session/runtime.ts); the deciding part."},{"name":"Session drivers","why":"Adapters to storage (core/session/drivers.ts, driver.ts)."}]},{"name":"Response cache","description":"Caches rendered responses by route rules and tags, through the memory provider or a CDN provider, and invalidates them.","resources":["Cached response"],"serves":[{"consumer":"Site developer","area":"Run server logic"}],"parts":[{"name":"Cache handler and route rules","why":"Decides what is cached and for how long (core/cache/handler.ts, runtime/route-matching.ts); the deciding part."},{"name":"Cache providers","why":"The in-memory store and adapters' CDN providers, variants of CacheProvider (core/cache/memory-provider.ts and the adapters' cache/provider.ts)."}]},{"name":"Environment variables","description":"Validates environment variables against the project's schema and gives pages typed access to public and secret values.","resources":["Environment variable"],"serves":[{"consumer":"Site developer","area":"Run server logic"},{"consumer":"Integration author","area":"Deploy to a host"}],"parts":[]},{"name":"Preferences","description":"Keeps the developer's own settings for Astro's tools, per project and global, such as whether the dev toolbar shows.","resources":["Preference"],"serves":[{"consumer":"Site developer","area":"Change preferences"}],"parts":[]},{"name":"Page transitions","description":"In the browser, fetches the next page and swaps it in place with view transition animations, keeping scroll and history.","resources":["Page"],"serves":[{"consumer":"Site developer","area":"Localize and navigate"}],"parts":[]},{"name":"Link prefetching","description":"In the browser, fetches linked pages ahead of a click, on hover, tap, viewport or load.","resources":["Page"],"serves":[{"consumer":"Site developer","area":"Localize and navigate"}],"parts":[]},{"name":"Integration installer","description":"Adds integrations to a project: installs their packages and edits the config file.","resources":["Project"],"serves":[{"consumer":"Site developer","area":"Build sites"}],"parts":[]}]},{"name":"Component compiler","description":"The Vite plugin for the Astro component language: compiles .astro files and gives the runtime their renderers, directives, stylesheets and island URLs.","resources":["Component","Renderer"],"serves":[{"consumer":"Site developer","area":"Build sites"},{"consumer":"Vite app developer","area":"Render Astro components"},{"consumer":"Vite app developer","area":"Use UI frameworks"}],"parts":[{"name":"Compile plugins","why":"The one deciding part: compiles .astro modules and records their metadata (src/internal/vite-plugin-astro/, src/internal/core/compile/)."},{"name":"Component assets","why":"Derives a tree's stylesheets and island URLs from Vite's module graph and the compile metadata (src/vite-plugin-component-assets/)."},{"name":"Virtual module plugins","why":"Serve renderers, client directives, scripts and render setup, and handle head propagation and HMR, from the one resolved options object (src/plugin.ts and the vite-plugin-* folders)."},{"name":"Options and errors","why":"Schema, defaults and error helpers (src/options.ts, src/defaults.ts, src/internal/core/errors/)."}]},{"name":"Render runtime","description":"The code compiled components run with: renders component trees to HTML, hydrates islands in the browser and encrypts server island props.","resources":["Page","Component","Renderer"],"serves":[{"consumer":"Site developer","area":"Build sites"},{"consumer":"Vite app developer","area":"Render Astro components"}],"parts":[{"name":"Server rendering","why":"The one deciding part: renders trees to HTML and keeps the registered render config (src/internal/server/, src/internal/render-setup.ts)."},{"name":"Island hydration scripts","why":"Browser scripts that server rendering embeds in each page (src/internal/client/, src/internal/server/astro-island.ts)."},{"name":"Transition helpers","why":"Event and swap functions the Site framework's router calls (src/internal/transitions/)."},{"name":"Errors and helpers","why":"AstroError and its definitions, encryption, CSP sources, escaping and JSX runtime; libraries (src/internal/core/, src/jsx-runtime/)."}]},{"name":"Language tools","description":"Editor and type-checking support for .astro files: the language server, its VS Code client, the TypeScript plugin, astro check and the TypeScript 7 content mapper.","resources":["Component"],"serves":[{"consumer":"Site developer","area":"Check code"}],"parts":[{"name":"Language server","why":"The one deciding part: diagnostics, completions and formatting for .astro files over LSP (language-server/)."},{"name":"VS Code extension","why":"A client that starts the language server and the TypeScript plugin (vscode/); part of the editor extension interface."},{"name":"TypeScript plugin and content mapper","why":"Adapters of the astro2tsx library to tsserver and to TypeScript 7's content mapper (ts-plugin/, ts-content-mapper/)."},{"name":"astro check CLI","why":"Passes the run on to the language server's check (astro-check/)."},{"name":"yaml2ts","why":"A library (yaml2ts/)."}]},{"name":"Project scaffolder","description":"create-astro: creates a new project from a template, installs its dependencies and initializes git.","resources":["Project"],"serves":[{"consumer":"Site developer","area":"Build sites"}],"parts":[{"name":"Setup steps","why":"Steps of one flow sharing one Context (src/actions/)."},{"name":"Messages and shell helpers","why":"Output, prompts and process helpers (src/messages.ts, src/shell.ts)."},{"name":"Templates","why":"The examples/ folders, data the template step downloads."}]},{"name":"Upgrader","description":"@astrojs/upgrade: finds the project's Astro packages, works out their new versions and installs them.","resources":["Project"],"serves":[{"consumer":"Site developer","area":"Upgrade Astro"}],"parts":[{"name":"Upgrade steps","why":"Steps of one flow sharing one Context (src/actions/)."},{"name":"Messages and shell helpers","why":"Output, prompts and process helpers (src/messages.ts, src/shell.ts)."}]},{"name":"Telemetry","description":"@astrojs/telemetry: keeps whether this machine sends anonymous usage data, and sends the events when it may.","resources":["Usage event","Preference"],"serves":[{"consumer":"Site developer","area":"Change preferences"}],"parts":[{"name":"Global config store","why":"Storage (src/config.ts)."},{"name":"Sender","why":"Adapter to the Astro telemetry service (src/post.ts)."},{"name":"Project and system info","why":"Helpers that build the event context (src/project-info.ts, src/system-info.ts)."}]}]}],"outsideServices":[{"name":"npm registry","description":"The package registry, through its API and the project's package manager.","resources":["Package"]},{"name":"GitHub","description":"Hosts the starter templates create-astro downloads, Astro's own examples and third-party repositories.","resources":["Template"]},{"name":"Astro telemetry service","description":"Astro's service that stores anonymous usage events.","resources":["Usage event"]},{"name":"Astro integrations catalog","description":"The astro.build API that lists integrations for the dev toolbar.","resources":["Integration listing"]},{"name":"Astro documentation site","description":"docs.astro.build, where the upgrade guides live.","resources":["Upgrade guide"]},{"name":"Web font providers","description":"Google Fonts, Bunny, Fontshare, Fontsource and Adobe Fonts, reached through unifont.","resources":["Font family"]},{"name":"Remote image hosts","description":"Other servers whose images a site optimizes, when allowed by image.domains or image.remotePatterns.","resources":["Image"]},{"name":"Hosting platform","description":"Vercel, Netlify or Cloudflare, which run the built site and offer CDN caching and image optimization, reached through their deployment adapters.","resources":["Deployment","Cached response","Image"]},{"name":"Session storage","description":"The key-value store a session driver writes to, such as Netlify Blobs, Cloudflare KV or Redis.","resources":["Session"]}],"resources":[{"name":"Project","description":"An Astro project: its config, integrations, pages, components and content.","properties":["config","integrations","adapter","output mode","dependencies"]},{"name":"Page","description":"A page, endpoint or redirect the site serves at a URL, from src/pages, an integration or the config.","properties":["route pattern","params","prerendered or on demand","locale"]},{"name":"Component","description":"An Astro or UI framework component, rendered in a page and possibly hydrated as an island or deferred as a server island.","properties":["client directive","server:defer","scoped styles","scripts"]},{"name":"Content collection","description":"A named set of entries defined in the content config, filled by a loader and checked against a schema.","properties":["schema","loader","build-time or live"]},{"name":"Content entry","description":"One item of a collection: its data, body, rendered HTML, headings and images.","properties":["id","data","body","rendered HTML","digest"]},{"name":"Image","description":"A local or remote image and its optimized versions.","properties":["source","width","format","quality","srcset"]},{"name":"Font family","description":"A font family configured for the site, with its files, faces and fallbacks.","properties":["name","provider","weights","styles","CSS variable"]},{"name":"Action","description":"A server function defined in src/actions and called from browser code or a form.","properties":["input schema","accept","result","error"]},{"name":"Session","description":"Server-side data kept for one visitor across requests, identified by a cookie.","properties":["ID","data","TTL"]},{"name":"Cached response","description":"A rendered response kept in a cache, with how long it lives and its tags.","properties":["max age","tags","path"]},{"name":"Environment variable","description":"A variable declared in env.schema, typed and marked public or secret, client or server.","properties":["type","context","access","default"]},{"name":"Site build","description":"What astro build writes: static files, prerendered pages, the server bundle and its manifest.","properties":["output directory","static or server","pages"]},{"name":"Dev server","description":"A running local server that renders the project and updates pages as files change.","properties":["URL","port","running","logs"]},{"name":"Preference","description":"One of the developer's own settings for Astro's tools, per project or global, such as the dev toolbar or telemetry.","properties":["key","value","project or global"]},{"name":"Renderer","description":"A UI framework renderer registered with Astro: its name and its server and client entrypoints.","properties":["name","server entrypoint","client entrypoint"]},{"name":"Usage event","description":"An anonymous record of a command run, with the project's and system's context.","properties":["event name","anonymous ID"]},{"name":"Package","description":"An npm package and its published versions and tags.","properties":["name","versions","dist-tags"]},{"name":"Template","description":"A starter project kept in a GitHub repository.","properties":["name","repository"]},{"name":"Upgrade guide","description":"The documentation page for moving a project to a new major version of Astro.","properties":["major version","URL"]},{"name":"Integration listing","description":"The list of integrations the dev toolbar suggests.","properties":["name","category"]},{"name":"Deployment","description":"The site as a hosting platform runs it: static files, server functions or workers, and routes.","properties":["functions","static files","routes"]}],"interfaces":[{"name":"astro CLI","description":"The astro command: dev, build, preview, sync, add, check, info, preferences, telemetry and the background dev server commands."},{"name":"project files and config","description":"astro.config and the files Astro reads by convention: src/pages, src/content.config, src/actions, src/middleware, public/ and the tsconfig presets."},{"name":"Astro APIs","description":"The modules project code imports: astro:content, astro:assets, astro:actions, astro:env, astro:i18n, astro:transitions, astro:prefetch, astro:middleware, astro/container, and the Astro global."},{"name":"dev toolbar","description":"The toolbar Astro adds to pages in the browser during astro dev."},{"name":"editor extension","description":"The Astro VS Code extension and the language server, TypeScript plugin and content mapper behind it."},{"name":"create-astro CLI","description":"npm create astro, which creates a new project."},{"name":"upgrade CLI","description":"npx @astrojs/upgrade, which upgrades a project's Astro packages."},{"name":"Integration API","description":"The AstroIntegration object and its hooks, from astro:config:setup to astro:build:done, including setAdapter and setPrerenderer."},{"name":"server runtime API","description":"What an adapter's server entrypoint calls: astro/app, astro/app/node, astro/fetch, astro/hono and astro/env/setup."},{"name":"Loader API","description":"The Loader and LiveLoader contracts and their context, from astro/loaders."},{"name":"toolbar app API","description":"defineToolbarApp and the server helpers for dev toolbar apps, from astro/toolbar."},{"name":"Vite plugin","description":"astro() from @astrojs/vite-plugin-astro, with its options and the renderer packages."},{"name":"render API","description":"renderToString, renderToResponse and createRenderer from @astrojs/runtime."},{"name":"astro() plugin API","description":"astro(options, cli) and getAstroApi, with the AstroPluginCli fields and the plugin's declared internal modules."},{"name":"render runtime API","description":"@astrojs/runtime/server and the runtime's declared internal modules for rendering, encryption, render scope and transitions."},{"name":"render setup module","description":"virtual:astro:render-setup, which registers the compiler's render config with setRenderConfig."},{"name":"@astrojs/check API","description":"check() and parseArgsAsCheckConfig() of @astrojs/check."},{"name":"collection schema files","description":".astro/collections/collections.json and the JSON schema of each content collection."},{"name":"AstroTelemetry API","description":"The AstroTelemetry class: record, notify, setEnabled, clear."},{"name":"npm registry API","description":"The registry's package metadata endpoints, asked directly or through the package manager."},{"name":"integrations catalog API","description":"GET https://astro.build/api/v1/dev-overlay/."},{"name":"font provider APIs","description":"The providers' font APIs, wrapped by unifont as FontProvider."},{"name":"HTTP image fetch","description":"Plain HTTP requests for remote images, limited to allowed domains and patterns."},{"name":"platform deployment output","description":"Each platform's build output format, written by its adapter: Vercel's .vercel/output, Netlify's functions, Cloudflare's worker and wrangler config."},{"name":"platform cache API","description":"Each platform's CDN cache headers and purge call, used by the adapters' cache providers."},{"name":"platform image service","description":"Each platform's image optimization endpoint or binding, used by the adapters' image services."},{"name":"session driver","description":"The unstorage driver that session.driver names."},{"name":"GitHub repository archives","description":"Repository downloads through giget, such as github:withastro/astro#examples/\u003cname>."},{"name":"docs website","description":"The pages of docs.astro.build."},{"name":"telemetry API","description":"POST https://telemetry.astro.build/api/v1/record."},{"name":"project setup functions","description":"resolveConfig, createSettings, the runHook functions of the integration hooks, createVite and syncInternal."},{"name":"dev request plugins","description":"vitePluginAstroServer and vitePluginApp, the Vite middleware and dev App the dev server's Vite server runs, and createRoutesList."},{"name":"build app","description":"renderForPrerender, StaticPaths, createRoutesList, the manifest serializers, and the routing and rendering helpers the builder calls to plan the build."},{"name":"content layer API","description":"globalContentLayer.init with a MutableDataStore the caller loads, ContentLayer sync and watch, attachContentServerListeners and createContentTypesGenerator."},{"name":"image generation API","description":"prepareAssetsGenerationEnv, generateImagesForPath and StaticImageRegistry."},{"name":"fonts plugin and sync","description":"The fonts Vite plugin and syncFonts."},{"name":"env plugin and sync","description":"The astro:env Vite plugin, its validators and syncAstroEnv."},{"name":"action handler","description":"handleAction and the action helpers on the API context."},{"name":"session provider","description":"provideSession and the AstroSession methods."},{"name":"cache handler","description":"provideCache, handleCache, provideAndHandleCache and the Astro.cache object."},{"name":"AstroPreferences","description":"The preferences object: get, set, getAll, list."},{"name":"content image helpers","description":"imageSrcToImportId and createSvgComponent, and the image() schema helper."},{"name":"data store module","description":"The serialized content data store that content sync's virtual module plugin serves, read through ImmutableDataStore, the class MutableDataStore extends."}],"places":[{"place":"Tests and fixtures","kind":"tooling","paths":["packages/**/test/**","packages/**/e2e/**","packages/**/tsconfig.test.json","packages/**/playwright*.js"]},{"place":"Monorepo tooling","kind":"tooling","paths":["*",".agents/**",".changeset/**",".devcontainer/**",".github/**",".gitpod/**",".vscode/**",".zed/**","benchmark/**","configs/**","patches/**","reference/**","scripts/**","packages/astro/performance/**","packages/language-tools/vscode/scripts/**","packages/language-tools/CONTRIBUTING.md"]},{"place":"Site framework","kind":"component","paths":["packages/astro/**"]},{"place":"astro CLI","kind":"interface","paths":["packages/astro/bin/**","packages/astro/src/cli/**"]},{"place":"Astro APIs","kind":"interface","paths":["packages/astro/*.d.ts","packages/astro/src/index.ts","packages/astro/types/**","packages/astro/src/virtual-modules/**","packages/astro/src/container/**","packages/astro/src/core/index.ts","packages/astro/components/index.ts","packages/astro/components/Code.astro","packages/astro/components/Debug.astro","packages/astro/src/runtime/compiler/**"]},{"place":"project files and config","kind":"interface","paths":["packages/astro/tsconfigs/**"]},{"place":"dev toolbar","kind":"interface","paths":["packages/astro/src/runtime/client/dev-toolbar/**"]},{"place":"toolbar app API","kind":"interface","paths":["packages/astro/src/toolbar/**"]},{"place":"server runtime API","kind":"interface","paths":["packages/astro/src/core/hono/**"]},{"place":"Project setup","kind":"component","paths":["packages/astro/src/core/config/**","packages/astro/src/config/**","packages/astro/src/integrations/**","packages/astro/src/core/create-vite.ts","packages/astro/src/core/astro-options.ts","packages/astro/src/core/sync/**","packages/astro/src/vite-plugin-config-alias/**","packages/astro/src/vite-plugin-load-fallback/**","packages/astro/src/vite-plugin-environment/**","packages/astro/src/vite-plugin-integrations-container/**","packages/astro/src/vite-plugin-utils/**","packages/astro/src/vite-plugin-adapter-config/**","packages/astro/src/vite-plugin-html/**","packages/astro/src/vite-plugin-scripts/**"]},{"place":"Dev server","kind":"component","paths":["packages/astro/src/core/dev/**","packages/astro/src/vite-plugin-overlay/**","packages/astro/src/vite-plugin-dev-status/**","packages/astro/src/vite-plugin-chromedevtools/**","packages/astro/src/vite-plugin-css/**","packages/astro/src/cli/dev/**","packages/astro/src/core/createMinimalViteDevServer.ts"]},{"place":"Preview server","kind":"component","paths":["packages/astro/src/core/preview/**"]},{"place":"Site builder","kind":"component","paths":["packages/astro/src/core/build/**","packages/astro/src/prerender/**","packages/astro/src/runtime/prerender/**","packages/astro/src/entrypoints/prerender.ts","packages/astro/src/vite-plugin-head/**","packages/astro/src/vite-plugin-static-paths/**","packages/astro/src/core/output-filename.ts"]},{"place":"Request handler","kind":"component","paths":["packages/astro/src/core/fetch/**","packages/astro/src/core/app/**","packages/astro/src/core/routing/**","packages/astro/src/core/pages/**","packages/astro/src/core/middleware/**","packages/astro/src/core/render/**","packages/astro/src/core/redirects/**","packages/astro/src/core/rewrites/**","packages/astro/src/core/i18n/**","packages/astro/src/i18n/**","packages/astro/src/core/server-islands/**","packages/astro/src/core/cookies/**","packages/astro/src/core/csp/**","packages/astro/src/core/environment/**","packages/astro/src/core/manifest/**","packages/astro/src/manifest/**","packages/astro/src/runtime/server/endpoint.ts","packages/astro/src/vite-plugin-pages/**","packages/astro/src/vite-plugin-routes/**","packages/astro/src/vite-plugin-astro-server/**","packages/astro/src/vite-plugin-app/**","packages/astro/src/core/request.ts","packages/astro/src/core/request-body.ts"]},{"place":"Content layer","kind":"component","paths":["packages/astro/src/content/**"]},{"place":"Content sync","kind":"component","paths":["packages/astro/src/content/content-layer.ts","packages/astro/src/content/mutable-data-store.ts","packages/astro/src/content/data-store-writer.ts","packages/astro/src/content/watcher.ts","packages/astro/src/content/instance.ts","packages/astro/src/content/vite-plugin-content-virtual-mod.ts","packages/astro/src/content/types-generator.ts","packages/astro/src/content/loaders/glob.ts","packages/astro/src/content/loaders/file.ts","packages/astro/src/content/loaders/index.ts","packages/astro/templates/content/types.d.ts"]},{"place":"Collection queries","kind":"component","paths":["packages/astro/src/content/runtime.ts","packages/astro/src/content/runtime-assets.ts","packages/astro/templates/content/module.mjs"]},{"place":"Images","kind":"component","paths":["packages/astro/src/assets/**","packages/astro/components/Image.astro","packages/astro/components/Picture.astro","packages/astro/components/ResponsiveImage.astro","packages/astro/components/ResponsivePicture.astro"]},{"place":"Fonts","kind":"component","paths":["packages/astro/src/assets/fonts/**","packages/astro/components/Font.astro"]},{"place":"Actions","kind":"component","paths":["packages/astro/src/actions/**"]},{"place":"Sessions","kind":"component","paths":["packages/astro/src/core/session/**"]},{"place":"Response cache","kind":"component","paths":["packages/astro/src/core/cache/**"]},{"place":"Environment variables","kind":"component","paths":["packages/astro/src/env/**","packages/astro/templates/env.mjs"]},{"place":"Preferences","kind":"component","paths":["packages/astro/src/preferences/**"]},{"place":"Page transitions","kind":"component","paths":["packages/astro/src/transitions/**","packages/astro/components/ClientRouter.astro","packages/astro/components/viewtransitions.css"]},{"place":"Link prefetching","kind":"component","paths":["packages/astro/src/prefetch/**"]},{"place":"Integration installer","kind":"component","paths":["packages/astro/src/cli/add/**"]},{"place":"npm registry client","kind":"library","paths":["packages/astro/src/cli/install-package.ts"]},{"place":"Framework shared code","kind":"library","paths":["packages/astro/src/types/**","packages/astro/src/core/logger/**","packages/astro/src/core/errors/**","packages/astro/src/core/messages/**","packages/astro/src/core/util.ts","packages/astro/src/core/util-runtime.ts","packages/astro/src/core/constants.ts","packages/astro/src/core/path.ts","packages/astro/src/core/viteUtils.ts","packages/astro/src/core/wait-until.ts","packages/astro/src/core/fs/**","packages/astro/src/core/module-loader/**","packages/astro/src/core/util/**","packages/astro/src/jsx-runtime/**","packages/astro/src/template/**","packages/astro/src/zod.ts","packages/astro/src/environments.ts","packages/astro/src/type-utils.ts","packages/astro/src/core/README.md"]},{"place":"Telemetry events","kind":"library","paths":["packages/astro/src/events/**"]},{"place":"Markdown pages","kind":"library","paths":["packages/astro/src/markdown/**","packages/astro/src/vite-plugin-markdown/**"]},{"place":"Runtime re-exports","kind":"cleanup","paths":["packages/astro/src/runtime/server/**","packages/astro/src/runtime/client/*.ts","packages/astro/src/runtime/README.md"]},{"place":"Legacy adapter entrypoint","kind":"cleanup","paths":["packages/astro/src/entrypoints/legacy.ts"]},{"place":"Component compiler","kind":"component","paths":["packages/vite-plugin-astro/**"]},{"place":"Render runtime","kind":"component","paths":["packages/runtime/**"]},{"place":"Language tools","kind":"component","paths":["packages/language-tools/**"]},{"place":"editor extension","kind":"interface","paths":["packages/language-tools/vscode/**"]},{"place":"Project scaffolder","kind":"component","paths":["packages/create-astro/**","examples/**"]},{"place":"Upgrader","kind":"component","paths":["packages/upgrade/**"]},{"place":"Telemetry","kind":"component","paths":["packages/telemetry/**"]},{"place":"Deployment adapters","kind":"library","paths":["packages/integrations/node/**","packages/integrations/vercel/**","packages/integrations/netlify/**","packages/integrations/cloudflare/**"]},{"place":"UI framework integrations and renderers","kind":"library","paths":["packages/integrations/react/**","packages/integrations/preact/**","packages/integrations/solid/**","packages/integrations/svelte/**","packages/integrations/vue/**","packages/renderers/**"]},{"place":"Content format integrations","kind":"library","paths":["packages/integrations/mdx/**","packages/integrations/markdoc/**"]},{"place":"Markdown processors","kind":"library","paths":["packages/markdown/**"]},{"place":"Feature integrations","kind":"library","paths":["packages/integrations/sitemap/**","packages/integrations/partytown/**","packages/integrations/alpinejs/**","packages/astro-rss/**","packages/astro-prism/**"]},{"place":"Shared helpers","kind":"library","paths":["packages/internal-helpers/**","packages/underscore-redirects/**"]},{"place":"Retired integration stubs","kind":"cleanup","paths":["packages/integrations/deno/**","packages/integrations/web-vitals/**","packages/integrations/tailwind/**"]}],"boundaries":[{"consumer":"Site developer","provider":"Astro","interfaces":["astro CLI","project files and config","Astro APIs","dev toolbar","editor extension","create-astro CLI","upgrade CLI"],"areas":[{"name":"Build sites","type":"core","description":"Make a website: start the project, develop it locally, write its pages, islands and content, and build it for a host.","capabilities":[{"name":"Start project","takes":"a project name and a template, such as basics, blog, Starlight or a GitHub repository","gives":"a new project folder with its dependencies installed and a git repository","acts":[{"mode":"produces","resource":"Project"}],"interfaces":["create-astro CLI"]},{"name":"Add integration","takes":"integration names, such as react, mdx or vercel","gives":"their packages installed and the config updated to use them","acts":[{"mode":"mutates","resource":"Project"}],"interfaces":["astro CLI"]},{"name":"Start dev server","takes":"the project, optionally to run in the background, as the CLI does by itself when a coding agent runs it","gives":"a local URL that renders the pages and updates them as files change","acts":[{"mode":"produces","resource":"Dev server"}],"interfaces":["astro CLI","Astro APIs"]},{"name":"Check background dev server","takes":"the project","gives":"whether its dev server is running, its URL, and its logs","acts":[{"mode":"observes","resource":"Dev server"}],"interfaces":["astro CLI"]},{"name":"Stop dev server","takes":"the project","gives":"its background dev server stopped","acts":[{"mode":"mutates","resource":"Dev server"}],"interfaces":["astro CLI"]},{"name":"Render pages","takes":"pages and endpoints in src/ written in .astro, Markdown, MDX or Markdoc, their layouts and middleware, and a request for a URL","gives":"the rendered page, endpoint response, redirect or rewrite, after middleware and i18n routing","acts":[{"mode":"observes","resource":"Page"}],"interfaces":["project files and config","Astro APIs"]},{"name":"Render islands","takes":"a React, Preact, Solid, Svelte or Vue component with a client directive, Alpine.js markup, or any component with server:defer","gives":"its HTML and the script that hydrates it in the browser, or a placeholder the server fills on a later request","acts":[{"mode":"observes","resource":"Component"}],"interfaces":["project files and config"]},{"name":"List collection entries","takes":"a collection name and an optional filter","gives":"the collection's entries, from the synced store or a live loader","acts":[{"mode":"observes","resource":"Content collection"}],"interfaces":["Astro APIs"]},{"name":"Get entry","takes":"a collection and an entry ID, or a reference","gives":"the entry and its data","acts":[{"mode":"observes","resource":"Content entry"}],"interfaces":["Astro APIs"]},{"name":"Render entry","takes":"a content entry","gives":"its rendered content, headings and frontmatter","acts":[{"mode":"observes","resource":"Content entry"}],"interfaces":["Astro APIs"]},{"name":"Sync project","takes":"the project","gives":"content collections loaded into the store and types generated for content, actions, environment variables and fonts","acts":[{"mode":"mutates","resource":"Content collection"}],"interfaces":["astro CLI"]},{"name":"Get optimized image","takes":"a local or remote image with a width, format, quality or layout","gives":"the optimized image's URL, srcset and attributes, or the Image and Picture elements","acts":[{"mode":"produces","resource":"Image"}],"interfaces":["Astro APIs"]},{"name":"Load fonts","takes":"font families in the fonts config and the Font component","gives":"font files, @font-face CSS with fallbacks, and preload links","acts":[{"mode":"produces","resource":"Font family"}],"interfaces":["project files and config","Astro APIs"]},{"name":"Build site","takes":"the project, with an adapter when some pages render on demand","gives":"static files, prerendered pages and the server bundle in the host's format","acts":[{"mode":"produces","resource":"Site build"}],"interfaces":["astro CLI","Astro APIs"]},{"name":"Preview site build","takes":"a built site","gives":"a local server that serves it, through the adapter when it has one","acts":[{"mode":"observes","resource":"Site build"}],"interfaces":["astro CLI","Astro APIs"]},{"name":"Render component outside a page","takes":"a component, its props and slots, in a test or another server","gives":"its HTML or a Response, through the Container API","acts":[{"mode":"observes","resource":"Component"}],"interfaces":["Astro APIs"]},{"name":"Generate sitemap","takes":"the site URL and the sitemap integration's filters and options","gives":"sitemap index and sitemap files listing the built pages, with their locales","acts":[{"mode":"produces","resource":"Site build"}],"interfaces":["project files and config"]},{"name":"Generate RSS feed","takes":"a feed title, site and items, often from a content collection, in an endpoint","gives":"an RSS XML response","acts":[{"mode":"produces","resource":"Page"}],"interfaces":["Astro APIs"]},{"name":"Move scripts to a web worker","takes":"third-party scripts marked for Partytown","gives":"those scripts run off the main thread","acts":[{"mode":"mutates","resource":"Page"}],"interfaces":["project files and config"]}]},{"name":"Run server logic","type":"supporting","description":"Use Astro's server features from pages and endpoints rendered on demand.","capabilities":[{"name":"Call action","takes":"an action and its input, from browser code or a form","gives":"the typed result, or an input or action error","acts":[{"mode":"produces","resource":"Action"}],"interfaces":["Astro APIs"]},{"name":"Read session data","takes":"a key","gives":"the value stored for this visitor","acts":[{"mode":"observes","resource":"Session"}],"interfaces":["Astro APIs"]},{"name":"Change session data","takes":"keys and values, or a request to regenerate or destroy the session","gives":"the visitor's session updated","acts":[{"mode":"mutates","resource":"Session"}],"interfaces":["Astro APIs"]},{"name":"Cache responses","takes":"a max age and tags from a page, or route rules in the config","gives":"the rendered response cached by the configured provider","acts":[{"mode":"mutates","resource":"Cached response"}],"interfaces":["Astro APIs","project files and config"]},{"name":"Invalidate cached responses","takes":"tags or paths","gives":"the matching cached responses removed","acts":[{"mode":"mutates","resource":"Cached response"}],"interfaces":["Astro APIs"]},{"name":"Read environment variable","takes":"a variable declared in env.schema","gives":"its validated, typed value, with secrets kept on the server","acts":[{"mode":"observes","resource":"Environment variable"}],"interfaces":["Astro APIs"]}]},{"name":"Localize and navigate","type":"supporting","description":"Serve pages in several languages and make moving between pages faster and smoother.","capabilities":[{"name":"Get localized URL","takes":"a locale and a path","gives":"the URL of that page for the locale, following the i18n routing config","acts":[{"mode":"observes","resource":"Page"}],"interfaces":["Astro APIs"]},{"name":"Navigate with view transitions","takes":"the ClientRouter component and transition directives","gives":"client-side navigation that swaps pages with animations and keeps scroll and history","acts":[{"mode":"observes","resource":"Page"}],"interfaces":["Astro APIs"]},{"name":"Prefetch pages","takes":"a prefetch strategy for some links or all of them","gives":"the linked pages fetched before the visitor clicks","acts":[{"mode":"observes","resource":"Page"}],"interfaces":["Astro APIs","project files and config"]}]},{"name":"Check code","type":"supporting","description":"Find errors in Astro files while writing them and before building.","capabilities":[{"name":"Check project","takes":"the project","gives":"type errors and diagnostics in .astro, script and content files","acts":[{"mode":"observes","resource":"Component"}],"interfaces":["astro CLI"]},{"name":"Get editor support","takes":"an open .astro file","gives":"completions, diagnostics, hover information, formatting and navigation","acts":[{"mode":"observes","resource":"Component"}],"interfaces":["editor extension"]}]},{"name":"Upgrade Astro","type":"supporting","description":"Move a project to newer versions of Astro and its official integrations.","capabilities":[{"name":"Upgrade Astro","takes":"the project, optionally a version tag","gives":"Astro and its official integrations upgraded, with links to the upgrade guides","acts":[{"mode":"mutates","resource":"Project"}],"interfaces":["upgrade CLI"]}]},{"name":"Inspect page","type":"supporting","description":"Look at a page's islands and problems in the browser during development.","capabilities":[{"name":"Inspect page","takes":"a page open in the browser during astro dev","gives":"its islands, accessibility and performance audits, and suggested integrations","acts":[{"mode":"observes","resource":"Page"}],"interfaces":["dev toolbar"]}]},{"name":"Change preferences","type":"supporting","description":"Change how Astro's tools behave for this developer, per project or on this machine.","capabilities":[{"name":"Change preference","takes":"a key such as devToolbar.enabled and a value, for the project or globally","gives":"the preference set, listed or reset","acts":[{"mode":"mutates","resource":"Preference"}],"interfaces":["astro CLI"]},{"name":"Change telemetry setting","takes":"enable, disable or reset","gives":"anonymous usage data turned on or off for this machine","acts":[{"mode":"mutates","resource":"Preference"}],"interfaces":["astro CLI"]}]},{"name":"Get debug info","type":"supporting","description":"Collect what a bug report needs.","capabilities":[{"name":"Get debug info","takes":"the project","gives":"the versions of Astro, Node, the package manager, the adapter and the integrations, ready to paste","acts":[{"mode":"observes","resource":"Project"}],"interfaces":["astro CLI"]}]}],"evidence":[{"path":"packages/astro/src/cli/index.ts","shows":"the astro commands: add, dev, build, preview, sync, check, info, preferences, telemetry, create-key, docs"},{"path":"packages/astro/client.d.ts","shows":"the astro:* modules project code imports"},{"path":"packages/astro/src/types/public/config.ts","shows":"the documented config: output, adapter, integrations, session, image, markdown, i18n, env, fonts, cache, prefetch"},{"path":"packages/create-astro/src/actions/template.ts","shows":"templates offered and downloaded"},{"path":"packages/upgrade/src/actions/verify.ts","shows":"how upgrades are worked out and upgrade guides found"},{"path":"packages/language-tools/vscode/README.md","shows":"the editor features"},{"path":"packages/astro/src/runtime/client/dev-toolbar/toolbar.ts","shows":"the dev toolbar"},{"path":"packages/astro/src/content/runtime.ts","shows":"getCollection, getEntry, getEntries, render and the live collection functions"},{"path":"packages/astro/src/assets/internal.ts","shows":"getImage"},{"path":"packages/astro/src/actions/runtime/server.ts","shows":"defineAction and action results"},{"path":"packages/astro/src/core/session/runtime.ts","shows":"Astro.session get, set, regenerate, destroy"},{"path":"packages/astro/src/core/cache/runtime/cache.ts","shows":"Astro.cache set, tags, invalidate"},{"path":"packages/astro/src/i18n/index.ts","shows":"localized URL helpers"},{"path":"packages/astro/src/transitions/router.ts","shows":"view transition navigation"},{"path":"packages/astro/src/prefetch/index.ts","shows":"prefetch strategies"},{"path":"packages/astro/src/cli/dev/status.ts","shows":"astro dev status for a background server"},{"path":"packages/astro/src/container/index.ts","shows":"the Container API"},{"path":"packages/integrations/sitemap/src/index.ts","shows":"sitemap generation after the build"},{"path":"packages/astro-rss/src/index.ts","shows":"rss() returning a feed response"},{"path":"packages/integrations/partytown/src/index.ts","shows":"Partytown scripts"},{"path":"packages/integrations/mdx/src/index.ts","shows":"MDX pages and content"},{"path":"packages/integrations/markdoc/src/index.ts","shows":"Markdoc content"},{"path":"packages/integrations/alpinejs/src/index.ts","shows":"Alpine.js support"}]},{"consumer":"Integration author","provider":"Astro","interfaces":["Integration API","server runtime API","Loader API","toolbar app API"],"areas":[{"name":"Extend Astro","type":"core","description":"Change how Astro sets up, builds and serves a project, from an integration's hooks.","capabilities":[{"name":"Change project config","takes":"config changes, watch files and injected types, or an image service, session driver, cache provider or logger to use","gives":"the resolved config with the changes","acts":[{"mode":"mutates","resource":"Project"}],"interfaces":["Integration API"]},{"name":"Add renderer","takes":"a UI framework renderer with its server and client entrypoints","gives":"components of that framework rendered and hydrated in pages","acts":[{"mode":"produces","resource":"Renderer"}],"interfaces":["Integration API"]},{"name":"Add client directive","takes":"a directive name and its client script","gives":"a new client directive for islands","acts":[{"mode":"mutates","resource":"Project"}],"interfaces":["Integration API"]},{"name":"Inject route","takes":"a URL pattern and an entrypoint","gives":"a page or endpoint served at that pattern","acts":[{"mode":"produces","resource":"Page"}],"interfaces":["Integration API"]},{"name":"Inject script","takes":"a script and its stage: head-inline, before-hydration, page or page-ssr","gives":"the script added to every page","acts":[{"mode":"mutates","resource":"Page"}],"interfaces":["Integration API"]},{"name":"Add middleware","takes":"a middleware entrypoint and its order, pre or post","gives":"it run around the project's own middleware on every request","acts":[{"mode":"mutates","resource":"Project"}],"interfaces":["Integration API"]},{"name":"Read resolved routes","takes":"the route hooks","gives":"every route with its pattern, params and whether it is prerendered","acts":[{"mode":"observes","resource":"Page"}],"interfaces":["Integration API"]},{"name":"Read build output","takes":"the build hooks","gives":"the built pages, output directory, assets, manifest and static headers","acts":[{"mode":"observes","resource":"Site build"}],"interfaces":["Integration API"]},{"name":"Add toolbar app","takes":"a toolbar app entrypoint","gives":"an app in the dev toolbar that can talk to the dev server","acts":[{"mode":"mutates","resource":"Dev server"}],"interfaces":["Integration API","toolbar app API"]}]},{"name":"Deploy to a host","type":"supporting","description":"Make built sites run on a hosting platform: what a deployment adapter does.","capabilities":[{"name":"Set adapter","takes":"an adapter with its server entrypoint and the features it supports","gives":"the build shaped for that host, with warnings for unsupported features","acts":[{"mode":"mutates","resource":"Project"}],"interfaces":["Integration API"]},{"name":"Render request with the built app","takes":"a Request in the host's server entrypoint, through App, astro/fetch or astro/hono","gives":"the Response from the site's routes, middleware and pages","acts":[{"mode":"observes","resource":"Page"}],"interfaces":["server runtime API"]},{"name":"Set prerenderer","takes":"a prerenderer that lists the static paths and renders each one, for example in another runtime","gives":"the static pages prerendered through it","acts":[{"mode":"mutates","resource":"Site build"}],"interfaces":["Integration API"]},{"name":"Provide environment variables","takes":"a function that reads the host's variables, through astro/env/setup","gives":"astro:env/server secrets read from the host at request time","acts":[{"mode":"mutates","resource":"Environment variable"}],"interfaces":["server runtime API"]}]},{"name":"Load content","type":"supporting","description":"Fill content collections from any source.","capabilities":[{"name":"Load collection entries","takes":"a loader whose load() writes entries through the store, with parseData, renderMarkdown and meta","gives":"the collection filled and kept between syncs","acts":[{"mode":"mutates","resource":"Content collection"}],"interfaces":["Loader API"]},{"name":"Load live entries","takes":"a live loader with loadCollection and loadEntry","gives":"entries fetched at request time, with cache hints","acts":[{"mode":"observes","resource":"Content entry"}],"interfaces":["Loader API"]},{"name":"Refresh content","takes":"a refresh request from the dev server hook, with context such as a webhook body","gives":"the selected loaders run again","acts":[{"mode":"mutates","resource":"Content collection"}],"interfaces":["Integration API"]}]}],"evidence":[{"path":"packages/astro/src/types/public/integrations.ts","shows":"AstroIntegration hooks, AstroAdapter, AstroPrerenderer"},{"path":"packages/astro/src/integrations/hooks.ts","shows":"how each hook is run and what it may change"},{"path":"packages/astro/src/core/app/entrypoints/index.ts","shows":"App for adapters' server entrypoints"},{"path":"packages/astro/src/core/fetch/index.ts","shows":"astro/fetch handlers"},{"path":"packages/astro/src/core/hono/index.ts","shows":"astro/hono"},{"path":"packages/astro/src/env/setup.ts","shows":"setGetEnv for adapters"},{"path":"packages/astro/src/content/loaders/types.ts","shows":"Loader, LiveLoader and LoaderContext"},{"path":"packages/astro/src/toolbar/index.ts","shows":"defineToolbarApp"},{"path":"packages/integrations/deno/README.md","shows":"an adapter now maintained by another organization"}]},{"consumer":"Vite app developer","provider":"Astro","interfaces":["Vite plugin","render API"],"areas":[{"name":"Render Astro components","type":"core","description":"Use the Astro component language in a Vite project, without Astro's pages or routing.","capabilities":[{"name":"Compile Astro components","takes":".astro files in a Vite project, with root, site, compressHTML and trailingSlash options","gives":"compiled modules with their scoped styles, scripts and island assets, in dev and build","acts":[{"mode":"produces","resource":"Component"}],"interfaces":["Vite plugin"]},{"name":"Render component","takes":"a compiled component with its props, slots and request, as a document or a fragment","gives":"an HTML string or a text/html Response with the tree's stylesheets","acts":[{"mode":"observes","resource":"Component"}],"interfaces":["render API"]},{"name":"Render without Vite","takes":"components compiled ahead of time, with renderers, directives and an asset resolver","gives":"a renderer whose renderToString and renderToResponse run in any JavaScript runtime","acts":[{"mode":"observes","resource":"Component"}],"interfaces":["render API"]}]},{"name":"Use UI frameworks","type":"supporting","description":"Render React, Preact, Solid, Svelte or Vue components as islands.","capabilities":[{"name":"Add renderers","takes":"renderer packages for React, Preact, Solid, Svelte or Vue, next to their Vite plugins","gives":"framework components rendered and hydrated as islands","acts":[{"mode":"produces","resource":"Renderer"}],"interfaces":["Vite plugin"]}]}],"evidence":[{"path":"packages/vite-plugin-astro/API.md","shows":"astro(), its options, rendering, renderers and api.astro"},{"path":"packages/vite-plugin-astro/src/plugin.ts","shows":"astro() and getAstroApi"},{"path":"packages/runtime/API.md","shows":"renderToString, renderToResponse and createRenderer"},{"path":"packages/runtime/src/render.ts","shows":"createRenderer"},{"path":"packages/renderers/react/src/index.ts","shows":"a renderer package"},{"path":"examples/vite-plugin-astro-hono/README.md","shows":"Astro components rendered from a Hono server"}]},{"consumer":"Site framework","provider":"Component compiler","interfaces":["astro() plugin API"],"areas":[{"name":"Compile components","type":"core","description":"Turn the project's .astro files into modules, and tell the framework what each one needs.","capabilities":[{"name":"Compile Astro components","takes":".astro files and the project's options and CLI fields","gives":"JavaScript modules with scoped styles and scripts","acts":[{"mode":"produces","resource":"Component"}]},{"name":"Read component metadata","takes":"a compiled module","gives":"its islands, scripts and head propagation","acts":[{"mode":"observes","resource":"Component"}]},{"name":"Collect page styles","takes":"a page's module in dev","gives":"its stylesheets in order","acts":[{"mode":"observes","resource":"Component"}]},{"name":"Bundle client directive","takes":"a custom directive's entrypoint","gives":"the bundled directive script","acts":[{"mode":"produces","resource":"Component"}]}]}],"evidence":[{"path":"packages/astro/src/core/create-vite.ts","shows":"the framework adds astro(toAstroOptions(settings), toAstroCli(...))"},{"path":"packages/astro/src/core/astro-options.ts","shows":"the options and AstroPluginCli fields the framework passes"},{"path":"packages/vite-plugin-astro/src/internal/cli.ts","shows":"AstroPluginCli"},{"path":"packages/vite-plugin-astro/src/internal/vite-plugin-astro/metadata.ts","shows":"getAstroMetadata"},{"path":"packages/vite-plugin-astro/src/internal/vite-plugin-css/collect.ts","shows":"collectCSSWithOrder"},{"path":"packages/vite-plugin-astro/src/internal/core/client-directive/index.ts","shows":"buildClientDirectiveEntrypoint"}]},{"consumer":"Site framework","provider":"Render runtime","interfaces":["render runtime API"],"areas":[{"name":"Render pages","type":"core","description":"Turn page and component trees into HTML, and run the browser side of islands and transitions.","capabilities":[{"name":"Render page","takes":"a page component with its props and request","gives":"the streamed HTML response","acts":[{"mode":"observes","resource":"Page"}]},{"name":"Render component","takes":"a component with its props and slots, or a server island with the site key","gives":"its HTML and island script, or a placeholder whose props are encrypted and decrypted on the island's own request","acts":[{"mode":"observes","resource":"Component"}]},{"name":"Collect render metadata","takes":"a prerendered page's render","gives":"the images and content entries it used","acts":[{"mode":"observes","resource":"Page"}]},{"name":"Swap page in the browser","takes":"the next page's document","gives":"the current document swapped, with transition events","acts":[{"mode":"observes","resource":"Page"}]}]}],"evidence":[{"path":"packages/runtime/API.md","shows":"the entry points and internal modules the framework uses"},{"path":"packages/runtime/src/server/index.ts","shows":"the render runtime's server exports"},{"path":"packages/runtime/src/internal/core/encryption.ts","shows":"server island key and encryption"},{"path":"packages/runtime/src/internal/core/render-scope/collect.ts","shows":"prerender metadata collection"},{"path":"packages/runtime/src/internal/transitions/swap-functions.ts","shows":"swap functions used by the router"}]},{"consumer":"Site framework","provider":"Language tools","interfaces":["@astrojs/check API"],"areas":[{"name":"Check project","type":"core","description":"Run the language server's diagnostics over a whole project for astro check.","capabilities":[{"name":"Check project","takes":"the project root and the check options","gives":"the diagnostics and whether errors were found","acts":[{"mode":"observes","resource":"Component"}]}]}],"evidence":[{"path":"packages/astro/src/cli/check/index.ts","shows":"astro check loads @astrojs/check and calls check() after sync"},{"path":"packages/language-tools/astro-check/src/index.ts","shows":"check and parseArgsAsCheckConfig"},{"path":"packages/language-tools/language-server/src/check.ts","shows":"the language server's project check"}]},{"consumer":"Language tools","provider":"Site framework","interfaces":["collection schema files"],"areas":[{"name":"Read collection schemas","type":"core","description":"Know each content collection's schema to complete and check entry frontmatter in the editor.","capabilities":[{"name":"Read collection schemas","takes":"a workspace folder","gives":"each content collection's JSON schema","acts":[{"mode":"observes","resource":"Content collection"}]}]}],"evidence":[{"path":"packages/language-tools/language-server/src/nodeServer.ts","shows":"loadCollectionConfig reads .astro/collections/collections.json"},{"path":"packages/astro/src/content/types-generator.ts","shows":"the collection schemas and collections.json are written"},{"path":"packages/astro/src/content/content-layer.ts","shows":"regenerateCollectionFileManifest rewrites the entries of collections.json after a sync"},{"path":"packages/astro/src/content/consts.ts","shows":"COLLECTIONS_MANIFEST_FILE"}]},{"consumer":"Site framework","provider":"Telemetry","interfaces":["AstroTelemetry API"],"areas":[{"name":"Record usage","type":"core","description":"Report which commands run, when the developer allows it.","capabilities":[{"name":"Record usage event","takes":"an event name and its payload","gives":"the event sent when telemetry is enabled, after the notice has been shown once","acts":[{"mode":"produces","resource":"Usage event"}]}]},{"name":"Change telemetry setting","type":"supporting","description":"Turn telemetry on or off, or reset it.","capabilities":[{"name":"Change telemetry setting","takes":"enable, disable or reset","gives":"the new setting, with a new anonymous ID after a reset","acts":[{"mode":"mutates","resource":"Preference"}]}]}],"evidence":[{"path":"packages/telemetry/src/index.ts","shows":"AstroTelemetry record, notify, setEnabled, clear"},{"path":"packages/astro/src/events/index.ts","shows":"the framework's telemetry instance"},{"path":"packages/astro/src/cli/telemetry/index.ts","shows":"astro telemetry enable, disable, reset"}]},{"consumer":"Component compiler","provider":"Render runtime","interfaces":["render setup module"],"areas":[{"name":"Register render setup","type":"core","description":"Give the runtime what it needs to render the components the compiler compiled.","capabilities":[{"name":"Register renderers","takes":"the plugin's renderers, client directives and component assets","gives":"a runtime ready to render compiled components with renderToString and renderToResponse","acts":[{"mode":"mutates","resource":"Renderer"}]}]}],"evidence":[{"path":"packages/runtime/src/internal/render-setup.ts","shows":"setRenderConfig"},{"path":"packages/vite-plugin-astro/src/vite-plugin-render-setup/index.ts","shows":"virtual:astro:render-setup added to compiled modules"},{"path":"packages/runtime/src/compiler/index.ts","shows":"the compiler-runtime compiled components import"}]},{"consumer":"Site framework","provider":"npm registry","interfaces":["npm registry API"],"areas":[{"name":"Look up packages","type":"core","description":"Find package versions to install or to report.","capabilities":[{"name":"Look up package versions","takes":"a package name and a tag or range","gives":"its manifest or published versions","acts":[{"mode":"observes","resource":"Package"}]}]}],"evidence":[{"path":"packages/astro/src/cli/install-package.ts","shows":"fetchPackageJson and fetchPackageVersions against the registry"}]},{"consumer":"Site framework","provider":"Astro integrations catalog","interfaces":["integrations catalog API"],"areas":[{"name":"List integrations","type":"core","description":"Show integrations in the dev toolbar.","capabilities":[{"name":"List integrations","takes":"nothing","gives":"the integrations the dev toolbar suggests","acts":[{"mode":"observes","resource":"Integration listing"}]}]}],"evidence":[{"path":"packages/astro/src/runtime/client/dev-toolbar/apps/astro.ts","shows":"fetch of https://astro.build/api/v1/dev-overlay/"}]},{"consumer":"Site framework","provider":"Web font providers","interfaces":["font provider APIs"],"areas":[{"name":"Get web fonts","type":"core","description":"Get font faces and files for the families a site uses.","capabilities":[{"name":"Resolve font family","takes":"a family name with weights, styles and subsets","gives":"its font faces and font files, or the nearest family names when it is not found","acts":[{"mode":"observes","resource":"Font family"}]}]}],"evidence":[{"path":"packages/astro/src/assets/fonts/providers/index.ts","shows":"adobe, bunny, fontshare, fontsource and google providers through unifont"},{"path":"packages/astro/src/assets/fonts/types.ts","shows":"the FontProvider contract"},{"path":"packages/astro/src/assets/fonts/infra/cached-font-fetcher.ts","shows":"font files downloaded and cached"}]},{"consumer":"Site framework","provider":"Remote image hosts","interfaces":["HTTP image fetch"],"areas":[{"name":"Fetch remote images","type":"core","description":"Get remote images to optimize them.","capabilities":[{"name":"Fetch remote image","takes":"an allowed image URL","gives":"the image and its cache headers","acts":[{"mode":"observes","resource":"Image"}]}]}],"evidence":[{"path":"packages/astro/src/assets/build/remote.ts","shows":"remote images fetched and revalidated at build"},{"path":"packages/astro/src/assets/endpoint/loadImage.ts","shows":"remote images fetched by the endpoint, checked with isRemoteAllowed"}]},{"consumer":"Site framework","provider":"Hosting platform","interfaces":["platform deployment output","platform cache API","platform image service"],"areas":[{"name":"Run the site","type":"core","description":"Have the platform serve the built site.","capabilities":[{"name":"Run built site","takes":"the server entrypoint, static files and routes in the platform's format","gives":"the site served by the platform's functions or workers","acts":[{"mode":"produces","resource":"Deployment"}],"interfaces":["platform deployment output"]}]},{"name":"Cache responses on the CDN","type":"supporting","description":"Keep rendered responses at the platform's edge and purge them.","capabilities":[{"name":"Cache response on CDN","takes":"a response with a max age and tags","gives":"it cached at the edge","acts":[{"mode":"mutates","resource":"Cached response"}],"interfaces":["platform cache API"]},{"name":"Purge CDN cache","takes":"tags or paths","gives":"the matching entries removed","acts":[{"mode":"mutates","resource":"Cached response"}],"interfaces":["platform cache API"]}]},{"name":"Transform images on the platform","type":"supporting","description":"Let the platform optimize images on request.","capabilities":[{"name":"Transform image","takes":"an image URL with a width, format and quality","gives":"the platform-optimized image","acts":[{"mode":"produces","resource":"Image"}],"interfaces":["platform image service"]}]}],"evidence":[{"path":"packages/integrations/vercel/src/index.ts","shows":"the Vercel output, functions and image config"},{"path":"packages/integrations/netlify/src/index.ts","shows":"the Netlify functions and Blobs sessions"},{"path":"packages/integrations/cloudflare/src/index.ts","shows":"the Cloudflare worker build"},{"path":"packages/integrations/vercel/src/cache/provider.ts","shows":"Vercel-CDN-Cache-Control and invalidateByTag"},{"path":"packages/integrations/netlify/src/cache/provider.ts","shows":"purgeCache"},{"path":"packages/integrations/cloudflare/src/cache/provider.ts","shows":"cache.purge"},{"path":"packages/integrations/netlify/src/image-service.ts","shows":"the Netlify image CDN service"},{"path":"packages/integrations/vercel/src/image/build-service.ts","shows":"the Vercel image service"}]},{"consumer":"Site framework","provider":"Session storage","interfaces":["session driver"],"areas":[{"name":"Store sessions","type":"core","description":"Keep each visitor's session data between requests.","capabilities":[{"name":"Store session data","takes":"a session ID and its data with a TTL","gives":"it stored","acts":[{"mode":"mutates","resource":"Session"}]},{"name":"Load session data","takes":"a session ID","gives":"the stored data","acts":[{"mode":"observes","resource":"Session"}]},{"name":"Remove session data","takes":"a session ID","gives":"the entry removed","acts":[{"mode":"mutates","resource":"Session"}]}]}],"evidence":[{"path":"packages/astro/src/core/session/drivers.ts","shows":"the built-in session drivers"},{"path":"packages/astro/src/core/session/runtime.ts","shows":"AstroSession loads and saves through the storage"},{"path":"packages/integrations/netlify/src/index.ts","shows":"sessions enabled with Netlify Blobs"}]},{"consumer":"Project scaffolder","provider":"GitHub","interfaces":["GitHub repository archives"],"areas":[{"name":"Get templates","type":"core","description":"Download a starter project.","capabilities":[{"name":"Download template","takes":"a template name or a repository","gives":"the template's files, after checking it exists","acts":[{"mode":"observes","resource":"Template"}]}]}],"evidence":[{"path":"packages/create-astro/src/actions/template.ts","shows":"downloadTemplate of github:withastro/astro#examples/\u003cname>"},{"path":"packages/create-astro/src/actions/verify.ts","shows":"verifyTemplate"}]},{"consumer":"Project scaffolder","provider":"npm registry","interfaces":["npm registry API"],"areas":[{"name":"Look up packages","type":"core","description":"Find the latest version of Astro and install a new project's dependencies.","capabilities":[{"name":"Look up package versions","takes":"a package name and a tag","gives":"its version","acts":[{"mode":"observes","resource":"Package"}]}]}],"evidence":[{"path":"packages/create-astro/src/messages.ts","shows":"the registry asked for a package's version"},{"path":"packages/create-astro/src/actions/dependencies.ts","shows":"dependencies installed with the package manager"}]},{"consumer":"Upgrader","provider":"npm registry","interfaces":["npm registry API"],"areas":[{"name":"Look up packages","type":"core","description":"Find the versions to upgrade to.","capabilities":[{"name":"Look up package versions","takes":"an installed Astro package","gives":"its published versions and tags","acts":[{"mode":"observes","resource":"Package"}]}]}],"evidence":[{"path":"packages/upgrade/src/actions/verify.ts","shows":"the registry asked for each package's versions"},{"path":"packages/upgrade/src/actions/install.ts","shows":"packages installed with the package manager"}]},{"consumer":"Upgrader","provider":"Astro documentation site","interfaces":["docs website"],"areas":[{"name":"Find upgrade guide","type":"core","description":"Point the developer to the guide for a major upgrade.","capabilities":[{"name":"Find upgrade guide","takes":"a major version","gives":"the guide's URL when it exists","acts":[{"mode":"observes","resource":"Upgrade guide"}]}]}],"evidence":[{"path":"packages/upgrade/src/actions/verify.ts","shows":"fetch of docs.astro.build/en/guides/upgrade-to/v\u003cmajor>/"}]},{"consumer":"Telemetry","provider":"Astro telemetry service","interfaces":["telemetry API"],"areas":[{"name":"Record usage","type":"core","description":"Send anonymous usage events.","capabilities":[{"name":"Record usage event","takes":"events with their anonymous context","gives":"them stored by the service","acts":[{"mode":"produces","resource":"Usage event"}]}]}],"evidence":[{"path":"packages/telemetry/src/post.ts","shows":"POST to telemetry.astro.build/api/v1/record"}]},{"consumer":"Dev server","provider":"Project setup","interfaces":["project setup functions"],"areas":[{"name":"Set up the project","type":"core","description":"Get the project's settings, run the integration hooks and the Vite config to serve it.","capabilities":[{"name":"Resolve project","takes":"the root and the inline config","gives":"the validated settings with every integration's additions","acts":[{"mode":"produces","resource":"Project"}]},{"name":"Run integration hooks","takes":"a lifecycle stage and its data","gives":"the integrations' changes applied to the settings","acts":[{"mode":"mutates","resource":"Project"}]},{"name":"Create Vite config","takes":"the settings and the command","gives":"the Vite config with Astro's plugins","acts":[{"mode":"observes","resource":"Project"}]},{"name":"Sync project","takes":"the settings","gives":"content synced and types generated","acts":[{"mode":"mutates","resource":"Project"}]}]}],"evidence":[{"path":"packages/astro/src/core/dev/container.ts","shows":"the dev server resolves the config and creates the Vite server"},{"path":"packages/astro/src/core/config/config.ts","shows":"resolveConfig"},{"path":"packages/astro/src/core/config/settings.ts","shows":"createSettings"},{"path":"packages/astro/src/integrations/hooks.ts","shows":"the runHook functions"},{"path":"packages/astro/src/core/create-vite.ts","shows":"createVite"},{"path":"packages/astro/src/core/sync/index.ts","shows":"syncInternal"}]},{"consumer":"Site builder","provider":"Project setup","interfaces":["project setup functions"],"areas":[{"name":"Set up the project","type":"core","description":"Get the project's settings, run the build hooks and the Vite config to build it.","capabilities":[{"name":"Resolve project","takes":"the root and the inline config","gives":"the validated settings with every integration's additions","acts":[{"mode":"produces","resource":"Project"}]},{"name":"Run integration hooks","takes":"a build stage and its data","gives":"the integrations' changes applied, and their adapter and prerenderer","acts":[{"mode":"mutates","resource":"Project"}]},{"name":"Create Vite config","takes":"the settings and the build command","gives":"the Vite config with Astro's plugins","acts":[{"mode":"observes","resource":"Project"}]},{"name":"Sync project","takes":"the settings","gives":"content synced and types generated before building","acts":[{"mode":"mutates","resource":"Project"}]}]}],"evidence":[{"path":"packages/astro/src/core/build/index.ts","shows":"the builder resolves the project, syncs and runs the build hooks"},{"path":"packages/astro/src/integrations/hooks.ts","shows":"runHookBuildStart, runHookBuildSetup, runHookBuildDone"}]},{"consumer":"Preview server","provider":"Project setup","interfaces":["project setup functions"],"areas":[{"name":"Set up the project","type":"core","description":"Get the project's settings and adapter to serve its build.","capabilities":[{"name":"Resolve project","takes":"the root and the inline config","gives":"the validated settings with the adapter","acts":[{"mode":"produces","resource":"Project"}]},{"name":"Run integration hooks","takes":"the config stages","gives":"the integrations' changes applied","acts":[{"mode":"mutates","resource":"Project"}]}]}],"evidence":[{"path":"packages/astro/src/core/preview/index.ts","shows":"preview resolves the config and runs the config hooks"}]},{"consumer":"Dev server","provider":"Request handler","interfaces":["dev request plugins"],"areas":[{"name":"Serve requests in development","type":"core","description":"Answer the dev server's requests with the project's current routes.","capabilities":[{"name":"Render request","takes":"a request the dev server's Vite middleware receives","gives":"the page, endpoint or dev error page, with routes kept current as files change","acts":[{"mode":"observes","resource":"Page"}]},{"name":"List routes","takes":"the project's settings","gives":"every page, endpoint and redirect with its pattern","acts":[{"mode":"observes","resource":"Page"}]}]}],"evidence":[{"path":"packages/astro/src/vite-plugin-astro-server/plugin.ts","shows":"the Vite middleware that answers dev requests"},{"path":"packages/astro/src/vite-plugin-app/createAstroServerApp.ts","shows":"the dev App and its route table updates"},{"path":"packages/astro/src/core/create-vite.ts","shows":"the dev request plugins added to the dev server's Vite config"},{"path":"packages/astro/src/core/routing/create-manifest.ts","shows":"createRoutesList, called by core/dev/container.ts"}]},{"consumer":"Site builder","provider":"Request handler","interfaces":["build app"],"areas":[{"name":"Prerender pages","type":"core","description":"Know the routes and render the static ones at build.","capabilities":[{"name":"List routes","takes":"the project","gives":"every page, endpoint and redirect with its pattern","acts":[{"mode":"observes","resource":"Page"}]},{"name":"List static paths","takes":"the routes","gives":"every path to prerender with its params","acts":[{"mode":"observes","resource":"Page"}]},{"name":"Prerender page","takes":"a path and its route","gives":"the rendered response and its render metadata","acts":[{"mode":"observes","resource":"Page"}]}]}],"evidence":[{"path":"packages/astro/src/core/app/prerender.ts","shows":"renderForPrerender"},{"path":"packages/astro/src/runtime/prerender/static-paths.ts","shows":"StaticPaths"},{"path":"packages/astro/src/core/routing/create-manifest.ts","shows":"createRoutesList"},{"path":"packages/astro/src/core/build/default-prerenderer.ts","shows":"the builder's prerenderer calls these"}]},{"consumer":"Dev server","provider":"Content layer","interfaces":["content layer API"],"areas":[{"name":"Keep content in sync","type":"core","description":"Load the collections and keep them current while the project runs.","capabilities":[{"name":"Sync content","takes":"the content config, and optionally the collections to refresh","gives":"the data store filled by the loaders","acts":[{"mode":"mutates","resource":"Content collection"}]},{"name":"Watch content","takes":"the dev server's file watcher","gives":"the store updated when content files or the config change","acts":[{"mode":"mutates","resource":"Content collection"}]},{"name":"Generate content types","takes":"the content config","gives":"the collections' types and schemas","acts":[{"mode":"observes","resource":"Content collection"}]}]}],"evidence":[{"path":"packages/astro/src/content/instance.ts","shows":"globalContentLayer"},{"path":"packages/astro/src/content/content-layer.ts","shows":"sync, watchContentConfig, regenerateCollectionFileManifest"},{"path":"packages/astro/src/content/server-listeners.ts","shows":"attachContentServerListeners"},{"path":"packages/astro/src/core/dev/container.ts","shows":"the dev server starts content sync"}]},{"consumer":"Project setup","provider":"Content layer","interfaces":["content layer API"],"areas":[{"name":"Keep content in sync","type":"core","description":"Load the collections and write their types during astro sync and before a build.","capabilities":[{"name":"Sync content","takes":"the content config","gives":"the data store filled by the loaders","acts":[{"mode":"mutates","resource":"Content collection"}]},{"name":"Generate content types","takes":"the content config","gives":"the collections' types and schemas","acts":[{"mode":"observes","resource":"Content collection"}]}]}],"evidence":[{"path":"packages/astro/src/core/sync/index.ts","shows":"syncInternal runs globalContentLayer and createContentTypesGenerator"},{"path":"packages/astro/src/content/index.ts","shows":"createContentTypesGenerator"}]},{"consumer":"Site builder","provider":"Images","interfaces":["image generation API"],"areas":[{"name":"Generate images","type":"core","description":"Write the optimized images the static pages use.","capabilities":[{"name":"Generate optimized images","takes":"the static image transforms the pages used","gives":"the optimized files, reused from the cache when unchanged","acts":[{"mode":"produces","resource":"Image"}]}]}],"evidence":[{"path":"packages/astro/src/assets/build/generate.ts","shows":"prepareAssetsGenerationEnv, generateImagesForPath, StaticImageRegistry"},{"path":"packages/astro/src/core/build/generate.ts","shows":"the builder generates images after the pages"}]},{"consumer":"Project setup","provider":"Fonts","interfaces":["fonts plugin and sync"],"areas":[{"name":"Prepare fonts","type":"core","description":"Resolve the configured fonts for dev and build, and their types.","capabilities":[{"name":"Resolve fonts","takes":"the fonts config","gives":"each family's faces, fallbacks and file URLs, served in dev and copied at build","acts":[{"mode":"produces","resource":"Font family"}]},{"name":"Generate font types","takes":"the settings","gives":"the types of the font CSS variables","acts":[{"mode":"observes","resource":"Font family"}]}]}],"evidence":[{"path":"packages/astro/src/assets/fonts/vite-plugin-fonts.ts","shows":"the fonts plugin"},{"path":"packages/astro/src/assets/vite-plugin-assets.ts","shows":"the fonts plugin added with the assets plugins"},{"path":"packages/astro/src/assets/fonts/sync.ts","shows":"syncFonts"}]},{"consumer":"Project setup","provider":"Environment variables","interfaces":["env plugin and sync"],"areas":[{"name":"Prepare environment variables","type":"core","description":"Check the project's variables against its schema and write their types.","capabilities":[{"name":"Validate environment variables","takes":"env.schema and the loaded variables","gives":"typed values, or the list of invalid variables","acts":[{"mode":"observes","resource":"Environment variable"}]},{"name":"Generate env types","takes":"the schema","gives":"the astro:env types","acts":[{"mode":"observes","resource":"Environment variable"}]}]}],"evidence":[{"path":"packages/astro/src/env/vite-plugin-env.ts","shows":"the astro:env plugin validates variables"},{"path":"packages/astro/src/env/validators.ts","shows":"the validators"},{"path":"packages/astro/src/env/sync.ts","shows":"syncAstroEnv"}]},{"consumer":"Request handler","provider":"Actions","interfaces":["action handler"],"areas":[{"name":"Run actions","type":"core","description":"Answer action calls from the browser, forms and page code.","capabilities":[{"name":"Handle action call","takes":"an action request with JSON or form data","gives":"the serialized result or error, or the result for the page to read","acts":[{"mode":"produces","resource":"Action"}]},{"name":"Call action on the server","takes":"an action and its input from page code","gives":"the typed result","acts":[{"mode":"produces","resource":"Action"}]}]}],"evidence":[{"path":"packages/astro/src/actions/handler.ts","shows":"handleAction"},{"path":"packages/astro/src/actions/runtime/server.ts","shows":"action definitions and results"},{"path":"packages/astro/src/core/routing/handler.ts","shows":"the request chain calls handleAction"}]},{"consumer":"Request handler","provider":"Sessions","interfaces":["session provider"],"areas":[{"name":"Keep sessions","type":"core","description":"Give each request its visitor's session.","capabilities":[{"name":"Provide session","takes":"the request and its session cookie","gives":"Astro.session for the page","acts":[{"mode":"observes","resource":"Session"}]},{"name":"Read session data","takes":"a key","gives":"its value","acts":[{"mode":"observes","resource":"Session"}]},{"name":"Change session data","takes":"keys and values, or regenerate or destroy","gives":"the updated session, saved after the response","acts":[{"mode":"mutates","resource":"Session"}]}]}],"evidence":[{"path":"packages/astro/src/core/session/provider.ts","shows":"provideSession"},{"path":"packages/astro/src/core/session/runtime.ts","shows":"AstroSession get, set, delete, regenerate, destroy"},{"path":"packages/astro/src/core/routing/handler.ts","shows":"the request chain provides the session"}]},{"consumer":"Request handler","provider":"Response cache","interfaces":["cache handler"],"areas":[{"name":"Cache responses","type":"core","description":"Serve and store cached responses by route rules and tags.","capabilities":[{"name":"Serve cached response","takes":"a request whose route has cache rules","gives":"the cached response, or the rendered one stored","acts":[{"mode":"mutates","resource":"Cached response"}]},{"name":"Set cache options","takes":"a max age and tags from page code","gives":"them applied to the response","acts":[{"mode":"mutates","resource":"Cached response"}]},{"name":"Invalidate cached responses","takes":"tags or paths","gives":"the matching entries removed","acts":[{"mode":"mutates","resource":"Cached response"}]}]}],"evidence":[{"path":"packages/astro/src/core/cache/handler.ts","shows":"provideCache, handleCache, provideAndHandleCache"},{"path":"packages/astro/src/core/cache/types.ts","shows":"CacheProvider"},{"path":"packages/astro/src/core/cache/runtime/cache.ts","shows":"Astro.cache"}]},{"consumer":"Dev server","provider":"Preferences","interfaces":["AstroPreferences"],"areas":[{"name":"Read preferences","type":"core","description":"Know the developer's settings for the dev server.","capabilities":[{"name":"Read preference","takes":"a key such as devToolbar.enabled or checkUpdates.enabled","gives":"its value from the project, the global file or the defaults","acts":[{"mode":"observes","resource":"Preference"}]}]}],"evidence":[{"path":"packages/astro/src/preferences/index.ts","shows":"AstroPreferences get, set, getAll, list"},{"path":"packages/astro/src/core/dev/dev.ts","shows":"the dev server reads preferences"},{"path":"packages/astro/src/core/astro-options.ts","shows":"toolbarEnabled reads devToolbar.enabled"}]},{"consumer":"Content layer","provider":"Images","interfaces":["content image helpers"],"areas":[{"name":"Resolve entry images","type":"core","description":"Turn images in entries into imported, optimizable images.","capabilities":[{"name":"Resolve entry image","takes":"an image path in an entry's data or body","gives":"the image's import and metadata","acts":[{"mode":"observes","resource":"Image"}]}]}],"evidence":[{"path":"packages/astro/src/assets/utils/resolveImports.ts","shows":"imageSrcToImportId"},{"path":"packages/astro/src/assets/runtime.ts","shows":"createSvgComponent"},{"path":"packages/astro/src/content/runtime.ts","shows":"the content runtime imports them"}]},{"consumer":"Request handler","provider":"Render runtime","interfaces":["render runtime API"],"areas":[{"name":"Render pages","type":"core","description":"Turn the matched page or island into HTML.","capabilities":[{"name":"Render page","takes":"a page component with its props and request","gives":"the streamed HTML response","acts":[{"mode":"observes","resource":"Page"}]},{"name":"Render component","takes":"a server island's encrypted props and slots, with the site key","gives":"the decrypted props and the island's HTML","acts":[{"mode":"observes","resource":"Component"}]}]}],"evidence":[{"path":"packages/astro/src/core/render/index.ts","shows":"page rendering in the request handler"},{"path":"packages/astro/src/core/server-islands/endpoint.ts","shows":"the island endpoint decrypts props and renders the component"},{"path":"packages/runtime/src/server/index.ts","shows":"the render runtime's server exports"}]},{"consumer":"Page transitions","provider":"Render runtime","interfaces":["render runtime API"],"areas":[{"name":"Swap pages","type":"core","description":"Swap the document during a client-side navigation.","capabilities":[{"name":"Swap page in the browser","takes":"the next page's document and the transition direction","gives":"the current document swapped, with transition events fired","acts":[{"mode":"observes","resource":"Page"}]}]}],"evidence":[{"path":"packages/astro/src/transitions/router.ts","shows":"the router imports the runtime's events and swap functions"},{"path":"packages/runtime/src/internal/transitions/events.ts","shows":"doPreparation, doSwap, triggerEvent"}]},{"consumer":"Project setup","provider":"Component compiler","interfaces":["astro() plugin API"],"areas":[{"name":"Compile components","type":"core","description":"Add the compiler to the project's Vite config.","capabilities":[{"name":"Compile Astro components","takes":"the project's options and CLI fields","gives":"the compiler's plugins in the Vite config","acts":[{"mode":"produces","resource":"Component"}]}]}],"evidence":[{"path":"packages/astro/src/core/create-vite.ts","shows":"astro(toAstroOptions(settings), toAstroCli(...)) in the plugins"}]},{"consumer":"Integration installer","provider":"npm registry","interfaces":["npm registry API"],"areas":[{"name":"Look up packages","type":"core","description":"Find the integration packages to install.","capabilities":[{"name":"Look up package versions","takes":"an integration's package name","gives":"its manifest and stable versions","acts":[{"mode":"observes","resource":"Package"}]}]}],"evidence":[{"path":"packages/astro/src/cli/add/index.ts","shows":"astro add resolves versions with fetchPackageJson and fetchPackageVersions"}]},{"consumer":"Dev server","provider":"npm registry","interfaces":["npm registry API"],"areas":[{"name":"Check for updates","type":"core","description":"Tell the developer when a newer Astro exists.","capabilities":[{"name":"Check for Astro update","takes":"the installed version","gives":"the latest published version","acts":[{"mode":"observes","resource":"Package"}]}]}],"evidence":[{"path":"packages/astro/src/core/dev/update-check.ts","shows":"fetchLatestAstroVersion"}]},{"consumer":"Dev server","provider":"Astro integrations catalog","interfaces":["integrations catalog API"],"areas":[{"name":"List integrations","type":"core","description":"Show integrations in the dev toolbar the dev server serves.","capabilities":[{"name":"List integrations","takes":"nothing","gives":"the integrations the dev toolbar suggests","acts":[{"mode":"observes","resource":"Integration listing"}]}]}],"evidence":[{"path":"packages/astro/src/runtime/client/dev-toolbar/apps/astro.ts","shows":"fetch of the integrations catalog"}]},{"consumer":"Fonts","provider":"Web font providers","interfaces":["font provider APIs"],"areas":[{"name":"Get web fonts","type":"core","description":"Get font faces and files for the configured families.","capabilities":[{"name":"Resolve font family","takes":"a family name with weights, styles and subsets","gives":"its font faces and files, or the nearest family names when it is not found","acts":[{"mode":"observes","resource":"Font family"}]}]}],"evidence":[{"path":"packages/astro/src/assets/fonts/infra/unifont-font-resolver.ts","shows":"families resolved through unifont"},{"path":"packages/astro/src/assets/fonts/providers/index.ts","shows":"the built-in providers"}]},{"consumer":"Images","provider":"Remote image hosts","interfaces":["HTTP image fetch"],"areas":[{"name":"Fetch remote images","type":"core","description":"Get allowed remote images to optimize them.","capabilities":[{"name":"Fetch remote image","takes":"an allowed image URL","gives":"the image and its cache headers","acts":[{"mode":"observes","resource":"Image"}]}]}],"evidence":[{"path":"packages/astro/src/assets/build/remote.ts","shows":"remote images fetched at build"},{"path":"packages/astro/src/assets/endpoint/loadImage.ts","shows":"remote images fetched by the endpoint"}]},{"consumer":"Images","provider":"Hosting platform","interfaces":["platform image service"],"areas":[{"name":"Transform images on the platform","type":"core","description":"Let the platform optimize images when its adapter's image service is used.","capabilities":[{"name":"Transform image","takes":"an image URL with a width, format and quality","gives":"the platform-optimized image","acts":[{"mode":"produces","resource":"Image"}]}]}],"evidence":[{"path":"packages/integrations/netlify/src/image-service.ts","shows":"the Netlify image CDN service"},{"path":"packages/integrations/cloudflare/src/entrypoints/image-service-binding.ts","shows":"the Cloudflare Images binding service"}]},{"consumer":"Response cache","provider":"Hosting platform","interfaces":["platform cache API"],"areas":[{"name":"Cache responses on the CDN","type":"core","description":"Keep responses at the platform's edge through the adapter's cache provider.","capabilities":[{"name":"Cache response on CDN","takes":"a response with a max age and tags","gives":"it cached at the edge","acts":[{"mode":"mutates","resource":"Cached response"}]},{"name":"Purge CDN cache","takes":"tags or paths","gives":"the matching entries removed","acts":[{"mode":"mutates","resource":"Cached response"}]}]}],"evidence":[{"path":"packages/integrations/vercel/src/cache/provider.ts","shows":"Vercel cache headers and invalidateByTag"},{"path":"packages/integrations/netlify/src/cache/provider.ts","shows":"purgeCache"}]},{"consumer":"Site builder","provider":"Hosting platform","interfaces":["platform deployment output"],"areas":[{"name":"Run the site","type":"core","description":"Write the build in the platform's format so the platform can serve it.","capabilities":[{"name":"Run built site","takes":"the server entrypoint, static files and routes in the platform's format","gives":"the site served by the platform's functions or workers","acts":[{"mode":"produces","resource":"Deployment"}]}]}],"evidence":[{"path":"packages/integrations/vercel/src/index.ts","shows":"the Vercel output written after the build"},{"path":"packages/integrations/cloudflare/src/wrangler.ts","shows":"the Cloudflare worker config"}]},{"consumer":"Sessions","provider":"Session storage","interfaces":["session driver"],"areas":[{"name":"Store sessions","type":"core","description":"Keep each visitor's session data in the configured store.","capabilities":[{"name":"Store session data","takes":"a session ID and its data with a TTL","gives":"it stored","acts":[{"mode":"mutates","resource":"Session"}]},{"name":"Load session data","takes":"a session ID","gives":"the stored data","acts":[{"mode":"observes","resource":"Session"}]},{"name":"Remove session data","takes":"a session ID","gives":"the entry removed","acts":[{"mode":"mutates","resource":"Session"}]}]}],"evidence":[{"path":"packages/astro/src/core/session/runtime.ts","shows":"AstroSession reads and writes the storage"},{"path":"packages/astro/src/core/session/driver.ts","shows":"the resolved driver per manifest"}]},{"consumer":"Collection queries","provider":"Content sync","interfaces":["data store module"],"areas":[{"name":"Read stored entries","type":"core","description":"Read the entries content sync stored, at request time and during prerendering.","capabilities":[{"name":"Read stored entry","takes":"a collection and an entry ID","gives":"the entry's data, body, rendered HTML and digest","acts":[{"mode":"observes","resource":"Content entry"}]},{"name":"List stored entries","takes":"a collection","gives":"its stored entries","acts":[{"mode":"observes","resource":"Content collection"}]}]}],"evidence":[{"path":"packages/astro/src/content/data-store.ts","shows":"ImmutableDataStore get, entries, values, keys, has, collections"},{"path":"packages/astro/src/content/vite-plugin-content-virtual-mod.ts","shows":"the serialized store served as a module"},{"path":"packages/astro/src/content/mutable-data-store.ts","shows":"MutableDataStore extends ImmutableDataStore and writes the store"}]}],"questions":[{"question":"Are the visitors of a site built with Astro consumers of Astro?","answer":"Left out, rather than a Level 1 consumer of the request handler, page transitions and prefetching; visitors use the developer's website and do not know Astro is behind it, so the request-time features appear as capabilities the site developer uses. No rule says how to treat the users of what a framework builds."},{"question":"Are the language tools, create-astro and the upgrade tool providers of their own?","answer":"Surfaces of the one provider Astro, rather than separate products; each ships separately (VS Code Marketplace, npm) but keeps no data of its own and serves the same site developers. The rule names deployment, data and consumers but not how many of the three make a separate product."},{"question":"Is the integration author a consumer of its own?","answer":"A separate consumer, rather than the site developer using another interface, because published integrations and adapters serve other developers (the Deno adapter and web-vitals moved to other organizations); a developer's local integration uses the same API, and no rule settles a contract used both ways."},{"question":"Is the Vite app developer a consumer of its own?","answer":"A separate consumer, rather than the site developer, because the goal (render components from one's own server, with no pages or routing) and the interfaces (astro() and @astrojs/runtime) differ; both write .astro components."},{"question":"Should the request handler open into routing, middleware, localization, server islands and page rendering?","answer":"Kept closed, rather than opened, because its stages share and change one per-request FetchState and import each other both ways; routing and middleware each keep per-manifest state behind accessors (core/README.md), which would support opening it."},{"question":"Should the site builder open into bundling, page generation and the incremental build cache?","answer":"Kept closed, rather than opened, because the bundler plugins, the incremental plugin and page generation all write or read BuildInternals (core/build/internal.ts); the incremental cache alone keeps the previous build's manifest, which would support making it a component."},{"question":"Are Content sync and the content types generator one component?","answer":"One component, rather than two, because both write .astro/collections/collections.json (types-generator.ts writes it, content-layer.ts regenerateCollectionFileManifest rewrites its entries); otherwise they have separate contracts (ContentLayer.sync and createContentTypesGenerator)."},{"question":"Where does the seam between content sync and collection queries sit, given that MutableDataStore extends ImmutableDataStore?","answer":"At the serialized data store module, with ImmutableDataStore placed in the parent Content layer as shared code, rather than inside either side; the request-time side never imports the mutable store's methods, only its type in one plugin."},{"question":"Are the deployment adapters and UI framework integrations components?","answer":"Not components, as the brief and use-boundary-model ask for adapters to outside services and libraries, placed as libraries; read on their own, the adapters are variants of the AstroAdapter contract and could have been one component with variants."},{"question":"Should Vercel, Netlify and Cloudflare be three outside services?","answer":"One outside service, Hosting platform, rather than three, because the framework uses the same four things from each (run the build, CDN cache, image transforms, key-value storage for sessions) through variants of the same contracts; three would triple the boundaries without new capabilities."},{"question":"Is a preference a resource, given that the model excludes settings?","answer":"A resource, rather than a property of Project, because the developer lists, sets, enables, disables and resets preferences by key through their own commands, and the telemetry setting lives on the machine, not in a project; the setting rule would leave those commands with no resource."},{"question":"Is the sitemap integration a component?","answer":"A library, rather than a component, because it maps the build's page list into the sitemap library through two hooks; it does alone write the sitemap files and decide which pages they list, which would let it pass the component test."},{"question":"Are page transitions and link prefetching one component?","answer":"Two components, rather than one, because their contracts (astro:transitions/client and astro:prefetch) never call each other; ClientRouter only calls prefetch's init()."},{"question":"Do the dev server and builder reach the request handler past its contract?","answer":"Accepted as the declared contract, rather than redrawn, by naming in the dev request plugins and build app interfaces the routing, rewrite and render helpers they call; the import graph shows the request path's modules are reached from 40 files elsewhere (work/astro-src-edges.tsv), and nothing in the code enforces the seam beyond the export maps between packages."},{"question":"Do actions, sessions, the response cache and images reach into the request handler?","answer":"Accepted, rather than redrawn: they import FetchState, the fetch features registry, cookies and the manifest memo because the request handler calls them with that state; the cache also imports routing's pattern and priority helpers, Actions routing helpers and origin-check, and Images the route parser, which are helper reuse past the contract that a reviewer may prefer to move to shared code."},{"question":"Do the dev server and astro sync reach past the content layer's contract?","answer":"Treated as part of the contract, rather than a leak, because globalContentLayer.init takes a MutableDataStore that both callers load themselves with MutableDataStore.fromFile or fromDir (core/dev/dev.ts, core/sync/index.ts); it does put the store's storage format in their hands."},{"question":"Is the telemetry package a component?","answer":"A component, rather than storage and an adapter inside the framework, because it keeps its own global store and alone decides what is sent; the preferences README plans to merge the two stores."}],"cleanupCandidates":[{"name":"Retired integration stubs","why":"packages/integrations/deno, web-vitals and tailwind keep only a README or changelog saying the package moved to another organization or is deprecated in favor of Tailwind's Vite plugin."},{"name":"Runtime re-export shims","why":"packages/astro/src/runtime/server/*, runtime/client/{idle,load,media,only,visible,hmr}.ts and runtime/compiler/index.ts only re-export @astrojs/runtime so the old astro/runtime/* paths keep resolving; the code moved to packages/runtime."},{"name":"Legacy adapter entrypoint and options","why":"packages/astro/src/entrypoints/legacy.ts and the deprecated AstroAdapter fields entrypointResolution 'explicit', exports, args and edgeMiddleware support the Astro 5 adapter API (types/public/integrations.ts: 'will be removed in a future major version')."},{"name":"App and NodeApp facades","why":"core/README.md says they 'survive as thin public compatibility shells' over the functional request core (packages/astro/src/core/app/app.ts, node.ts)."},{"name":"remark/rehype markdown pipeline","why":"@astrojs/markdown-remark is an optional peer kept for the legacy pipeline; Sätteri is the default processor (types/public/config.ts markdown.processor, knip.js comments)."},{"name":"astro check and @astrojs/check","why":"astro check prints that it 'will be deprecated in a future Astro release' in favor of @astrojs/ts-content-mapper for TypeScript 7 (packages/astro/src/cli/check/index.ts)."},{"name":"Separate telemetry config store","why":"@astrojs/telemetry keeps its own global config file, and packages/astro/src/preferences/README.md says the two need to be merged."},{"name":"Deprecated getContainerRenderer root exports","why":"The framework integrations' root getContainerRenderer warns that it is deprecated in favor of the /container-renderer entry (packages/integrations/react/src/index.ts and the others)."},{"name":"Deprecated prerenderer returns","why":"AstroPrerenderer accepts a bare array from getStaticPaths, a bare Response from render and collectStaticImages, all marked deprecated (packages/astro/src/types/public/integrations.ts)."},{"name":"legacy.collectionsBackwardsCompat","why":"A config flag that keeps the older content collections behavior (packages/astro/src/types/public/config.ts, content/utils.ts)."},{"name":"@astro-page: virtual modules","why":"architecture.md calls it a 'legacy pattern'; it remains in packages/astro/src/core/build/static-build.ts next to the virtual:astro:* convention."}],"excluded":[{"name":"Tests and fixtures","why":"Engineering tooling that checks the system: packages/**/test, packages/**/e2e, test tsconfigs and Playwright configs."},{"name":"Benchmarks","why":"Engineering tooling that measures the system: benchmark/ and packages/astro/performance/."},{"name":"CI and repository automation","why":"Engineering tooling that builds, checks and releases the system: .github/ workflows and scripts."},{"name":"Release notes","why":"Engineering tooling for versioning: .changeset/."},{"name":"Contributor agent skills and evals","why":"Instructions and evals for agents working on the repository: .agents/, AGENTS.md, vitest.skills.config.ts."},{"name":"Development containers","why":"Environments for working on the repository: .devcontainer/, .gitpod/, .vscode/, .zed/."},{"name":"Build, lint and type-check configuration","why":"Engineering tooling: configs/, scripts/, patches/, biome.jsonc, eslint.config.js, knip.js, turbo.json, tsconfig.json, the language tools' build scripts."},{"name":"Contributor documentation","why":"Docs for people changing the system: CONTRIBUTING.md, STYLE_GUIDE.md, reference/, packages/language-tools/CONTRIBUTING.md."},{"name":"Site visitor","why":"Uses the developer's website, not Astro; see questions."},{"name":"Astro maintainers","why":"Work on the system itself: triage, release, review."},{"name":"Hosting platforms as consumers","why":"They run the built site but have no goals of their own with Astro; modeled as an outside service the framework relies on."},{"name":"astro docs","why":"Opens the documentation website; it works on no resource Astro keeps."},{"name":"astro create-key","why":"Prints a random key to set as ASTRO_KEY: a credential, and a step of deploying server islands and actions across servers."},{"name":"Telemetry notice","why":"Shown once before usage is recorded; a step of recording."},{"name":"Request checks and headers","why":"Provider behavior during rendering: origin checks, body size limits, Content-Security-Policy headers, trailing slash redirects."},{"name":"Build timings, dev status and Chrome DevTools workspace","why":"Diagnostics and plumbing for tools: core/build/timings, vite-plugin-dev-status, vite-plugin-chromedevtools."},{"name":"Logger configuration","why":"logger.entrypoint and logger.config are settings; their use is folded into Change project config and the build and server output."},{"name":"Image endpoint and error overlay","why":"Machinery that delivers Get optimized image and Start dev server rather than capabilities of their own."}]}</script>
+<script>
+// Draws a boundary map one open box at a time. Each screen shows who uses the open box, its
+// interfaces, its capabilities, the components inside it, and what it uses; every box lists the
+// resources it keeps. A click lights what the clicked thing connects to and explains it in the
+// panel; Open, at the foot of a box, makes it the open box. With ?still in the address the page
+// draws one screen for a still image, with what the panel would say written under the drawing.
+
+// ---------- the map ----------
+
+const RAW = JSON.parse(document.getElementById("map-data").textContent);
+const params = new URLSearchParams(location.search);
+const STILL = params.has("still");
+if (STILL) document.documentElement.classList.add("still");
+const MODE_WORD = { produces: "creates", mutates: "changes", observes: "reads", reacts: "reacts to" };
+const KIND_WORD = {
+  consumer: "Consumer",
+  provider: "Provider",
+  component: "Component",
+  outside: "Outside service",
+};
+
+function el(tag, attrs = {}, ...children) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v === undefined || v === null || v === false) continue;
+    if (k === "class") e.className = v;
+    else if (k === "html") e.innerHTML = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v);
+  }
+  for (const c of children.flat(3)) if (c !== null && c !== undefined && c !== false) e.append(c);
+  return e;
+}
+
+function svgEl(tag, attrs = {}) {
+  const e = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const [k, v] of Object.entries(attrs)) if (v !== undefined && v !== null) e.setAttribute(k, v);
+  return e;
+}
+
+const escapeHtml = (s) =>
+  s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const inline = (s) =>
+  escapeHtml(s)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+const sentence = (s) => s.replace(/^[a-z]/, (c) => c.toUpperCase());
+const text = (tag, s, cls) => el(tag, { class: cls, html: inline(sentence(s)) });
+const unique = (xs) => [...new Set(xs)];
+
+const nodes = new Map();
+for (const c of RAW.consumers) nodes.set(c.name, { ...c, kind: "consumer", children: [], shared: [], also: [] });
+const addComponent = (c, parent) => {
+  const n = {
+    name: c.name,
+    description: c.description,
+    kind: parent ? "component" : "provider",
+    parent: parent ?? null,
+    resources: c.resources,
+    parts: c.parts,
+    serves: [...(c.serves ?? [])],
+    children: (c.components ?? []).map((k) => k.name),
+    shared: [],
+    also: [],
+  };
+  nodes.set(c.name, n);
+  for (const k of c.components ?? []) addComponent(k, c.name);
+};
+for (const p of RAW.providers) addComponent(p, null);
+for (const s of RAW.outsideServices)
+  nodes.set(s.name, { ...s, kind: "outside", children: [], shared: [], also: [], parts: [] });
+// A component can sit inside a second provider or component at any level.
+const defined = (c) => [c, ...(c.components ?? []).flatMap(defined)];
+for (const p of RAW.providers.flatMap(defined))
+  for (const s of p.sharedComponents ?? []) {
+    nodes.get(p.name).shared.push(s.name);
+    nodes.get(s.name).also.push(p.name);
+    nodes.get(s.name).serves.push(...s.serves);
+  }
+
+const boundaries = RAW.boundaries.map((b) => {
+  const boundary = { ...b, id: `${b.consumer} → ${b.provider}` };
+  boundary.areas = b.areas.map((a) => {
+    const area = { ...a, key: `${b.consumer} › ${a.name}`, boundary };
+    area.capabilities = a.capabilities.map((c) => ({
+      ...c,
+      area,
+      id: `${area.key} › ${c.name}`,
+      via: c.interfaces ?? b.interfaces,
+    }));
+    return area;
+  });
+  return boundary;
+});
+const allAreas = boundaries.flatMap((b) => b.areas);
+const allCapabilities = allAreas.flatMap((a) => a.capabilities);
+const capabilityById = new Map(allCapabilities.map((c) => [c.id, c]));
+const resourceByName = new Map(RAW.resources.map((r) => [r.name, r]));
+const interfaceText = new Map(RAW.interfaces.map((i) => [i.name, i.description]));
+
+const node = (name) => nodes.get(name);
+const incoming = (name) => boundaries.filter((b) => b.provider === name);
+const subtree = (name) => [name, ...node(name).children.flatMap(subtree)];
+const ancestors = (name) => {
+  const p = node(name).parent;
+  return p ? [...ancestors(p), p] : [];
+};
+const handlers = (area) => {
+  const serving = [...nodes.values()]
+    .filter((n) => n.serves?.some((s) => `${s.consumer} › ${s.area}` === area.key))
+    .map((n) => n.name);
+  return serving.length ? serving : [area.boundary.provider];
+};
+// A boundary drawn on a whole component that one of its inner components carries in detail.
+const refinedBy = (b) =>
+  boundaries.find((o) => o !== b && o.provider === b.provider && node(b.consumer).children.includes(o.consumer));
+const capabilitiesThrough = (b, iface) => b.areas.flatMap((a) => a.capabilities).filter((c) => c.via.includes(iface));
+
+// ---------- motion ----------
+
+// Moves things to their new place where the browser can, and just redraws where it cannot.
+const NO_MOTION = STILL || matchMedia("(prefers-reduced-motion: reduce)").matches;
+const cssName = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+function transition(fn) {
+  if (!document.startViewTransition || NO_MOTION || document.visibilityState === "hidden") return fn();
+  const t = document.startViewTransition(fn);
+  // A transition that a quicker click cuts short still runs its update; only the motion is lost.
+  t.ready.catch(() => {});
+  t.updateCallbackDone.catch(() => {});
+  t.finished.catch(() => {});
+}
+
+// ---------- screens ----------
+
+// One open box per screen, in fixed columns: who uses it, its interfaces, its capabilities, its
+// components, and what it uses. Blue dots are the interfaces of the open box only; each box lists
+// the resources it keeps. Lines join who uses the box to its interfaces, its interfaces to its
+// capabilities, and each component to what it depends on; they light with whatever is in focus.
+// All providers, above every open box, shows each provider with the consumers that use it.
+const TOP = "";
+// Keep in step with addressOf in render-map.mjs, which refuses a map where two names share an address.
+const slugOf = (s) => s.normalize("NFC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "");
+const bySlug = new Map([...nodes.keys()].map((n) => [slugOf(n), n]));
+// The page opens on the provider named after the system, when there is one, else on All providers.
+const HOME = RAW.providers.some((p) => p.name === RAW.system.name) ? [RAW.system.name] : [];
+
+let openBox = TOP;
+let trail = []; // the boxes opened from All providers down to the open one, as you came
+const visited = []; // earlier trails, most recent last, for Back
+const memory = new Map(); // a screen's address -> its scroll and selection when it was left
+let selected = null; // the data-key of what is selected
+let current = null; // what the selection lights, from lineage
+let screen; // what the open box shows, from screenOf
+let reg; // what the screen drew, by data-key: the first element drawn for each
+let drawn; // every element drawn with a data-key, as [key, element]; a shared resource is drawn twice
+
+const servedBy = (name) =>
+  allAreas.filter((a) => node(name).serves?.some((s) => `${s.consumer} › ${s.area}` === a.key));
+const actedOn = (g) => unique(g.members.flatMap((a) => a.capabilities.flatMap((c) => c.acts.map((x) => x.resource))));
+const actingOn = (r) => allCapabilities.filter((c) => c.acts.some((a) => a.resource === r));
+// A box and everything in it, components it shares with another provider included.
+const within = (name) => [name, ...[...node(name).children, ...node(name).shared].flatMap(within)];
+// A box opens when its screen has something of its own: components inside it, or capabilities it
+// offers across a boundary of its own. Otherwise its screen would repeat the level above.
+const opens = (name) => {
+  const n = node(name);
+  return n.kind !== "consumer" && (n.children.length + n.shared.length > 0 || incoming(name).some((b) => !refinedBy(b)));
+};
+// Who keeps a resource, leaving out a box when one of its inner components keeps it too.
+const keepersOf = (r) => {
+  const keepers = [...nodes.values()].filter((n) => n.resources?.includes(r)).map((n) => n.name);
+  return keepers.filter((k) => !keepers.some((o) => o !== k && subtree(k).includes(o)));
+};
+const kindClass = (name) => `k-${node(name).kind === "provider" ? "component" : node(name).kind}`;
+
+function screenOf(name) {
+  const top = name === TOP;
+  const n = top ? null : node(name);
+  const into = top ? [] : incoming(name).filter((b) => !refinedBy(b));
+  const reached = top ? [] : into.length ? into.flatMap((b) => b.areas) : servedBy(name);
+  const areas = [];
+  for (const a of reached) {
+    const same = areas.find((g) => g.name === a.name);
+    if (same) same.members.push(a);
+    else areas.push({ name: a.name, type: a.type, members: [a] });
+  }
+  for (const g of areas) {
+    g.ports = unique(g.members.flatMap((a) => a.capabilities.flatMap((c) => c.via)));
+    g.consumers = unique(g.members.map((a) => a.boundary.consumer));
+    // Consumers may reach areas of the same name; each capability is listed once.
+    g.capabilities = g.members
+      .flatMap((a) => a.capabilities)
+      .filter((c, i, all) => all.findIndex((o) => o.name === c.name) === i);
+  }
+  const inner = top ? [] : [...n.children, ...n.shared];
+  const consumers = top ? RAW.consumers.map((c) => c.name) : unique(areas.flatMap((g) => g.consumers));
+  const calls = top ? [] : boundaries.filter((b) => !refinedBy(b) && (b.consumer === name || inner.includes(b.consumer)));
+  // An outside service that a component inside calls sits with the components, in the column after
+  // its callers, so its links stay short; what the open box itself calls sits to the right of it.
+  const outside = unique(calls.filter((b) => inner.includes(b.consumer) && node(b.provider).kind === "outside").map((b) => b.provider));
+  const boxes = top ? RAW.providers.map((p) => p.name) : [...inner, ...outside];
+  const uses = unique(calls.filter((b) => !within(name).includes(b.provider) && !outside.includes(b.provider)).map((b) => b.provider));
+  // Each resource kept inside the open box goes in the box on this screen that holds its keeper.
+  const holder = (k) => boxes.find((b) => subtree(b).includes(k)) ?? (!top && subtree(name).includes(k) ? name : null);
+  const kept = new Map();
+  for (const r of RAW.resources)
+    for (const h of unique(keepersOf(r.name).map(holder)).filter(Boolean)) kept.set(h, [...(kept.get(h) ?? []), r.name]);
+  return {
+    top,
+    consumers,
+    ports: unique(areas.flatMap((g) => g.ports)),
+    areas,
+    through: !top && !into.length ? reached[0]?.boundary.provider : null,
+    columns: top ? [boxes] : columnsOf(boxes),
+    boxes,
+    uses,
+    visible: new Set([...consumers, ...boxes, ...uses]),
+    kept,
+    // What each component, or the open box, depends on among the boxes on this screen.
+    links: calls.filter((b) => boxes.includes(b.provider) || uses.includes(b.provider)),
+  };
+}
+
+function columnsOf(ids) {
+  const depth = new Map();
+  const visit = (id, seen) => {
+    if (depth.has(id)) return depth.get(id);
+    const before = boundaries.filter((b) => b.provider === id && ids.includes(b.consumer) && !seen.has(b.consumer));
+    const d = Math.max(-1, ...before.map((b) => visit(b.consumer, new Set([...seen, id])))) + 1;
+    depth.set(id, d);
+    return d;
+  };
+  ids.forEach((id) => visit(id, new Set([id])));
+  const columns = [];
+  for (const id of ids) (columns[depth.get(id)] ??= []).push(id);
+  return columns.filter(Boolean);
+}
+
+// ---------- what a selection lights ----------
+
+// What leads to the selection and what it leads to, on this screen. A component that is not on the
+// screen lights the box that holds it, which then says which components it stands for.
+function lineage(key) {
+  const s = screen;
+  const keys = new Set([key]);
+  const cut = key.indexOf(":");
+  const kind = key.slice(0, cut);
+  const id = key.slice(cut + 1);
+  // Components to light, with what each does; each lights the box on this screen that holds it.
+  const requests = [];
+  const lightBox = (name, role) => name && requests.push([name, role]);
+  const holders = (name) => (s.visible.has(name) ? [name] : [...s.visible].filter((v) => within(v).includes(name)));
+  const upstream = (g) => {
+    keys.add(`a:${g.name}`);
+    g.ports.forEach((p) => keys.add(`p:${p}`));
+    g.consumers.forEach((c) => keys.add(`b:${c}`));
+  };
+  if (kind === "a") {
+    const g = s.areas.find((x) => x.name === id);
+    if (g) {
+      upstream(g);
+      g.members.flatMap(handlers).forEach((h) => lightBox(h, "handles"));
+      actedOn(g).forEach((r) => keys.add(`r:${r}`));
+    }
+  }
+  if (kind === "c") {
+    const c = capabilityById.get(id);
+    const g = s.areas.find((x) => x.members.includes(c.area));
+    if (g) keys.add(`a:${g.name}`);
+    c.via.filter((p) => s.ports.includes(p)).forEach((p) => keys.add(`p:${p}`));
+    lightBox(c.area.boundary.consumer, "asks");
+    handlers(c.area).forEach((h) => lightBox(h, "handles"));
+    c.acts.forEach((a) => keys.add(`r:${a.resource}`));
+  }
+  if (kind === "p")
+    for (const g of s.areas.filter((x) => x.ports.includes(id))) {
+      keys.add(`a:${g.name}`);
+      g.members.filter((a) => a.boundary.interfaces.includes(id)).forEach((a) => keys.add(`b:${a.boundary.consumer}`));
+    }
+  if (kind === "r") {
+    const caps = actingOn(id);
+    for (const g of s.areas) if (g.members.some((a) => caps.some((c) => c.area === a))) keys.add(`a:${g.name}`);
+    keepersOf(id).forEach((o) => lightBox(o, "keeps"));
+    unique(caps.flatMap((c) => handlers(c.area))).forEach((h) => lightBox(h, "acts"));
+  }
+  if (kind === "b") {
+    const inside = within(id);
+    if (s.consumers.includes(id))
+      for (const g of s.areas.filter((x) => x.consumers.includes(id))) {
+        keys.add(`a:${g.name}`);
+        g.members.filter((a) => a.boundary.consumer === id).forEach((a) => a.capabilities.forEach((c) => c.via.forEach((p) => keys.add(`p:${p}`))));
+      }
+    for (const g of s.areas) if (g.members.some((a) => handlers(a).some((h) => inside.includes(h)))) upstream(g);
+    for (const b of boundaries) {
+      if (refinedBy(b)) continue;
+      for (const [near, far, role] of [
+        [b.provider, b.consumer, "calls"],
+        [b.consumer, b.provider, "called"],
+      ]) {
+        if (!inside.includes(near) || inside.includes(far)) continue;
+        // A call to a component that the other box also contains stays inside both.
+        if (holders(far).some((o) => within(o).includes(near))) continue;
+        lightBox(far, role);
+      }
+    }
+    (s.kept.get(id) ?? []).forEach((r) => keys.add(`r:${r}`));
+  }
+  // A shared component sits in more than one box on the screen: it lights the one already lit, else
+  // the one holding the selection, else the one it is defined in.
+  const home = kind === "r" ? [...s.kept].find(([, rs]) => rs.includes(id))?.[0] : kind === "b" ? id : null;
+  const notes = new Map(); // a lit box -> what the components inside it do, by role
+  const assign = (at, name, role) => {
+    keys.add(`b:${at}`);
+    if (at === name || at === id) return;
+    const roles = notes.get(at) ?? notes.set(at, new Map()).get(at);
+    (roles.get(role) ?? roles.set(role, new Set()).get(role)).add(name);
+  };
+  const later = [];
+  for (const [name, role] of requests) {
+    const c = holders(name);
+    if (c.length === 1) assign(c[0], name, role);
+    else if (c.length > 1) later.push([name, role, c]);
+  }
+  for (const [name, role, c] of later)
+    assign(c.find((v) => keys.has(`b:${v}`)) ?? c.find((v) => v === home) ?? c.find((v) => ancestors(name).includes(v)) ?? c[0], name, role);
+  return { keys, notes };
+}
+
+// What the components inside a lit box do with the selection: "Run controller keeps it; Conversations
+// and Execution kits act on it."
+const VERBS = { keeps: ["keeps it", "keep it"], acts: ["acts on it", "act on it"], handles: ["handles it", "handle it"], calls: ["calls it", "call it"], asks: ["asks for it", "ask for it"] };
+function noteOf(roles) {
+  const keepers = roles.get("keeps") ?? new Set();
+  const parts = [...roles].map(([role, names]) => {
+    const list = [...names].filter((n) => role === "keeps" || !keepers.has(n));
+    if (!list.length) return null;
+    const who = list.length > 1 ? `${list.slice(0, -1).join(", ")} and ${list.at(-1)}` : list[0];
+    return role === "called" ? `It calls ${who}` : `${who} ${VERBS[role][list.length > 1 ? 1 : 0]}`;
+  });
+  return `${parts.filter(Boolean).join("; ")}.`;
+}
+
+// ---------- drawing ----------
+
+const pick = (key) => (event) => {
+  event.stopPropagation();
+  selected = key;
+  render();
+};
+
+const register = (key, e) => {
+  e.dataset.key = key;
+  if (!reg.has(key)) reg.set(key, e);
+  drawn.push([key, e]);
+  return e;
+};
+
+const kindLine = (kind, qualifier) =>
+  el("span", { class: "b-top" }, el("span", { class: "b-kind" }, kind), qualifier && el("span", { class: "b-qual" }, qualifier));
+
+function chips(names) {
+  if (!names.length) return null;
+  return el(
+    "span",
+    { class: "b-chips" },
+    names.map((r) => register(`r:${r}`, el("button", { type: "button", class: "b-chip", onclick: pick(`r:${r}`) }, r))),
+  );
+}
+
+function box(name, where) {
+  const n = node(name);
+  const key = `b:${name}`;
+  const inner = n.children.length + n.shared.length;
+  const shared = where === "inside" && n.also.includes(openBox) ? `Shared with ${n.parent}` : null;
+  const canOpen = opens(name);
+  const enter = (e) => (e.stopPropagation(), go(name));
+  const note = current?.notes.get(name);
+  return register(
+    key,
+    el(
+      "section",
+      { class: `b-box ${kindClass(name)}${n.kind === "provider" ? " provider" : ""}${canOpen ? " opens" : ""}`, onclick: pick(key), ondblclick: canOpen ? enter : null },
+      kindLine(shared ?? KIND_WORD[n.kind]),
+      el("button", { type: "button", class: "b-name", onclick: pick(key) }, name),
+      note && el("span", { class: "b-via" }, noteOf(note)),
+      where === "inside" && chips(screen.kept.get(name) ?? []),
+      canOpen && el("button", { type: "button", class: "b-go", onclick: enter }, el("span", {}, inner ? `Open, ${inner} components` : "Open"), el("span", {}, "›")),
+    ),
+  );
+}
+
+function areaBox(g) {
+  return register(
+    `a:${g.name}`,
+    el(
+      "button",
+      { type: "button", class: "b-box k-capability b-area", onclick: pick(`a:${g.name}`) },
+      kindLine("Capabilities", `${g.type}, ${g.capabilities.length}`),
+      el("span", { class: "b-name" }, g.name),
+    ),
+  );
+}
+
+const zone = (cls, title, ...content) => el("div", { class: `b-zone ${cls}` }, el("h3", {}, title), el("div", { class: "b-zone-body" }, content));
+
+function frame(name) {
+  const n = node(name);
+  const s = screen;
+  const keeps = s.kept.get(name) ?? [];
+  const body = [
+    zone("z-interface", "Interfaces", s.ports.map((iface) => register(`p:${iface}`, el("button", { type: "button", class: "b-port edge", onclick: pick(`p:${iface}`) }, iface)))),
+    zone("z-capability", "Capabilities", s.areas.map(areaBox)),
+    s.columns.length > 0 &&
+      zone("z-component", "Components", el("div", { class: "b-cols" }, s.columns.map((c) => el("div", { class: "b-col b-placed" }, c.map((id) => box(id, "inside")))))),
+  ];
+  return el(
+    "section",
+    { class: `b-frame ${kindClass(name)}` },
+    el(
+      "header",
+      { class: "b-frame-head" },
+      el("span", { class: "b-kind" }, KIND_WORD[n.kind] + (n.also.length ? `, shared with ${n.also.join(", ")}` : "")),
+      el("h2", {}, name),
+      text("p", n.description),
+      s.through && el("p", { class: "b-through" }, `Reached through ${s.through}'s interfaces.`),
+      keeps.length > 0 && el("div", { class: "b-keeps" }, el("span", { class: "b-keeps-label" }, "Keeps"), chips(keeps)),
+    ),
+    el("div", { class: "b-body" }, body),
+  );
+}
+
+// Places absolutely positioned items, each as close as it can to the height it wants its centre at.
+// Items that would overlap form a block, kept in order and centred on what its items want on
+// average, so that several boxes linked to one thing sit around it rather than below it. Returns
+// the height used.
+function settle(items, gap) {
+  const blocks = [...items].sort((a, b) => a.want - b.want).map((it) => ({ items: [it] }));
+  const place = (b) => {
+    let off = 0;
+    const tops = b.items.map((it) => {
+      const want = it.want - it.el.offsetHeight / 2 - off;
+      off += it.el.offsetHeight + gap;
+      return want;
+    });
+    b.height = off - gap;
+    b.top = Math.max(0, avg(tops));
+  };
+  blocks.forEach(place);
+  for (let i = 1; i < blocks.length; ) {
+    const [a, b] = [blocks[i - 1], blocks[i]];
+    if (a.top + a.height + gap <= b.top) i++;
+    else {
+      a.items.push(...b.items);
+      blocks.splice(i, 1);
+      place(a);
+      i = 1;
+    }
+  }
+  for (const b of blocks) {
+    let y = b.top;
+    for (const it of b.items) {
+      it.el.style.top = `${y}px`;
+      y += it.el.offsetHeight + gap;
+    }
+  }
+  const last = blocks.at(-1);
+  return last ? last.top + last.height : 0;
+}
+
+function render() {
+  reg = new Map();
+  drawn = [];
+  screen = screenOf(openBox);
+  const s = screen;
+  current = null;
+  if (selected)
+    try {
+      current = lineage(selected);
+    } catch {
+      selected = null;
+    }
+  const stage = el("div", { class: `b-stage${s.top ? " top" : ""}` });
+  const wires = svgEl("svg", { class: "b-wires" });
+  const left = zone("z-consumer b-left", "Used by", s.consumers.map((c) => box(c, "left")));
+  const middle = s.top ? zone("z-component b-mid", "Providers", el("div", { class: "b-col b-placed" }, s.boxes.map((p) => box(p, "inside")))) : frame(openBox);
+  const right = s.uses.length > 0 && zone("z-uses b-right", "Uses", s.uses.map((u) => box(u, "right")));
+  stage.append(wires, left, middle, ...[right].filter(Boolean));
+  document.getElementById("scroll").replaceChildren(stage);
+  drawNav();
+  if (selected && !reg.has(selected) && !selected.startsWith("c:")) {
+    selected = null;
+    return render();
+  }
+
+  const o = stage.getBoundingClientRect();
+  const mid = (e) => {
+    const r = e.getBoundingClientRect();
+    return { l: r.left - o.left, r: r.right - o.left, t: r.top - o.top, b: r.bottom - o.top, y: (r.top + r.bottom) / 2 - o.top };
+  };
+  const bodyOf = (cls) => stage.querySelector(`.${cls} > .b-zone-body`);
+
+  // Capabilities stack in the order of the interfaces that reach them, each interface sits level
+  // with its capabilities, each component level with the capabilities it handles, and each
+  // consumer level with what it uses. A group linked to one thing is centred on it.
+  if (!s.top) {
+    const first = (g) => Math.min(...g.ports.map((p) => s.ports.indexOf(p)));
+    let y = 0;
+    for (const g of [...s.areas].sort((a, b) => first(a) - first(b))) {
+      const e = reg.get(`a:${g.name}`);
+      e.style.top = `${y}px`;
+      g.y = y + e.offsetHeight / 2;
+      y += e.offsetHeight + 12;
+    }
+    const h = settle(s.ports.map((p) => ({ el: reg.get(`p:${p}`), want: avg(s.areas.filter((g) => g.ports.includes(p)).map((g) => g.y)) })), 6);
+    bodyOf("z-capability").style.height = `${Math.max(y, h)}px`;
+    bodyOf("z-interface").style.height = `${Math.max(y, h)}px`;
+    // A component without capabilities on this screen sits level with what calls it. Columns go
+    // left to right, so callers are already placed.
+    const capTop = mid(bodyOf("z-capability")).t;
+    for (const col of stage.querySelectorAll(".b-cols > .b-col")) {
+      const t = mid(col).t;
+      const items = [...col.children].map((e) => {
+        const inside = subtree(e.dataset.key.slice(2));
+        const served = s.areas.filter((g) => g.members.some((a) => handlers(a).some((x) => inside.includes(x))));
+        const callers = s.links.filter((b) => b.provider === inside[0] && s.boxes.includes(b.consumer)).map((b) => mid(reg.get(`b:${b.consumer}`)).y);
+        const want = served.length ? avg(served.map((g) => capTop + g.y)) : callers.length ? avg(callers) : t;
+        return { el: e, want: want - t };
+      });
+      col.style.height = `${settle(items, 14)}px`;
+    }
+  }
+  const targetsOf = (c) =>
+    unique(
+      s.top
+        ? boundaries.filter((b) => b.consumer === c && s.boxes.includes(b.provider)).map((b) => reg.get(`b:${b.provider}`))
+        : boundaries.filter((b) => b.consumer === c).flatMap((b) => b.interfaces).filter((i) => s.ports.includes(i)).map((i) => reg.get(`p:${i}`)),
+    );
+  const leftBody = bodyOf("b-left");
+  if (s.top) {
+    // Each provider and the consumers that use it form a row, centred on each other.
+    const col = stage.querySelector(".b-mid .b-col");
+    const firstUse = (c) => s.boxes.find((p) => boundaries.some((b) => b.consumer === c && b.provider === p));
+    const rows = [...s.boxes.map((p) => [reg.get(`b:${p}`), s.consumers.filter((c) => firstUse(c) === p)]), [null, s.consumers.filter((c) => !firstUse(c))]];
+    let y = 0;
+    for (const [pe, cs] of rows) {
+      const ces = cs.map((c) => reg.get(`b:${c}`));
+      const ph = pe?.offsetHeight ?? 0;
+      const ch = ces.reduce((n, e) => n + e.offsetHeight + 14, -14);
+      const rh = Math.max(ph, ch);
+      if (rh <= 0) continue;
+      if (pe) pe.style.top = `${y + (rh - ph) / 2}px`;
+      let cy = y + (rh - Math.max(ch, 0)) / 2;
+      for (const e of ces) {
+        e.style.top = `${cy}px`;
+        cy += e.offsetHeight + 14;
+      }
+      y += rh + 28;
+    }
+    col.style.height = leftBody.style.height = `${Math.max(0, y - 28)}px`;
+  } else {
+    const lt = mid(leftBody).t;
+    leftBody.style.height = `${settle(
+      s.consumers.map((c) => {
+        const to = targetsOf(c);
+        return { el: reg.get(`b:${c}`), want: (to.length ? avg(to.map((p) => mid(p).y)) : 0) - lt };
+      }),
+      14,
+    )}px`;
+  }
+  // What the open box uses is centred, as a block, on the open box's body.
+  // Each box to the right sits level with what calls it; the open box calls from its body's middle.
+  if (right) {
+    const body = right.querySelector(".b-zone-body");
+    const rt = mid(body).t;
+    const frameMid = mid(stage.querySelector(".b-body")).y;
+    const items = s.uses.map((u) => {
+      const ys = s.links.filter((b) => b.provider === u).map((b) => (b.consumer === openBox ? frameMid : mid(reg.get(`b:${b.consumer}`)).y));
+      return { el: reg.get(`b:${u}`), want: (ys.length ? avg(ys) : frameMid) - rt };
+    });
+    body.style.height = `${settle(items, 14)}px`;
+  }
+
+  wires.setAttribute("width", stage.scrollWidth);
+  wires.setAttribute("height", stage.scrollHeight);
+  const curve = (a, b) => {
+    const dx = Math.max(20, Math.abs(b[0] - a[0]) / 2);
+    return `M${a[0]},${a[1]} C${a[0] + dx},${a[1]} ${b[0] - dx},${b[1]} ${b[0]},${b[1]}`;
+  };
+  const wire = (from, to, a, b) => wires.append(svgEl("path", { d: curve(a, b), "data-from": from, "data-to": to }));
+  for (const c of s.consumers)
+    for (const t of targetsOf(c)) {
+      const from = mid(reg.get(`b:${c}`));
+      const to = mid(t);
+      wire(`b:${c}`, t.dataset.key, [from.r, from.y], [to.l - (s.top ? 0 : 4), to.y]);
+    }
+  for (const g of s.areas) {
+    const at = mid(reg.get(`a:${g.name}`));
+    for (const p of g.ports) {
+      const from = mid(reg.get(`p:${p}`));
+      wire(`p:${p}`, `a:${g.name}`, [from.r, from.y], [at.l, at.y]);
+    }
+  }
+  // Dependencies, from the right edge of a component, or of the open box, to what it depends on. A
+  // line that passes a column in between goes straight through the nearest gap between its boxes,
+  // so that it never seems to leave from a box it only passes behind.
+  const frameEl = stage.querySelector(".b-frame");
+  const cols = [...stage.querySelectorAll(".b-cols > .b-col")].map((c) => ({ ...mid(c), boxes: [...c.children].map(mid).sort((a, b) => a.t - b.t) }));
+  const colOf = (e) => cols.findIndex((c) => e.l >= c.l - 1 && e.r <= c.r + 1);
+  const gapAt = (c, want) => {
+    const gaps = [[-Infinity, c.boxes[0]?.t ?? Infinity], ...c.boxes.map((x, i) => [x.b, c.boxes[i + 1]?.t ?? Infinity])];
+    const ys = gaps.map(([lo, hi]) => (hi - lo < 40 ? (lo + hi) / 2 : Math.min(Math.max(want, lo + 12), hi - 12)));
+    return ys.reduce((best, y) => (Math.abs(y - want) < Math.abs(best - want) ? y : best));
+  };
+  for (const b of s.links) {
+    const own = b.consumer === openBox;
+    const from = mid(own ? frameEl : reg.get(`b:${b.consumer}`));
+    const to = mid(reg.get(`b:${b.provider}`));
+    const y = own ? Math.min(Math.max(to.y, from.t + 40), from.b - 20) : from.y;
+    const start = own ? -1 : colOf(from);
+    const end = colOf(to) === -1 ? cols.length : colOf(to);
+    let d = "";
+    let at = [from.r, y];
+    for (let k = start + 1; k < end && start !== -1; k++) {
+      const gy = gapAt(cols[k], at[1] + ((to.y - at[1]) * (cols[k].l - at[0])) / Math.max(1, to.l - at[0]));
+      d += `${d ? " " : ""}${curve(at, [cols[k].l - 10, gy])} L${cols[k].r + 10},${gy}`;
+      at = [cols[k].r + 10, gy];
+    }
+    wires.append(svgEl("path", { d: `${d}${d ? " " : ""}${curve(at, [to.l, to.y])}`, "data-from": `b:${b.consumer}`, "data-to": `b:${b.provider}` }));
+  }
+  paint(stage);
+  drawPanel();
+  if (selected && reg.has(selected)) reg.get(selected).scrollIntoView({ block: "nearest", inline: "nearest" });
+  if (STILL) drawLegend(stage);
+}
+
+function paint(stage) {
+  const keys = current?.keys;
+  for (const [key, e] of drawn) {
+    const on = Boolean(keys?.has(key));
+    e.classList.toggle("lit", on);
+    e.classList.toggle("chosen", key === selected);
+    e.classList.toggle("dim", Boolean(keys) && !on);
+  }
+  // A resource in a lit box is part of that box, so it does not fade; it is outlined only when it is
+  // linked to the selection. In the box of a selected resource, the other resources still fade.
+  if (keys)
+    for (const chip of stage.querySelectorAll(".b-chip.dim")) {
+      const box = chip.closest(".b-box");
+      if (!box?.classList.contains("lit")) continue;
+      if (selected.startsWith("r:") && box.querySelector(`[data-key="${CSS.escape(selected)}"]`)) continue;
+      chip.classList.remove("dim");
+    }
+  // A line lights when both its ends are; the open box counts as lit.
+  const end = (k) => keys.has(k) || k === `b:${openBox}`;
+  for (const p of stage.querySelectorAll(".b-wires path")) {
+    const on = Boolean(keys) && end(p.dataset.from) && keys.has(p.dataset.to);
+    p.classList.toggle("lit", on);
+    p.classList.toggle("dim", Boolean(keys) && !on);
+  }
+}
+
+// ---------- the panel: only what the map does not already show ----------
+
+function capabilityList(caps) {
+  return el(
+    "ul",
+    { class: "b-caps" },
+    caps.map((c) =>
+      el(
+        "li",
+        { class: selected === `c:${c.id}` ? "on" : "" },
+        el("button", { type: "button", onclick: pick(`c:${c.id}`) }, c.name),
+        el("span", {}, c.acts.map((a) => `${MODE_WORD[a.mode]} ${a.resource}`).join(", ")),
+      ),
+    ),
+  );
+}
+
+function panelOf(key) {
+  const s = screen;
+  const cut = key.indexOf(":");
+  const kind = key.slice(0, cut);
+  const id = key.slice(cut + 1);
+  const head = (k, cls, title) => [el("span", { class: `b-kind ${cls}` }, k), el("h2", {}, title)];
+  if (kind === "a") {
+    const g = s.areas.find((x) => x.name === id);
+    return [head(`Capabilities, ${g.type}`, "k-capability", g.name), text("p", g.members[0].description), capabilityList(g.capabilities)];
+  }
+  if (kind === "p") {
+    const b = incoming(s.through ?? openBox).find((x) => x.interfaces.includes(id));
+    return [head("Interface", "k-interface", id), text("p", interfaceText.get(id)), b && capabilityList(capabilitiesThrough(b, id))];
+  }
+  if (kind === "c") {
+    const c = capabilityById.get(id);
+    const g = s.areas.find((x) => x.members.includes(c.area));
+    return [
+      g && el("button", { type: "button", class: "b-back", onclick: pick(`a:${g.name}`) }, `‹ ${g.name}`),
+      head("Capability", "k-capability", c.name),
+      el("h3", {}, "Takes"),
+      el("p", {}, c.takes),
+      el("h3", {}, "Gives"),
+      el("p", {}, c.gives),
+    ];
+  }
+  if (kind === "r") {
+    const r = resourceByName.get(id);
+    const hidden = keepersOf(id).flatMap((k) => {
+      const at = [...s.kept].find(([b, rs]) => rs.includes(id) && subtree(b).includes(k))?.[0];
+      return at && at !== k ? [`Kept by ${k}, inside ${at}.`] : [];
+    });
+    return [
+      head("Resource", "k-resource", id),
+      text("p", r.description),
+      hidden.map((t) => el("p", { class: "b-note" }, t)),
+      r.properties?.length > 0 && [el("h3", {}, "Properties"), el("ul", { class: "b-props" }, r.properties.map((x) => el("li", {}, x)))],
+      el("h3", {}, "Capabilities that act on it"),
+      // Two consumers may have the same capability, such as Start a run; list it once.
+      capabilityList(actingOn(id).filter((c, i, all) => all.findIndex((o) => o.name === c.name) === i)),
+    ];
+  }
+  const n = node(id);
+  return [
+    head(KIND_WORD[n.kind], kindClass(id), n.name),
+    n.description && [n.kind === "consumer" ? null : el("h3", {}, "Responsibilities"), text("p", n.description)],
+    opens(id) && id !== openBox && el("button", { type: "button", class: "b-go wide", onclick: () => go(id) }, el("span", {}, `Open ${id}`), el("span", {}, "›")),
+  ];
+}
+
+function drawPanel() {
+  const panel = document.getElementById("panel");
+  panel.hidden = !selected;
+  if (!selected) return;
+  panel.replaceChildren(
+    el("button", { type: "button", class: "b-close", "aria-label": "Close", onclick: clear }, "×"),
+    ...[panelOf(selected)].flat(3).filter(Boolean),
+  );
+}
+
+function clear() {
+  if (!selected) return;
+  selected = null;
+  render();
+}
+
+// ---------- where you are ----------
+
+function drawNav() {
+  const crumbs = [["All providers", 0], ...trail.map((n, i) => [n, i + 1])];
+  document.getElementById("nav").replaceChildren(
+    el("button", { type: "button", class: "b-back-nav", disabled: !visited.length && !trail.length ? "" : null, onclick: back }, "‹ Back"),
+    ...crumbs
+      .flatMap(([label, depth], i) => [
+        i > 0 && el("span", { class: "b-sep" }, "›"),
+        i === crumbs.length - 1 ? el("strong", {}, label) : el("button", { type: "button", onclick: () => navigate(trail.slice(0, depth)) }, label),
+      ])
+      .filter(Boolean),
+  );
+}
+
+// The path to a box when nothing says how you came: its parents, or, for an outside service, the
+// screen that shows a component calling it.
+function trailFor(name) {
+  if (name === TOP) return [];
+  const n = node(name);
+  if (n.kind !== "outside") return [...ancestors(name), name];
+  const caller = boundaries.find((b) => b.provider === name && !refinedBy(b) && nodes.has(b.consumer) && node(b.consumer).kind !== "consumer");
+  if (!caller) return [name];
+  const at = node(caller.consumer).parent;
+  return [...trailFor(at ?? caller.consumer), name];
+}
+
+// Opening a box from the screen it is on adds it to the path you came by; a box elsewhere gets the
+// path trailFor gives it.
+function go(name) {
+  if (name === TOP) return navigate([]);
+  const i = trail.indexOf(name);
+  if (i >= 0) return navigate(trail.slice(0, i + 1));
+  navigate(screen.visible.has(name) || screen.boxes.includes(name) ? [...trail, name] : trailFor(name));
+}
+
+// Back returns to the previous screen as it was left: same scroll, same selection.
+function back() {
+  if (visited.length) navigate(visited.pop(), { remember: false, restore: true });
+  else if (trail.length) navigate(trail.slice(0, -1), { remember: false, restore: true });
+}
+
+// Changes screen. Opening a box grows it into the new screen's frame; going back shrinks the frame
+// into the box it came from. Everything else fades.
+const addressOf = (t) => `#${t.length ? t.map(slugOf).join("/") : "all"}`;
+function navigate(next, { remember = true, fromAddress = false, restore = false } = {}) {
+  const before = trail;
+  if (before.length === next.length && before.every((x, i) => x === next[i])) return;
+  if (remember) visited.push(before);
+  const scroller = document.getElementById("scroll");
+  memory.set(addressOf(before), { left: scroller.scrollLeft, top: scroller.scrollTop, selected });
+  const kept = restore ? memory.get(addressOf(next)) : null;
+  const deeper = next.length > before.length && before.every((x, i) => next[i] === x);
+  const shallower = before.length > next.length && next.every((x, i) => before[i] === x);
+  const frameEl = () => document.querySelector(".b-frame");
+  // Only one element may carry the name at a time; the last landing still has it.
+  for (const e of document.querySelectorAll(".b-frame, .b-box")) e.style.viewTransitionName = "";
+  const grow = deeper ? reg.get(`b:${next[before.length]}`) : shallower ? frameEl() : null;
+  if (grow) grow.style.viewTransitionName = "zoom";
+  // A box on both screens travels from its place on this one to its place on the next, such as a
+  // component that moves from Components to Used by when a component it calls opens.
+  const nextOpen = next.at(-1) ?? TOP;
+  const nextVisible = screenOf(nextOpen).visible;
+  const travellers = [...screen.visible].filter((n) => n !== nextOpen && nextVisible.has(n));
+  const travel = () => {
+    for (const n of travellers) {
+      const e = reg.get(`b:${n}`);
+      if (e) e.style.viewTransitionName = `b-${cssName(n)}`;
+    }
+  };
+  travel();
+  if (!fromAddress) {
+    const hash = addressOf(next);
+    // A sandboxed viewer may refuse to change the address; the screen changes all the same.
+    try {
+      if (decodeURIComponent(location.hash) !== hash) history.pushState(null, "", hash);
+    } catch {}
+  }
+  transition(() => {
+    trail = next;
+    openBox = next.at(-1) ?? TOP;
+    selected = kept?.selected ?? null;
+    render();
+    scroller.scrollTo(kept?.left ?? 0, kept?.top ?? 0);
+    const landing = deeper ? frameEl() : shallower ? reg.get(`b:${before[next.length]}`) : null;
+    if (grow && landing) landing.style.viewTransitionName = "zoom";
+    travel();
+  });
+}
+
+function fromHash() {
+  const parts = decodeURIComponent(location.hash.slice(1)).split("/").filter(Boolean);
+  if (parts[0] === "all") return [];
+  const names = parts.map((p) => bySlug.get(p));
+  if (!names.length || names.some((n) => !n)) return HOME;
+  return names.length === 1 ? trailFor(names[0]) : names;
+}
+
+// ---------- still images ----------
+
+// Every screen once: All providers, then each box that opens, in the order the map lists them.
+const screens = () => [[], ...[...nodes.keys()].filter(opens).map(trailFor)];
+
+// A still image cannot be clicked, so it carries under the drawing what the panel would say about
+// what the screen shows.
+function legendOf(s) {
+  const entry = (name, about) => el("li", { html: inline(`**${name}**: ${sentence(about ?? "")}`) });
+  const section = (title, about, items) =>
+    items.length > 0 && el("section", {}, el("h3", {}, title), about && text("p", about), el("ul", {}, items));
+  const acts = (c) => c.acts.map((a) => `${MODE_WORD[a.mode]} ${a.resource}`).join(", ");
+  return el(
+    "div",
+    { class: "b-legend" },
+    section("On this screen", null, [...s.consumers, ...s.boxes, ...s.uses].map((n) => entry(n, node(n).description))),
+    section("Interfaces", null, s.ports.map((p) => entry(p, interfaceText.get(p)))),
+    s.areas.map((g) =>
+      section(
+        `${g.name} (${g.type})`,
+        g.members[0].description,
+        g.capabilities.map((c) => entry(c.name, `takes ${c.takes}; gives ${c.gives}; ${acts(c)}.`)),
+      ),
+    ),
+    section("Resources", null, unique([...s.kept.values()].flat()).map((r) => entry(r, resourceByName.get(r).description))),
+  );
+}
+
+// Writes the size the image needs, and the addresses of every screen, on the page for shoot-map.mjs.
+function drawLegend(stage) {
+  const legend = legendOf(screen);
+  legend.style.width = `${Math.max(stage.offsetWidth, 1200)}px`;
+  document.querySelector(".b-legend")?.remove();
+  document.querySelector("main").after(legend);
+  const right = Math.max(stage.getBoundingClientRect().right, legend.getBoundingClientRect().right) + 16;
+  const bottom = legend.getBoundingClientRect().bottom + window.scrollY;
+  document.documentElement.dataset.stillSize = `${Math.ceil(right)}x${Math.ceil(bottom)}`;
+  document.documentElement.dataset.screens = screens().map(addressOf).join(" ");
+}
+
+const avg = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
+window.addEventListener("popstate", () => navigate(fromHash(), { fromAddress: true, remember: false, restore: true }));
+document.getElementById("scroll").addEventListener("click", clear);
+document.addEventListener("keydown", (e) => e.key === "Escape" && clear());
+window.addEventListener("resize", () => render());
+trail = fromHash();
+openBox = trail.at(-1) ?? TOP;
+render();
+document.fonts?.ready.then(render);
+</script>
+</body>
+</html>

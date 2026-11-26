@@ -1,0 +1,1111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Store boundary map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono&family=Public+Sans:wght@400;600&display=swap">
+<style>
+/* Thin ink lines on paper, with one colour per kind of thing: consumers grey, components green,
+   outside services stone, interfaces blue, capabilities violet, resources amber. Layout: a
+   breadcrumb, then one open box whose columns are headed by what they hold, and a panel docked
+   beside it when something is selected, so the map stays scrollable. */
+:root {
+  --paper: #ffffff;
+  --ink: #1a1a1a;
+  --graphite: #6b6b6b;
+  --pencil: #c9c9c9;
+  --panel: #f5f5f4;
+  --panel-line: #e3e3e1;
+  --k-consumer: #6b7280;
+  --k-component: #2e8b57;
+  --k-outside: #8a7f72;
+  --k-interface: #2f6fdb;
+  --k-capability: #7a4fd1;
+  --k-resource: #b7791f;
+  --sans: "Public Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #17181a; --ink: #ececea; --graphite: #a0a09c; --pencil: #55565a; --panel: #212225; --panel-line: #33343a;
+    --k-consumer: #9aa1ad; --k-component: #5cc18a; --k-outside: #b0a596; --k-interface: #6f9cf0; --k-capability: #a585ef; --k-resource: #e0a64a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #17181a; --ink: #ececea; --graphite: #a0a09c; --pencil: #55565a; --panel: #212225; --panel-line: #33343a;
+  --k-consumer: #9aa1ad; --k-component: #5cc18a; --k-outside: #b0a596; --k-interface: #6f9cf0; --k-capability: #a585ef; --k-resource: #e0a64a;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  --k: var(--graphite);
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  margin: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: var(--paper);
+  color: var(--ink);
+  font: 14px/1.4 var(--sans);
+}
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+code { font-family: var(--mono); font-size: 0.92em; }
+
+.k-consumer { --k: var(--k-consumer); }
+.k-component { --k: var(--k-component); }
+.k-outside { --k: var(--k-outside); }
+.k-interface { --k: var(--k-interface); }
+.k-capability { --k: var(--k-capability); }
+.k-resource { --k: var(--k-resource); }
+
+.top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; padding-block: 12px 10px; border-bottom: 1px solid var(--panel-line); }
+.top h1 { margin: 0; font-size: 15px; font-weight: 600; }
+.top .rev { font-family: var(--mono); font-size: 12px; color: var(--graphite); }
+.top p { margin: 0; font-size: 13px; color: var(--graphite); }
+#nav { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; padding-block: 10px 0; font-size: 13px; }
+#nav button { color: var(--graphite); border-bottom: 1px dotted var(--pencil); }
+#nav .b-back-nav { margin-right: 8px; padding: 1px 8px; color: var(--ink); border: 1px solid var(--panel-line); border-radius: 3px; }
+#nav .b-back-nav:hover { border-color: var(--ink); }
+#nav .b-back-nav:disabled { color: var(--pencil); border-color: var(--panel-line); cursor: default; }
+#nav button:hover { color: var(--ink); }
+.b-sep { color: var(--pencil); }
+main { display: flex; min-height: 0; min-width: 0; }
+#scroll { flex: 1 1 auto; min-width: 0; overflow: auto; }
+
+/* ---- stage and zones ---- */
+.b-stage { position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: max-content; gap: 0 64px; align-items: start; width: max-content; min-width: 100%; padding: 14px 4px 48px; }
+.b-wires { position: absolute; top: 0; left: 0; z-index: 1; overflow: visible; pointer-events: none; }
+.b-wires path { fill: none; stroke: var(--pencil); stroke-width: 1.25; }
+.b-wires path.lit { stroke: var(--ink); stroke-width: 1.75; opacity: 1; }
+.b-wires path.dim { opacity: 0.18; }
+.b-zone h3 { margin: 0 0 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--k); }
+.z-consumer { --k: var(--k-consumer); }
+.z-interface { --k: var(--k-interface); }
+.z-capability { --k: var(--k-capability); }
+.z-component { --k: var(--k-component); }
+.z-resource { --k: var(--k-resource); }
+.z-uses { --k: var(--graphite); }
+.b-left > .b-zone-body { position: relative; width: 170px; }
+.b-left > .b-zone-body > .b-box { position: absolute; left: 0; width: 170px; }
+.b-col { display: flex; flex-direction: column; gap: 14px; }
+.b-right > .b-zone-body { position: relative; width: 210px; }
+.b-right > .b-zone-body > .b-box { position: absolute; left: 0; }
+.b-col.b-placed { position: relative; display: block; width: 210px; }
+.b-placed > .b-box { position: absolute; left: 0; }
+.b-cols { display: flex; align-items: flex-start; gap: 48px; }
+.dim { opacity: 0.22; }
+
+/* ---- the open box ---- */
+.b-frame { position: relative; border: 1.5px solid var(--ink); }
+.b-frame-head { position: relative; z-index: 2; padding: 10px 14px 12px; border-bottom: 1px solid var(--panel-line); background: var(--paper); }
+.b-frame-head h2 { margin: 0 0 4px; font-size: 20px; font-weight: 600; }
+.b-frame-head p { margin: 0; max-width: 70ch; color: var(--graphite); font-size: 13px; }
+.b-frame-head .b-through { margin-top: 4px; color: var(--ink); }
+.b-body { display: grid; grid-auto-flow: column; grid-auto-columns: max-content; gap: 0 44px; padding: 14px 20px 20px 0; }
+.z-interface { width: 184px; }
+.z-interface > h3 { padding-left: 13px; }
+.z-interface > .b-zone-body, .z-capability > .b-zone-body, .z-resource > .b-zone-body { position: relative; }
+.z-capability > .b-zone-body { width: 196px; }
+.z-resource > .b-zone-body { width: 180px; }
+.b-keeps { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin-top: 8px; }
+.b-keeps-label { font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--k-resource); }
+.b-keeps .b-chips { margin-top: 0; }
+
+/* ---- boxes: one shape for every kind ---- */
+.b-box { position: relative; z-index: 2; display: block; width: 210px; padding: 6px 10px 7px; text-align: left; background: color-mix(in srgb, var(--k) 6%, var(--paper)); border: 1px solid color-mix(in srgb, var(--k) 45%, var(--paper)); cursor: pointer; }
+.b-box:hover { border-color: var(--k); }
+.b-box.provider { border-width: 1.5px; }
+.b-box.k-outside { border-style: dashed; }
+.b-box.opens:hover { background: color-mix(in srgb, var(--k) 13%, var(--paper)); border-color: var(--k); }
+.b-box.lit { border-color: var(--k); box-shadow: 0 0 0 1.5px var(--k); }
+.b-box.chosen { box-shadow: 0 0 0 1.5px var(--k), 0 0 0 4px color-mix(in srgb, var(--ink) 25%, transparent); }
+.b-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.b-kind { font-size: 10.5px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--k); }
+.b-qual { font-size: 11px; color: var(--graphite); white-space: nowrap; }
+.b-name { display: block; width: 100%; font-weight: 600; font-size: 13.5px; text-align: left; }
+.b-sub { display: block; font-size: 11.5px; color: var(--graphite); }
+.b-via { display: block; margin-top: 2px; font-size: 11.5px; font-style: italic; color: var(--ink); }
+.b-area { position: absolute; left: 0; width: 100%; }
+
+/* ---- the way in: a bar at the foot of the box ---- */
+.b-go { display: flex; justify-content: space-between; align-items: baseline; width: calc(100% + 20px); margin: 7px -10px -7px; padding: 4px 10px; font-size: 12px; font-weight: 600; color: var(--k); border-top: 1px solid color-mix(in srgb, var(--k) 40%, var(--paper)); }
+.b-go span:last-child { font-size: 15px; line-height: 1; }
+.b-go:hover { background: var(--k); color: var(--paper); }
+.b-go.wide { --k: var(--k-component); width: 100%; margin: 18px 0 0; padding: 6px 10px; font-size: 13px; border: 1px solid var(--k); }
+
+/* ---- interfaces: dots on the edge of the open box ---- */
+.b-port { position: relative; display: block; width: calc(100% + 10px); margin-left: -10px; padding: 2px 0 2px 13px; font-size: 12px; line-height: 1.3; color: var(--ink); text-align: left; }
+.b-port::before { content: ""; position: absolute; left: -5px; top: 50%; width: 8px; height: 8px; margin-top: -4px; border-radius: 50%; border: 1.5px solid var(--k-interface); background: var(--paper); }
+.b-port:hover, .b-port.lit { color: var(--k-interface); }
+.b-port.lit { font-weight: 600; }
+.b-port.lit::before { background: var(--k-interface); }
+.b-port.edge { position: absolute; left: 0; width: 184px; margin-left: 0; padding-right: 0; font-size: 12.5px; background: var(--paper); }
+
+/* ---- resources as chips ---- */
+.b-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.b-chip { --k: var(--k-resource); padding: 1px 7px; font-size: 11.5px; border: 1px solid color-mix(in srgb, var(--k) 50%, var(--paper)); background: color-mix(in srgb, var(--k) 8%, var(--paper)); border-radius: 999px; }
+.b-chip:hover, .b-chip.lit { border-color: var(--k); }
+.b-chip.lit { box-shadow: 0 0 0 1px var(--k); }
+
+/* ---- panel ---- */
+#panel { position: relative; flex: none; width: 340px; overflow: auto; padding: 16px 18px 24px; background: var(--panel); border-left: 1px solid var(--panel-line); }
+#panel[hidden] { display: none; }
+@media (max-width: 760px) {
+  main { flex-direction: column; }
+  #scroll { flex: 1 1 0; min-height: 0; }
+  #panel { width: auto; max-height: 50%; border-left: 0; border-top: 1px solid var(--panel-line); }
+}
+#panel h2 { margin: 2px 0 6px; font-size: 18px; font-weight: 600; padding-right: 24px; }
+#panel h3 { margin: 18px 0 6px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--graphite); }
+#panel p { margin: 0 0 6px; }
+.b-note { font-size: 12.5px; color: var(--graphite); }
+.b-back { margin-bottom: 10px; font-size: 12.5px; color: var(--graphite); }
+.b-back:hover { color: var(--k-capability); }
+.b-props { margin: 0; padding-left: 18px; }
+.b-props li + li { margin-top: 2px; }
+.b-close { position: absolute; top: 10px; right: 12px; font-size: 20px; line-height: 1; color: var(--graphite); }
+.b-caps { margin: 12px 0 0; padding: 0; list-style: none; }
+.b-caps li { padding: 4px 0 4px 10px; border-left: 2px solid color-mix(in srgb, var(--k-capability) 30%, var(--panel)); }
+.b-caps li + li { margin-top: 4px; }
+.b-caps button { display: block; font-size: 13.5px; }
+.b-caps button:hover, .b-caps li.on button { color: var(--k-capability); }
+.b-caps li.on { border-left-color: var(--k-capability); }
+.b-caps span { display: block; font-size: 12px; color: var(--graphite); }
+/* What leaves fades first, what arrives fades in after, while the boxes on both screens travel. */
+::view-transition-group(*) { animation-duration: 560ms; animation-timing-function: cubic-bezier(0.45, 0, 0.2, 1); }
+::view-transition-old(root) { animation: 200ms ease-out both b-fade-out; }
+/* New content, such as a consumer that was not on the last screen, is fully there when the
+   travelling boxes land, at 560ms. */
+::view-transition-new(root) { animation: 280ms ease-in 280ms both b-fade-in; }
+/* Opening a box grows it into the frame of the next screen; going back shrinks the frame into it. */
+/* The rectangle grows or shrinks; what is inside it is shown at its real size, never stretched. */
+::view-transition-group(zoom) { overflow: hidden; }
+::view-transition-old(zoom), ::view-transition-new(zoom) { width: 100%; height: 100%; object-fit: none; object-position: left top; mix-blend-mode: normal; }
+::view-transition-old(zoom) { animation: 220ms ease-out both b-fade-out; }
+::view-transition-new(zoom) { animation: 400ms ease-in 160ms both b-fade-in; }
+@keyframes b-fade-out { to { opacity: 0; } }
+@keyframes b-fade-in { from { opacity: 0; } }
+
+/* ---- still images: the whole screen, then what the panel would say about it ---- */
+html.still, html.still body { height: auto; }
+html.still body, html.still main { display: block; }
+html.still #scroll { overflow: visible; }
+html.still #panel, html.still .b-back-nav, html.still .top p { display: none; }
+.b-legend { columns: 3; column-gap: 32px; padding: 16px 4px; border-top: 1px solid var(--panel-line); }
+.b-legend section { break-inside: avoid; margin-bottom: 16px; }
+.b-legend h3 { margin: 0 0 6px; font-size: 13px; }
+.b-legend p { margin: 0 0 6px; font-size: 13px; color: var(--graphite); }
+.b-legend ul { margin: 0; padding-left: 16px; }
+.b-legend li { margin-bottom: 4px; font-size: 13px; }
+</style>
+</head>
+<body>
+<header class="top">
+<h1>Store boundary map</h1><span class="rev">unknown</span>
+<p>Click anything to light what it connects to. Open, at the foot of a box, goes inside.</p>
+</header>
+<nav id="nav" aria-label="Where you are"></nav>
+<main><div id="scroll"></div><aside id="panel" hidden></aside></main>
+<script type="application/json" id="map-data">{"system":{"name":"Store","description":"An online store that sells home goods to shoppers through a web shop and a mobile app, with internal tools for its fraud analysts and store managers.","corpus":{"included":"Nothing real: the Store is an invented example, written by hand to teach the boundary model. No repository exists. The places and evidence name invented folders and files.","excluded":"Shopper sign-in and accounts, saved cards and delivery addresses, which a real store would have. They are left out to keep the example small."},"revision":"unknown"},"consumers":[{"name":"Shopper","description":"A person who buys home goods from the Store, on the web or in the mobile app."},{"name":"Fraud analyst","description":"A Store employee who reviews the orders the fraud check flagged, and lets each one go ahead or cancels it."},{"name":"Store manager","description":"A Store employee who keeps the catalog right: the products, their prices and their stock."}],"providers":[{"name":"Store","description":"The online store as its shoppers and staff know it: the web shop, the mobile app and the staff tools.","resources":["Product","Order","Loyalty balance","Fraud review"],"parts":[{"name":"Web shop and mobile app clients","why":"They present the Store's capabilities to shoppers and keep nothing of their own, so they are parts of the web shop and mobile app interfaces."},{"name":"Mobile gateway","why":"It passes the mobile app's calls on to the components and trims the answers for small screens. It keeps nothing and decides nothing, so it is part of the mobile app interface."},{"name":"Dashboard, review console and store CLI","why":"Clients for staff, parts of their interfaces. The store CLI's database commands work on the system, so they are listed in excluded."},{"name":"Money library","why":"Rounds amounts and formats prices for every component. A library, not a component."}],"components":[{"name":"Storefront","description":"Takes the shoppers' orders and keeps them: it prices, places, lists and cancels orders, and sends confirmed ones to the shipping partner.","resources":["Order"],"serves":[{"consumer":"Shopper","area":"Shop"},{"consumer":"Fraud analyst","area":"Review flagged orders"}],"parts":[{"name":"Order routes","why":"Receive the web shop's and mobile app's order requests and pass them on."},{"name":"Order database","why":"Where Storefront keeps orders. Only Storefront writes to it."}]},{"name":"Catalog","description":"Keeps the products the Store sells, with their prices and stock, and alerts store managers when stock runs low.","resources":["Product"],"serves":[{"consumer":"Shopper","area":"Shop"},{"consumer":"Store manager","area":"Manage the catalog"}],"parts":[{"name":"Catalog import","why":"Reads a catalog file and turns each row into a product change. It changes the same products as the rest of Catalog, so it is part of Catalog."},{"name":"Search index","why":"A copy of the products that makes browsing fast. Catalog rebuilds it, and it decides nothing."}]},{"name":"Loyalty","description":"Keeps each shopper's loyalty balance and decides how many points an order earns.","resources":["Loyalty balance"],"serves":[{"consumer":"Shopper","area":"Shop"},{"consumer":"Shopper","area":"See loyalty balance"}],"parts":[{"name":"Points rules","why":"How Loyalty decides the points for an order. A setting of Loyalty, not a resource."},{"name":"Balance adjustments","why":"The records of points added and taken back, which add up to each balance. They are how Loyalty keeps balances, not a resource."}]},{"name":"Payments","description":"Charges and refunds orders, and holds a risky payment until a fraud analyst decides.","resources":["Charge","Fraud review"],"serves":[{"consumer":"Shopper","area":"Shop"},{"consumer":"Fraud analyst","area":"Review flagged orders"}],"parts":[{"name":"Outcome queue","why":"Carries the outcome of a held charge back to Storefront. It is how the charges API delivers its callback, not a component or a boundary."}],"components":[{"name":"Charge service","description":"Runs each charge and refund: it asks Fraud check for a score, asks the card network for the money, and alone changes a charge's state.","resources":["Charge"],"serves":[{"consumer":"Storefront","area":"Charge orders"}],"parts":[{"name":"Card network adapter","why":"How Charge service reaches the card network API. Not a component."}]},{"name":"Fraud check","description":"Scores each payment, holds the risky ones for review, and keeps the analysts' reviews and their decisions.","resources":["Charge","Fraud review"],"serves":[{"consumer":"Storefront","area":"Charge orders"},{"consumer":"Fraud analyst","area":"Review flagged orders"}],"parts":[{"name":"Scoring model","why":"How Fraud check decides a score. A set of rules or another model could replace it under the same contract, so it is an implementation choice, not a component."},{"name":"Scored charges","why":"Fraud check's own record of every charge it scored, kept apart from Charge service's charges. It is where Fraud check keeps its Charge resource."}]}]}]}],"outsideServices":[{"name":"Card network","description":"The outside network that approves card payments and returns money to cards.","resources":["Card authorization"]},{"name":"Shipping partner","description":"An outside company that keeps the Store's goods in its warehouse, and packs and ships each order.","resources":["Shipment"]}],"resources":[{"name":"Product","description":"Something the Store sells, with its price and its stock. A product can be on many orders.","properties":["name","description","price","stock","low-stock threshold","on sale or hidden"]},{"name":"Order","description":"A shopper's purchase of one or more products. Each order belongs to one shopper.","properties":["lines","total","status: placed, on hold, confirmed, shipped, delivered or canceled","tracking number","placed at"]},{"name":"Loyalty balance","description":"The points a shopper has earned from orders. Each shopper has one.","properties":["points","points that expire next, and when"]},{"name":"Fraud review","description":"An analyst's case for one flagged order: why the fraud check held it, and what the analyst decided.","properties":["score","reasons","status: open, let through or canceled","decided by","decided at"]},{"name":"Charge","description":"The money taken for one order, and any refunds of it. Each order has one charge.","properties":["amount","status: paid, declined, on hold or refunded","refunded amount"]},{"name":"Card authorization","description":"The card network's approval of one card payment, and the money returned against it.","properties":["authorization code","amount","returned amount"]},{"name":"Shipment","description":"The parcel the shipping partner sends for one order.","properties":["tracking number","delivery status"]}],"interfaces":[{"name":"web shop","description":"The Store's website, where shoppers browse, order, and follow and cancel their orders."},{"name":"mobile app","description":"The Store's phone app. It offers what the web shop offers, and the loyalty balance as well."},{"name":"review console","description":"The internal website where fraud analysts work through flagged orders."},{"name":"dashboard","description":"The internal website where store managers edit products and get low-stock alerts."},{"name":"store CLI","description":"The `store` command that store managers run to list products and import a catalog file."},{"name":"catalog API","description":"Catalog's contract for looking up products and reserving their stock."},{"name":"loyalty API","description":"Loyalty's contract for changing a shopper's balance."},{"name":"charges API","description":"Payments' contract for charging and refunding orders. It also brings back the outcome of a held charge."},{"name":"shipping API","description":"The shipping partner's contract for sending orders. It also brings back each parcel's delivery status."},{"name":"fraud scoring API","description":"Fraud check's contract for scoring a payment. It also brings back the analyst's decision on a held one."},{"name":"card network API","description":"The card network's contract for approving card payments and returning money to cards."}],"places":[{"place":"Tests","kind":"tooling","paths":["**/*.test.*"]},{"place":"Store","kind":"component","paths":["README.md","docs/**"]},{"place":"web shop","kind":"interface","paths":["apps/web-shop/**"]},{"place":"Old checkout","kind":"cleanup","paths":["apps/web-shop/src/legacy-checkout/**"]},{"place":"mobile app","kind":"interface","paths":["apps/mobile/**","services/mobile-gateway/**"]},{"place":"review console","kind":"interface","paths":["apps/review-console/**"]},{"place":"dashboard","kind":"interface","paths":["apps/dashboard/**"]},{"place":"store CLI","kind":"interface","paths":["cli/**"]},{"place":"Database tooling","kind":"tooling","paths":["cli/commands/migrate.ts","cli/commands/seed.ts"]},{"place":"catalog API","kind":"interface","paths":["contracts/catalog.ts"]},{"place":"loyalty API","kind":"interface","paths":["contracts/loyalty.ts"]},{"place":"charges API","kind":"interface","paths":["contracts/charges.ts"]},{"place":"fraud scoring API","kind":"interface","paths":["contracts/fraud-scoring.ts"]},{"place":"Storefront","kind":"component","paths":["services/storefront/**"]},{"place":"Catalog","kind":"component","paths":["services/catalog/**"]},{"place":"Loyalty","kind":"component","paths":["services/loyalty/**"]},{"place":"Payments","kind":"component","paths":["services/payments/**"]},{"place":"Charge service","kind":"component","paths":["services/payments/charge/**"]},{"place":"Fraud check","kind":"component","paths":["services/payments/fraud/**"]},{"place":"Money library","kind":"library","paths":["packages/money/**"]},{"place":"Fraud model training","kind":"tooling","paths":["ml/fraud-model/**"]},{"place":"Deploy and infrastructure","kind":"tooling","paths":["infra/**",".github/**"]}],"boundaries":[{"consumer":"Shopper","provider":"Store","interfaces":["web shop","mobile app"],"areas":[{"name":"Shop","type":"core","description":"Find products, buy them, and follow or cancel what was bought.","capabilities":[{"name":"Browse products","takes":"a search or a category","gives":"the matching products, with their prices and whether they are in stock","acts":[{"mode":"observes","resource":"Product"}]},{"name":"Place order","takes":"a cart, a delivery address and a card","gives":"the order, confirmed or on hold for review, with the points it earned; or a declined card to try again","acts":[{"mode":"produces","resource":"Order"},{"mode":"mutates","resource":"Loyalty balance"}]},{"name":"List past orders","takes":"the shopper's account","gives":"the shopper's orders, with their status, total and tracking number","acts":[{"mode":"observes","resource":"Order"}]},{"name":"Cancel order","takes":"an order that has not shipped yet","gives":"the order canceled, its money refunded to the card, and its points taken back","acts":[{"mode":"mutates","resource":"Order"},{"mode":"mutates","resource":"Loyalty balance"}]}]},{"name":"See loyalty balance","type":"supporting","description":"See the points earned from past orders.","capabilities":[{"name":"See loyalty balance","takes":"the shopper's account","gives":"the points balance, and the points that expire next","acts":[{"mode":"observes","resource":"Loyalty balance"}],"interfaces":["mobile app"]}]}],"evidence":[{"path":"apps/web-shop/src/routes/checkout.tsx","shows":"the checkout, where a shopper places an order and tries another card after a decline"},{"path":"apps/web-shop/src/routes/orders.tsx","shows":"past orders, with a cancel button on orders that have not shipped"},{"path":"apps/mobile/src/screens/Loyalty.tsx","shows":"the loyalty balance screen, which the web shop does not have"}]},{"consumer":"Fraud analyst","provider":"Store","interfaces":["review console"],"areas":[{"name":"Review flagged orders","type":"core","description":"Decide on each order the fraud check held, before it ships.","capabilities":[{"name":"List fraud reviews","takes":"open reviews, or a search by order or shopper","gives":"the flagged orders, each with its lines, its shopper, its score and the reasons for it","acts":[{"mode":"observes","resource":"Fraud review"},{"mode":"observes","resource":"Order"}]},{"name":"Decide fraud review","takes":"a review, and a decision: let the order through or cancel it","gives":"the review closed with its decision; the order goes ahead, or is canceled without charging the shopper","acts":[{"mode":"mutates","resource":"Fraud review"},{"mode":"mutates","resource":"Order"}]}]}],"evidence":[{"path":"apps/review-console/src/routes/reviews.tsx","shows":"the list of open fraud reviews, and the buttons that let an order through or cancel it"}]},{"consumer":"Store manager","provider":"Store","interfaces":["dashboard","store CLI"],"areas":[{"name":"Manage the catalog","type":"core","description":"Keep the products, their prices and their stock right.","capabilities":[{"name":"List products","takes":"a search, or a filter such as low stock or hidden","gives":"the products, with their prices, their stock and whether shoppers can see them","acts":[{"mode":"observes","resource":"Product"}]},{"name":"Edit product","takes":"a product and what to change: its name, description, price or stock, or whether shoppers see it","gives":"the product as shoppers will now see it","acts":[{"mode":"mutates","resource":"Product"}],"interfaces":["dashboard"]},{"name":"Import catalog","takes":"a catalog file, with one row per product","gives":"the products added or changed, and the rows that could not be read","acts":[{"mode":"produces","resource":"Product"},{"mode":"mutates","resource":"Product"}],"interfaces":["store CLI"]},{"name":"Alert on low stock","takes":"the products to watch, and a threshold for each","gives":"a notice in the dashboard whenever a watched product's stock falls below its threshold","acts":[{"mode":"reacts","resource":"Product"}],"interfaces":["dashboard"]}]}],"evidence":[{"path":"apps/dashboard/src/routes/products.tsx","shows":"the product list and the product editor"},{"path":"apps/dashboard/src/routes/stock-alerts.tsx","shows":"the low-stock thresholds and the notices they raise"},{"path":"cli/commands/import.ts","shows":"the import command, which reads a catalog file and reports the rows it could not read"},{"path":"cli/commands/products.ts","shows":"the products command, which lists products"}]},{"consumer":"Storefront","provider":"Catalog","interfaces":["catalog API"],"areas":[{"name":"Get products for orders","type":"core","description":"Get the current prices of an order's products, and hold their stock.","capabilities":[{"name":"Look up products","takes":"product numbers","gives":"each product's name, price and stock","acts":[{"mode":"observes","resource":"Product"}]},{"name":"Reserve stock","takes":"an order's lines, or a canceled order's lines to put back","gives":"the stock held for the order, or the lines that are out of stock","acts":[{"mode":"mutates","resource":"Product"}]}]}],"evidence":[{"path":"contracts/catalog.ts","shows":"the catalog API's lookUpProducts and reserveStock operations"}]},{"consumer":"Storefront","provider":"Loyalty","interfaces":["loyalty API"],"areas":[{"name":"Adjust loyalty balance","type":"core","description":"Add points for a placed order, and take them back for a canceled one.","capabilities":[{"name":"Adjust loyalty balance","takes":"a placed or canceled order","gives":"the points added or taken back, and the new balance","acts":[{"mode":"mutates","resource":"Loyalty balance"}]}]}],"evidence":[{"path":"contracts/loyalty.ts","shows":"the loyalty API's adjustBalance operation"}]},{"consumer":"Storefront","provider":"Payments","interfaces":["charges API"],"areas":[{"name":"Charge orders","type":"core","description":"Take the money for an order, and give it back.","capabilities":[{"name":"Charge order","takes":"an order's total and the shopper's card","gives":"the charge, paid, declined or on hold; a held charge's outcome comes back on the charges API once an analyst decides","acts":[{"mode":"produces","resource":"Charge"}]},{"name":"Refund order","takes":"a charge, and the amount to give back","gives":"the charge, with that amount refunded to the card","acts":[{"mode":"mutates","resource":"Charge"}]}]}],"evidence":[{"path":"contracts/charges.ts","shows":"the charges API's chargeOrder and refundOrder operations, and the chargeSettled callback for held charges"}]},{"consumer":"Storefront","provider":"Shipping partner","interfaces":["shipping API"],"areas":[{"name":"Ship order","type":"core","description":"Get a confirmed order packed and sent to the shopper.","capabilities":[{"name":"Ship order","takes":"a confirmed order, with its delivery address","gives":"a shipment with its tracking number, then its delivery status as the parcel moves","acts":[{"mode":"produces","resource":"Shipment"}]}]}],"evidence":[{"path":"services/storefront/src/shipping-client.ts","shows":"the calls to the shipping partner's API, and the handler for its delivery updates"}]},{"consumer":"Payments","provider":"Card network","interfaces":["card network API"],"areas":[{"name":"Take card payments","type":"core","description":"Get card payments approved, and return money to cards.","capabilities":[{"name":"Authorize card payment","takes":"a card and an amount","gives":"an authorization or a decline","acts":[{"mode":"produces","resource":"Card authorization"}]},{"name":"Refund card payment","takes":"an authorization, and the amount to return","gives":"the amount returned to the card","acts":[{"mode":"mutates","resource":"Card authorization"}]}]}],"evidence":[{"path":"services/payments/charge/src/card-network-client.ts","shows":"the authorize and refund calls to the card network API"}]},{"consumer":"Charge service","provider":"Fraud check","interfaces":["fraud scoring API"],"areas":[{"name":"Score payment","type":"core","description":"Learn whether a payment may go ahead.","capabilities":[{"name":"Score payment","takes":"a charge, with its order and card details","gives":"a score and a verdict: go ahead, decline or hold; for a held payment, the analyst's decision follows","acts":[{"mode":"observes","resource":"Charge"}]}]}],"evidence":[{"path":"contracts/fraud-scoring.ts","shows":"the fraud scoring API's scorePayment operation, and the reviewDecided callback"}]},{"consumer":"Charge service","provider":"Card network","interfaces":["card network API"],"areas":[{"name":"Take card payments","type":"core","description":"Get card payments approved, and return money to cards.","capabilities":[{"name":"Authorize card payment","takes":"a card and an amount","gives":"an authorization or a decline","acts":[{"mode":"produces","resource":"Card authorization"}]},{"name":"Refund card payment","takes":"an authorization, and the amount to return","gives":"the amount returned to the card","acts":[{"mode":"mutates","resource":"Card authorization"}]}]}],"evidence":[{"path":"services/payments/charge/src/card-network-client.ts","shows":"the authorize and refund calls to the card network API"}]}],"questions":[{"question":"Is the review console part of the Store, or a fraud tool of its own?","answer":"Part of the Store rather than its own provider. It ships with the Store, works on the Store's orders and fraud reviews, and keeps no data of its own, so analysts see it as the Store's back office. It would be its own provider if analysts used it as a separate product, with its own data."},{"question":"Is Loyalty a component of its own, or part of Storefront?","answer":"A component of its own rather than part of Storefront. It alone decides how many points an order earns and alone changes balances, and Storefront reaches it only through the loyalty API. Keeping loyalty inside Storefront, as the model's shorter example does, would also fit a store whose points rules live with its orders."},{"question":"Does Storefront serve the fraud analyst?","answer":"Yes, beside Payments, rather than Payments alone. An analyst's decision lets an order through or cancels it, and only Storefront changes orders: it does so when the held charge's outcome comes back on the charges API."}],"cleanupCandidates":[{"name":"Old checkout","why":"apps/web-shop/src/legacy-checkout is the checkout the web shop used before the current one. A flag still turns it on, but no shopper reaches it."}],"excluded":[{"name":"Database commands of the store CLI","why":"`store migrate` and `store seed` change the database schema and load test data. They work on the system, not with it."},{"name":"Fraud model training","why":"ml/fraud-model trains the model Fraud check scores with. It changes how the system decides, so it works on the system."},{"name":"Deploy and infrastructure","why":"infra/ and the CI workflows build and ship the Store."},{"name":"Tests","why":"They check the system."},{"name":"Flagging risky payments","why":"Fraud check flags payments on its own, as part of scoring them. No consumer asks for it: analysts review what it flagged."},{"name":"Points expiry","why":"Loyalty expires points a year after they are earned, on its own. Shoppers see the points that expire next on their balance."},{"name":"Search index rebuild and health checks","why":"Machinery that keeps browsing fast and the services up. Nobody uses it for a purpose of their own."}]}</script>
+<script>
+// Draws a boundary map one open box at a time. Each screen shows who uses the open box, its
+// interfaces, its capabilities, the components inside it, and what it uses; every box lists the
+// resources it keeps. A click lights what the clicked thing connects to and explains it in the
+// panel; Open, at the foot of a box, makes it the open box. With ?still in the address the page
+// draws one screen for a still image, with what the panel would say written under the drawing.
+
+// ---------- the map ----------
+
+const RAW = JSON.parse(document.getElementById("map-data").textContent);
+const params = new URLSearchParams(location.search);
+const STILL = params.has("still");
+if (STILL) document.documentElement.classList.add("still");
+const MODE_WORD = { produces: "creates", mutates: "changes", observes: "reads", reacts: "reacts to" };
+const KIND_WORD = {
+  consumer: "Consumer",
+  provider: "Provider",
+  component: "Component",
+  outside: "Outside service",
+};
+
+function el(tag, attrs = {}, ...children) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v === undefined || v === null || v === false) continue;
+    if (k === "class") e.className = v;
+    else if (k === "html") e.innerHTML = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v);
+  }
+  for (const c of children.flat(3)) if (c !== null && c !== undefined && c !== false) e.append(c);
+  return e;
+}
+
+function svgEl(tag, attrs = {}) {
+  const e = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const [k, v] of Object.entries(attrs)) if (v !== undefined && v !== null) e.setAttribute(k, v);
+  return e;
+}
+
+const escapeHtml = (s) =>
+  s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const inline = (s) =>
+  escapeHtml(s)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+const sentence = (s) => s.replace(/^[a-z]/, (c) => c.toUpperCase());
+const text = (tag, s, cls) => el(tag, { class: cls, html: inline(sentence(s)) });
+const unique = (xs) => [...new Set(xs)];
+
+const nodes = new Map();
+for (const c of RAW.consumers) nodes.set(c.name, { ...c, kind: "consumer", children: [], shared: [], also: [] });
+const addComponent = (c, parent) => {
+  const n = {
+    name: c.name,
+    description: c.description,
+    kind: parent ? "component" : "provider",
+    parent: parent ?? null,
+    resources: c.resources,
+    parts: c.parts,
+    serves: [...(c.serves ?? [])],
+    children: (c.components ?? []).map((k) => k.name),
+    shared: [],
+    also: [],
+  };
+  nodes.set(c.name, n);
+  for (const k of c.components ?? []) addComponent(k, c.name);
+};
+for (const p of RAW.providers) addComponent(p, null);
+for (const s of RAW.outsideServices)
+  nodes.set(s.name, { ...s, kind: "outside", children: [], shared: [], also: [], parts: [] });
+// A component can sit inside a second provider or component at any level.
+const defined = (c) => [c, ...(c.components ?? []).flatMap(defined)];
+for (const p of RAW.providers.flatMap(defined))
+  for (const s of p.sharedComponents ?? []) {
+    nodes.get(p.name).shared.push(s.name);
+    nodes.get(s.name).also.push(p.name);
+    nodes.get(s.name).serves.push(...s.serves);
+  }
+
+const boundaries = RAW.boundaries.map((b) => {
+  const boundary = { ...b, id: `${b.consumer} → ${b.provider}` };
+  boundary.areas = b.areas.map((a) => {
+    const area = { ...a, key: `${b.consumer} › ${a.name}`, boundary };
+    area.capabilities = a.capabilities.map((c) => ({
+      ...c,
+      area,
+      id: `${area.key} › ${c.name}`,
+      via: c.interfaces ?? b.interfaces,
+    }));
+    return area;
+  });
+  return boundary;
+});
+const allAreas = boundaries.flatMap((b) => b.areas);
+const allCapabilities = allAreas.flatMap((a) => a.capabilities);
+const capabilityById = new Map(allCapabilities.map((c) => [c.id, c]));
+const resourceByName = new Map(RAW.resources.map((r) => [r.name, r]));
+const interfaceText = new Map(RAW.interfaces.map((i) => [i.name, i.description]));
+
+const node = (name) => nodes.get(name);
+const incoming = (name) => boundaries.filter((b) => b.provider === name);
+const subtree = (name) => [name, ...node(name).children.flatMap(subtree)];
+const ancestors = (name) => {
+  const p = node(name).parent;
+  return p ? [...ancestors(p), p] : [];
+};
+const handlers = (area) => {
+  const serving = [...nodes.values()]
+    .filter((n) => n.serves?.some((s) => `${s.consumer} › ${s.area}` === area.key))
+    .map((n) => n.name);
+  return serving.length ? serving : [area.boundary.provider];
+};
+// A boundary drawn on a whole component that one of its inner components carries in detail.
+const refinedBy = (b) =>
+  boundaries.find((o) => o !== b && o.provider === b.provider && node(b.consumer).children.includes(o.consumer));
+const capabilitiesThrough = (b, iface) => b.areas.flatMap((a) => a.capabilities).filter((c) => c.via.includes(iface));
+
+// ---------- motion ----------
+
+// Moves things to their new place where the browser can, and just redraws where it cannot.
+const NO_MOTION = STILL || matchMedia("(prefers-reduced-motion: reduce)").matches;
+const cssName = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+function transition(fn) {
+  if (!document.startViewTransition || NO_MOTION || document.visibilityState === "hidden") return fn();
+  const t = document.startViewTransition(fn);
+  // A transition that a quicker click cuts short still runs its update; only the motion is lost.
+  t.ready.catch(() => {});
+  t.updateCallbackDone.catch(() => {});
+  t.finished.catch(() => {});
+}
+
+// ---------- screens ----------
+
+// One open box per screen, in fixed columns: who uses it, its interfaces, its capabilities, its
+// components, and what it uses. Blue dots are the interfaces of the open box only; each box lists
+// the resources it keeps. Lines join who uses the box to its interfaces, its interfaces to its
+// capabilities, and each component to what it depends on; they light with whatever is in focus.
+// All providers, above every open box, shows each provider with the consumers that use it.
+const TOP = "";
+// Keep in step with addressOf in render-map.mjs, which refuses a map where two names share an address.
+const slugOf = (s) => s.normalize("NFC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "");
+const bySlug = new Map([...nodes.keys()].map((n) => [slugOf(n), n]));
+// The page opens on the provider named after the system, when there is one, else on All providers.
+const HOME = RAW.providers.some((p) => p.name === RAW.system.name) ? [RAW.system.name] : [];
+
+let openBox = TOP;
+let trail = []; // the boxes opened from All providers down to the open one, as you came
+const visited = []; // earlier trails, most recent last, for Back
+const memory = new Map(); // a screen's address -> its scroll and selection when it was left
+let selected = null; // the data-key of what is selected
+let current = null; // what the selection lights, from lineage
+let screen; // what the open box shows, from screenOf
+let reg; // what the screen drew, by data-key: the first element drawn for each
+let drawn; // every element drawn with a data-key, as [key, element]; a shared resource is drawn twice
+
+const servedBy = (name) =>
+  allAreas.filter((a) => node(name).serves?.some((s) => `${s.consumer} › ${s.area}` === a.key));
+const actedOn = (g) => unique(g.members.flatMap((a) => a.capabilities.flatMap((c) => c.acts.map((x) => x.resource))));
+const actingOn = (r) => allCapabilities.filter((c) => c.acts.some((a) => a.resource === r));
+// A box and everything in it, components it shares with another provider included.
+const within = (name) => [name, ...[...node(name).children, ...node(name).shared].flatMap(within)];
+// A box opens when its screen has something of its own: components inside it, or capabilities it
+// offers across a boundary of its own. Otherwise its screen would repeat the level above.
+const opens = (name) => {
+  const n = node(name);
+  return n.kind !== "consumer" && (n.children.length + n.shared.length > 0 || incoming(name).some((b) => !refinedBy(b)));
+};
+// Who keeps a resource, leaving out a box when one of its inner components keeps it too.
+const keepersOf = (r) => {
+  const keepers = [...nodes.values()].filter((n) => n.resources?.includes(r)).map((n) => n.name);
+  return keepers.filter((k) => !keepers.some((o) => o !== k && subtree(k).includes(o)));
+};
+const kindClass = (name) => `k-${node(name).kind === "provider" ? "component" : node(name).kind}`;
+
+function screenOf(name) {
+  const top = name === TOP;
+  const n = top ? null : node(name);
+  const into = top ? [] : incoming(name).filter((b) => !refinedBy(b));
+  const reached = top ? [] : into.length ? into.flatMap((b) => b.areas) : servedBy(name);
+  const areas = [];
+  for (const a of reached) {
+    const same = areas.find((g) => g.name === a.name);
+    if (same) same.members.push(a);
+    else areas.push({ name: a.name, type: a.type, members: [a] });
+  }
+  for (const g of areas) {
+    g.ports = unique(g.members.flatMap((a) => a.capabilities.flatMap((c) => c.via)));
+    g.consumers = unique(g.members.map((a) => a.boundary.consumer));
+    // Consumers may reach areas of the same name; each capability is listed once.
+    g.capabilities = g.members
+      .flatMap((a) => a.capabilities)
+      .filter((c, i, all) => all.findIndex((o) => o.name === c.name) === i);
+  }
+  const inner = top ? [] : [...n.children, ...n.shared];
+  const consumers = top ? RAW.consumers.map((c) => c.name) : unique(areas.flatMap((g) => g.consumers));
+  const calls = top ? [] : boundaries.filter((b) => !refinedBy(b) && (b.consumer === name || inner.includes(b.consumer)));
+  // An outside service that a component inside calls sits with the components, in the column after
+  // its callers, so its links stay short; what the open box itself calls sits to the right of it.
+  const outside = unique(calls.filter((b) => inner.includes(b.consumer) && node(b.provider).kind === "outside").map((b) => b.provider));
+  const boxes = top ? RAW.providers.map((p) => p.name) : [...inner, ...outside];
+  const uses = unique(calls.filter((b) => !within(name).includes(b.provider) && !outside.includes(b.provider)).map((b) => b.provider));
+  // Each resource kept inside the open box goes in the box on this screen that holds its keeper.
+  const holder = (k) => boxes.find((b) => subtree(b).includes(k)) ?? (!top && subtree(name).includes(k) ? name : null);
+  const kept = new Map();
+  for (const r of RAW.resources)
+    for (const h of unique(keepersOf(r.name).map(holder)).filter(Boolean)) kept.set(h, [...(kept.get(h) ?? []), r.name]);
+  return {
+    top,
+    consumers,
+    ports: unique(areas.flatMap((g) => g.ports)),
+    areas,
+    through: !top && !into.length ? reached[0]?.boundary.provider : null,
+    columns: top ? [boxes] : columnsOf(boxes),
+    boxes,
+    uses,
+    visible: new Set([...consumers, ...boxes, ...uses]),
+    kept,
+    // What each component, or the open box, depends on among the boxes on this screen.
+    links: calls.filter((b) => boxes.includes(b.provider) || uses.includes(b.provider)),
+  };
+}
+
+function columnsOf(ids) {
+  const depth = new Map();
+  const visit = (id, seen) => {
+    if (depth.has(id)) return depth.get(id);
+    const before = boundaries.filter((b) => b.provider === id && ids.includes(b.consumer) && !seen.has(b.consumer));
+    const d = Math.max(-1, ...before.map((b) => visit(b.consumer, new Set([...seen, id])))) + 1;
+    depth.set(id, d);
+    return d;
+  };
+  ids.forEach((id) => visit(id, new Set([id])));
+  const columns = [];
+  for (const id of ids) (columns[depth.get(id)] ??= []).push(id);
+  return columns.filter(Boolean);
+}
+
+// ---------- what a selection lights ----------
+
+// What leads to the selection and what it leads to, on this screen. A component that is not on the
+// screen lights the box that holds it, which then says which components it stands for.
+function lineage(key) {
+  const s = screen;
+  const keys = new Set([key]);
+  const cut = key.indexOf(":");
+  const kind = key.slice(0, cut);
+  const id = key.slice(cut + 1);
+  // Components to light, with what each does; each lights the box on this screen that holds it.
+  const requests = [];
+  const lightBox = (name, role) => name && requests.push([name, role]);
+  const holders = (name) => (s.visible.has(name) ? [name] : [...s.visible].filter((v) => within(v).includes(name)));
+  const upstream = (g) => {
+    keys.add(`a:${g.name}`);
+    g.ports.forEach((p) => keys.add(`p:${p}`));
+    g.consumers.forEach((c) => keys.add(`b:${c}`));
+  };
+  if (kind === "a") {
+    const g = s.areas.find((x) => x.name === id);
+    if (g) {
+      upstream(g);
+      g.members.flatMap(handlers).forEach((h) => lightBox(h, "handles"));
+      actedOn(g).forEach((r) => keys.add(`r:${r}`));
+    }
+  }
+  if (kind === "c") {
+    const c = capabilityById.get(id);
+    const g = s.areas.find((x) => x.members.includes(c.area));
+    if (g) keys.add(`a:${g.name}`);
+    c.via.filter((p) => s.ports.includes(p)).forEach((p) => keys.add(`p:${p}`));
+    lightBox(c.area.boundary.consumer, "asks");
+    handlers(c.area).forEach((h) => lightBox(h, "handles"));
+    c.acts.forEach((a) => keys.add(`r:${a.resource}`));
+  }
+  if (kind === "p")
+    for (const g of s.areas.filter((x) => x.ports.includes(id))) {
+      keys.add(`a:${g.name}`);
+      g.members.filter((a) => a.boundary.interfaces.includes(id)).forEach((a) => keys.add(`b:${a.boundary.consumer}`));
+    }
+  if (kind === "r") {
+    const caps = actingOn(id);
+    for (const g of s.areas) if (g.members.some((a) => caps.some((c) => c.area === a))) keys.add(`a:${g.name}`);
+    keepersOf(id).forEach((o) => lightBox(o, "keeps"));
+    unique(caps.flatMap((c) => handlers(c.area))).forEach((h) => lightBox(h, "acts"));
+  }
+  if (kind === "b") {
+    const inside = within(id);
+    if (s.consumers.includes(id))
+      for (const g of s.areas.filter((x) => x.consumers.includes(id))) {
+        keys.add(`a:${g.name}`);
+        g.members.filter((a) => a.boundary.consumer === id).forEach((a) => a.capabilities.forEach((c) => c.via.forEach((p) => keys.add(`p:${p}`))));
+      }
+    for (const g of s.areas) if (g.members.some((a) => handlers(a).some((h) => inside.includes(h)))) upstream(g);
+    for (const b of boundaries) {
+      if (refinedBy(b)) continue;
+      for (const [near, far, role] of [
+        [b.provider, b.consumer, "calls"],
+        [b.consumer, b.provider, "called"],
+      ]) {
+        if (!inside.includes(near) || inside.includes(far)) continue;
+        // A call to a component that the other box also contains stays inside both.
+        if (holders(far).some((o) => within(o).includes(near))) continue;
+        lightBox(far, role);
+      }
+    }
+    (s.kept.get(id) ?? []).forEach((r) => keys.add(`r:${r}`));
+  }
+  // A shared component sits in more than one box on the screen: it lights the one already lit, else
+  // the one holding the selection, else the one it is defined in.
+  const home = kind === "r" ? [...s.kept].find(([, rs]) => rs.includes(id))?.[0] : kind === "b" ? id : null;
+  const notes = new Map(); // a lit box -> what the components inside it do, by role
+  const assign = (at, name, role) => {
+    keys.add(`b:${at}`);
+    if (at === name || at === id) return;
+    const roles = notes.get(at) ?? notes.set(at, new Map()).get(at);
+    (roles.get(role) ?? roles.set(role, new Set()).get(role)).add(name);
+  };
+  const later = [];
+  for (const [name, role] of requests) {
+    const c = holders(name);
+    if (c.length === 1) assign(c[0], name, role);
+    else if (c.length > 1) later.push([name, role, c]);
+  }
+  for (const [name, role, c] of later)
+    assign(c.find((v) => keys.has(`b:${v}`)) ?? c.find((v) => v === home) ?? c.find((v) => ancestors(name).includes(v)) ?? c[0], name, role);
+  return { keys, notes };
+}
+
+// What the components inside a lit box do with the selection: "Run controller keeps it; Conversations
+// and Execution kits act on it."
+const VERBS = { keeps: ["keeps it", "keep it"], acts: ["acts on it", "act on it"], handles: ["handles it", "handle it"], calls: ["calls it", "call it"], asks: ["asks for it", "ask for it"] };
+function noteOf(roles) {
+  const keepers = roles.get("keeps") ?? new Set();
+  const parts = [...roles].map(([role, names]) => {
+    const list = [...names].filter((n) => role === "keeps" || !keepers.has(n));
+    if (!list.length) return null;
+    const who = list.length > 1 ? `${list.slice(0, -1).join(", ")} and ${list.at(-1)}` : list[0];
+    return role === "called" ? `It calls ${who}` : `${who} ${VERBS[role][list.length > 1 ? 1 : 0]}`;
+  });
+  return `${parts.filter(Boolean).join("; ")}.`;
+}
+
+// ---------- drawing ----------
+
+const pick = (key) => (event) => {
+  event.stopPropagation();
+  selected = key;
+  render();
+};
+
+const register = (key, e) => {
+  e.dataset.key = key;
+  if (!reg.has(key)) reg.set(key, e);
+  drawn.push([key, e]);
+  return e;
+};
+
+const kindLine = (kind, qualifier) =>
+  el("span", { class: "b-top" }, el("span", { class: "b-kind" }, kind), qualifier && el("span", { class: "b-qual" }, qualifier));
+
+function chips(names) {
+  if (!names.length) return null;
+  return el(
+    "span",
+    { class: "b-chips" },
+    names.map((r) => register(`r:${r}`, el("button", { type: "button", class: "b-chip", onclick: pick(`r:${r}`) }, r))),
+  );
+}
+
+function box(name, where) {
+  const n = node(name);
+  const key = `b:${name}`;
+  const inner = n.children.length + n.shared.length;
+  const shared = where === "inside" && n.also.includes(openBox) ? `Shared with ${n.parent}` : null;
+  const canOpen = opens(name);
+  const enter = (e) => (e.stopPropagation(), go(name));
+  const note = current?.notes.get(name);
+  return register(
+    key,
+    el(
+      "section",
+      { class: `b-box ${kindClass(name)}${n.kind === "provider" ? " provider" : ""}${canOpen ? " opens" : ""}`, onclick: pick(key), ondblclick: canOpen ? enter : null },
+      kindLine(shared ?? KIND_WORD[n.kind]),
+      el("button", { type: "button", class: "b-name", onclick: pick(key) }, name),
+      note && el("span", { class: "b-via" }, noteOf(note)),
+      where === "inside" && chips(screen.kept.get(name) ?? []),
+      canOpen && el("button", { type: "button", class: "b-go", onclick: enter }, el("span", {}, inner ? `Open, ${inner} components` : "Open"), el("span", {}, "›")),
+    ),
+  );
+}
+
+function areaBox(g) {
+  return register(
+    `a:${g.name}`,
+    el(
+      "button",
+      { type: "button", class: "b-box k-capability b-area", onclick: pick(`a:${g.name}`) },
+      kindLine("Capabilities", `${g.type}, ${g.capabilities.length}`),
+      el("span", { class: "b-name" }, g.name),
+    ),
+  );
+}
+
+const zone = (cls, title, ...content) => el("div", { class: `b-zone ${cls}` }, el("h3", {}, title), el("div", { class: "b-zone-body" }, content));
+
+function frame(name) {
+  const n = node(name);
+  const s = screen;
+  const keeps = s.kept.get(name) ?? [];
+  const body = [
+    zone("z-interface", "Interfaces", s.ports.map((iface) => register(`p:${iface}`, el("button", { type: "button", class: "b-port edge", onclick: pick(`p:${iface}`) }, iface)))),
+    zone("z-capability", "Capabilities", s.areas.map(areaBox)),
+    s.columns.length > 0 &&
+      zone("z-component", "Components", el("div", { class: "b-cols" }, s.columns.map((c) => el("div", { class: "b-col b-placed" }, c.map((id) => box(id, "inside")))))),
+  ];
+  return el(
+    "section",
+    { class: `b-frame ${kindClass(name)}` },
+    el(
+      "header",
+      { class: "b-frame-head" },
+      el("span", { class: "b-kind" }, KIND_WORD[n.kind] + (n.also.length ? `, shared with ${n.also.join(", ")}` : "")),
+      el("h2", {}, name),
+      text("p", n.description),
+      s.through && el("p", { class: "b-through" }, `Reached through ${s.through}'s interfaces.`),
+      keeps.length > 0 && el("div", { class: "b-keeps" }, el("span", { class: "b-keeps-label" }, "Keeps"), chips(keeps)),
+    ),
+    el("div", { class: "b-body" }, body),
+  );
+}
+
+// Places absolutely positioned items, each as close as it can to the height it wants its centre at.
+// Items that would overlap form a block, kept in order and centred on what its items want on
+// average, so that several boxes linked to one thing sit around it rather than below it. Returns
+// the height used.
+function settle(items, gap) {
+  const blocks = [...items].sort((a, b) => a.want - b.want).map((it) => ({ items: [it] }));
+  const place = (b) => {
+    let off = 0;
+    const tops = b.items.map((it) => {
+      const want = it.want - it.el.offsetHeight / 2 - off;
+      off += it.el.offsetHeight + gap;
+      return want;
+    });
+    b.height = off - gap;
+    b.top = Math.max(0, avg(tops));
+  };
+  blocks.forEach(place);
+  for (let i = 1; i < blocks.length; ) {
+    const [a, b] = [blocks[i - 1], blocks[i]];
+    if (a.top + a.height + gap <= b.top) i++;
+    else {
+      a.items.push(...b.items);
+      blocks.splice(i, 1);
+      place(a);
+      i = 1;
+    }
+  }
+  for (const b of blocks) {
+    let y = b.top;
+    for (const it of b.items) {
+      it.el.style.top = `${y}px`;
+      y += it.el.offsetHeight + gap;
+    }
+  }
+  const last = blocks.at(-1);
+  return last ? last.top + last.height : 0;
+}
+
+function render() {
+  reg = new Map();
+  drawn = [];
+  screen = screenOf(openBox);
+  const s = screen;
+  current = null;
+  if (selected)
+    try {
+      current = lineage(selected);
+    } catch {
+      selected = null;
+    }
+  const stage = el("div", { class: `b-stage${s.top ? " top" : ""}` });
+  const wires = svgEl("svg", { class: "b-wires" });
+  const left = zone("z-consumer b-left", "Used by", s.consumers.map((c) => box(c, "left")));
+  const middle = s.top ? zone("z-component b-mid", "Providers", el("div", { class: "b-col b-placed" }, s.boxes.map((p) => box(p, "inside")))) : frame(openBox);
+  const right = s.uses.length > 0 && zone("z-uses b-right", "Uses", s.uses.map((u) => box(u, "right")));
+  stage.append(wires, left, middle, ...[right].filter(Boolean));
+  document.getElementById("scroll").replaceChildren(stage);
+  drawNav();
+  if (selected && !reg.has(selected) && !selected.startsWith("c:")) {
+    selected = null;
+    return render();
+  }
+
+  const o = stage.getBoundingClientRect();
+  const mid = (e) => {
+    const r = e.getBoundingClientRect();
+    return { l: r.left - o.left, r: r.right - o.left, t: r.top - o.top, b: r.bottom - o.top, y: (r.top + r.bottom) / 2 - o.top };
+  };
+  const bodyOf = (cls) => stage.querySelector(`.${cls} > .b-zone-body`);
+
+  // Capabilities stack in the order of the interfaces that reach them, each interface sits level
+  // with its capabilities, each component level with the capabilities it handles, and each
+  // consumer level with what it uses. A group linked to one thing is centred on it.
+  if (!s.top) {
+    const first = (g) => Math.min(...g.ports.map((p) => s.ports.indexOf(p)));
+    let y = 0;
+    for (const g of [...s.areas].sort((a, b) => first(a) - first(b))) {
+      const e = reg.get(`a:${g.name}`);
+      e.style.top = `${y}px`;
+      g.y = y + e.offsetHeight / 2;
+      y += e.offsetHeight + 12;
+    }
+    const h = settle(s.ports.map((p) => ({ el: reg.get(`p:${p}`), want: avg(s.areas.filter((g) => g.ports.includes(p)).map((g) => g.y)) })), 6);
+    bodyOf("z-capability").style.height = `${Math.max(y, h)}px`;
+    bodyOf("z-interface").style.height = `${Math.max(y, h)}px`;
+    // A component without capabilities on this screen sits level with what calls it. Columns go
+    // left to right, so callers are already placed.
+    const capTop = mid(bodyOf("z-capability")).t;
+    for (const col of stage.querySelectorAll(".b-cols > .b-col")) {
+      const t = mid(col).t;
+      const items = [...col.children].map((e) => {
+        const inside = subtree(e.dataset.key.slice(2));
+        const served = s.areas.filter((g) => g.members.some((a) => handlers(a).some((x) => inside.includes(x))));
+        const callers = s.links.filter((b) => b.provider === inside[0] && s.boxes.includes(b.consumer)).map((b) => mid(reg.get(`b:${b.consumer}`)).y);
+        const want = served.length ? avg(served.map((g) => capTop + g.y)) : callers.length ? avg(callers) : t;
+        return { el: e, want: want - t };
+      });
+      col.style.height = `${settle(items, 14)}px`;
+    }
+  }
+  const targetsOf = (c) =>
+    unique(
+      s.top
+        ? boundaries.filter((b) => b.consumer === c && s.boxes.includes(b.provider)).map((b) => reg.get(`b:${b.provider}`))
+        : boundaries.filter((b) => b.consumer === c).flatMap((b) => b.interfaces).filter((i) => s.ports.includes(i)).map((i) => reg.get(`p:${i}`)),
+    );
+  const leftBody = bodyOf("b-left");
+  if (s.top) {
+    // Each provider and the consumers that use it form a row, centred on each other.
+    const col = stage.querySelector(".b-mid .b-col");
+    const firstUse = (c) => s.boxes.find((p) => boundaries.some((b) => b.consumer === c && b.provider === p));
+    const rows = [...s.boxes.map((p) => [reg.get(`b:${p}`), s.consumers.filter((c) => firstUse(c) === p)]), [null, s.consumers.filter((c) => !firstUse(c))]];
+    let y = 0;
+    for (const [pe, cs] of rows) {
+      const ces = cs.map((c) => reg.get(`b:${c}`));
+      const ph = pe?.offsetHeight ?? 0;
+      const ch = ces.reduce((n, e) => n + e.offsetHeight + 14, -14);
+      const rh = Math.max(ph, ch);
+      if (rh <= 0) continue;
+      if (pe) pe.style.top = `${y + (rh - ph) / 2}px`;
+      let cy = y + (rh - Math.max(ch, 0)) / 2;
+      for (const e of ces) {
+        e.style.top = `${cy}px`;
+        cy += e.offsetHeight + 14;
+      }
+      y += rh + 28;
+    }
+    col.style.height = leftBody.style.height = `${Math.max(0, y - 28)}px`;
+  } else {
+    const lt = mid(leftBody).t;
+    leftBody.style.height = `${settle(
+      s.consumers.map((c) => {
+        const to = targetsOf(c);
+        return { el: reg.get(`b:${c}`), want: (to.length ? avg(to.map((p) => mid(p).y)) : 0) - lt };
+      }),
+      14,
+    )}px`;
+  }
+  // What the open box uses is centred, as a block, on the open box's body.
+  // Each box to the right sits level with what calls it; the open box calls from its body's middle.
+  if (right) {
+    const body = right.querySelector(".b-zone-body");
+    const rt = mid(body).t;
+    const frameMid = mid(stage.querySelector(".b-body")).y;
+    const items = s.uses.map((u) => {
+      const ys = s.links.filter((b) => b.provider === u).map((b) => (b.consumer === openBox ? frameMid : mid(reg.get(`b:${b.consumer}`)).y));
+      return { el: reg.get(`b:${u}`), want: (ys.length ? avg(ys) : frameMid) - rt };
+    });
+    body.style.height = `${settle(items, 14)}px`;
+  }
+
+  wires.setAttribute("width", stage.scrollWidth);
+  wires.setAttribute("height", stage.scrollHeight);
+  const curve = (a, b) => {
+    const dx = Math.max(20, Math.abs(b[0] - a[0]) / 2);
+    return `M${a[0]},${a[1]} C${a[0] + dx},${a[1]} ${b[0] - dx},${b[1]} ${b[0]},${b[1]}`;
+  };
+  const wire = (from, to, a, b) => wires.append(svgEl("path", { d: curve(a, b), "data-from": from, "data-to": to }));
+  for (const c of s.consumers)
+    for (const t of targetsOf(c)) {
+      const from = mid(reg.get(`b:${c}`));
+      const to = mid(t);
+      wire(`b:${c}`, t.dataset.key, [from.r, from.y], [to.l - (s.top ? 0 : 4), to.y]);
+    }
+  for (const g of s.areas) {
+    const at = mid(reg.get(`a:${g.name}`));
+    for (const p of g.ports) {
+      const from = mid(reg.get(`p:${p}`));
+      wire(`p:${p}`, `a:${g.name}`, [from.r, from.y], [at.l, at.y]);
+    }
+  }
+  // Dependencies, from the right edge of a component, or of the open box, to what it depends on. A
+  // line that passes a column in between goes straight through the nearest gap between its boxes,
+  // so that it never seems to leave from a box it only passes behind.
+  const frameEl = stage.querySelector(".b-frame");
+  const cols = [...stage.querySelectorAll(".b-cols > .b-col")].map((c) => ({ ...mid(c), boxes: [...c.children].map(mid).sort((a, b) => a.t - b.t) }));
+  const colOf = (e) => cols.findIndex((c) => e.l >= c.l - 1 && e.r <= c.r + 1);
+  const gapAt = (c, want) => {
+    const gaps = [[-Infinity, c.boxes[0]?.t ?? Infinity], ...c.boxes.map((x, i) => [x.b, c.boxes[i + 1]?.t ?? Infinity])];
+    const ys = gaps.map(([lo, hi]) => (hi - lo < 40 ? (lo + hi) / 2 : Math.min(Math.max(want, lo + 12), hi - 12)));
+    return ys.reduce((best, y) => (Math.abs(y - want) < Math.abs(best - want) ? y : best));
+  };
+  for (const b of s.links) {
+    const own = b.consumer === openBox;
+    const from = mid(own ? frameEl : reg.get(`b:${b.consumer}`));
+    const to = mid(reg.get(`b:${b.provider}`));
+    const y = own ? Math.min(Math.max(to.y, from.t + 40), from.b - 20) : from.y;
+    const start = own ? -1 : colOf(from);
+    const end = colOf(to) === -1 ? cols.length : colOf(to);
+    let d = "";
+    let at = [from.r, y];
+    for (let k = start + 1; k < end && start !== -1; k++) {
+      const gy = gapAt(cols[k], at[1] + ((to.y - at[1]) * (cols[k].l - at[0])) / Math.max(1, to.l - at[0]));
+      d += `${d ? " " : ""}${curve(at, [cols[k].l - 10, gy])} L${cols[k].r + 10},${gy}`;
+      at = [cols[k].r + 10, gy];
+    }
+    wires.append(svgEl("path", { d: `${d}${d ? " " : ""}${curve(at, [to.l, to.y])}`, "data-from": `b:${b.consumer}`, "data-to": `b:${b.provider}` }));
+  }
+  paint(stage);
+  drawPanel();
+  if (selected && reg.has(selected)) reg.get(selected).scrollIntoView({ block: "nearest", inline: "nearest" });
+  if (STILL) drawLegend(stage);
+}
+
+function paint(stage) {
+  const keys = current?.keys;
+  for (const [key, e] of drawn) {
+    const on = Boolean(keys?.has(key));
+    e.classList.toggle("lit", on);
+    e.classList.toggle("chosen", key === selected);
+    e.classList.toggle("dim", Boolean(keys) && !on);
+  }
+  // A resource in a lit box is part of that box, so it does not fade; it is outlined only when it is
+  // linked to the selection. In the box of a selected resource, the other resources still fade.
+  if (keys)
+    for (const chip of stage.querySelectorAll(".b-chip.dim")) {
+      const box = chip.closest(".b-box");
+      if (!box?.classList.contains("lit")) continue;
+      if (selected.startsWith("r:") && box.querySelector(`[data-key="${CSS.escape(selected)}"]`)) continue;
+      chip.classList.remove("dim");
+    }
+  // A line lights when both its ends are; the open box counts as lit.
+  const end = (k) => keys.has(k) || k === `b:${openBox}`;
+  for (const p of stage.querySelectorAll(".b-wires path")) {
+    const on = Boolean(keys) && end(p.dataset.from) && keys.has(p.dataset.to);
+    p.classList.toggle("lit", on);
+    p.classList.toggle("dim", Boolean(keys) && !on);
+  }
+}
+
+// ---------- the panel: only what the map does not already show ----------
+
+function capabilityList(caps) {
+  return el(
+    "ul",
+    { class: "b-caps" },
+    caps.map((c) =>
+      el(
+        "li",
+        { class: selected === `c:${c.id}` ? "on" : "" },
+        el("button", { type: "button", onclick: pick(`c:${c.id}`) }, c.name),
+        el("span", {}, c.acts.map((a) => `${MODE_WORD[a.mode]} ${a.resource}`).join(", ")),
+      ),
+    ),
+  );
+}
+
+function panelOf(key) {
+  const s = screen;
+  const cut = key.indexOf(":");
+  const kind = key.slice(0, cut);
+  const id = key.slice(cut + 1);
+  const head = (k, cls, title) => [el("span", { class: `b-kind ${cls}` }, k), el("h2", {}, title)];
+  if (kind === "a") {
+    const g = s.areas.find((x) => x.name === id);
+    return [head(`Capabilities, ${g.type}`, "k-capability", g.name), text("p", g.members[0].description), capabilityList(g.capabilities)];
+  }
+  if (kind === "p") {
+    const b = incoming(s.through ?? openBox).find((x) => x.interfaces.includes(id));
+    return [head("Interface", "k-interface", id), text("p", interfaceText.get(id)), b && capabilityList(capabilitiesThrough(b, id))];
+  }
+  if (kind === "c") {
+    const c = capabilityById.get(id);
+    const g = s.areas.find((x) => x.members.includes(c.area));
+    return [
+      g && el("button", { type: "button", class: "b-back", onclick: pick(`a:${g.name}`) }, `‹ ${g.name}`),
+      head("Capability", "k-capability", c.name),
+      el("h3", {}, "Takes"),
+      el("p", {}, c.takes),
+      el("h3", {}, "Gives"),
+      el("p", {}, c.gives),
+    ];
+  }
+  if (kind === "r") {
+    const r = resourceByName.get(id);
+    const hidden = keepersOf(id).flatMap((k) => {
+      const at = [...s.kept].find(([b, rs]) => rs.includes(id) && subtree(b).includes(k))?.[0];
+      return at && at !== k ? [`Kept by ${k}, inside ${at}.`] : [];
+    });
+    return [
+      head("Resource", "k-resource", id),
+      text("p", r.description),
+      hidden.map((t) => el("p", { class: "b-note" }, t)),
+      r.properties?.length > 0 && [el("h3", {}, "Properties"), el("ul", { class: "b-props" }, r.properties.map((x) => el("li", {}, x)))],
+      el("h3", {}, "Capabilities that act on it"),
+      // Two consumers may have the same capability, such as Start a run; list it once.
+      capabilityList(actingOn(id).filter((c, i, all) => all.findIndex((o) => o.name === c.name) === i)),
+    ];
+  }
+  const n = node(id);
+  return [
+    head(KIND_WORD[n.kind], kindClass(id), n.name),
+    n.description && [n.kind === "consumer" ? null : el("h3", {}, "Responsibilities"), text("p", n.description)],
+    opens(id) && id !== openBox && el("button", { type: "button", class: "b-go wide", onclick: () => go(id) }, el("span", {}, `Open ${id}`), el("span", {}, "›")),
+  ];
+}
+
+function drawPanel() {
+  const panel = document.getElementById("panel");
+  panel.hidden = !selected;
+  if (!selected) return;
+  panel.replaceChildren(
+    el("button", { type: "button", class: "b-close", "aria-label": "Close", onclick: clear }, "×"),
+    ...[panelOf(selected)].flat(3).filter(Boolean),
+  );
+}
+
+function clear() {
+  if (!selected) return;
+  selected = null;
+  render();
+}
+
+// ---------- where you are ----------
+
+function drawNav() {
+  const crumbs = [["All providers", 0], ...trail.map((n, i) => [n, i + 1])];
+  document.getElementById("nav").replaceChildren(
+    el("button", { type: "button", class: "b-back-nav", disabled: !visited.length && !trail.length ? "" : null, onclick: back }, "‹ Back"),
+    ...crumbs
+      .flatMap(([label, depth], i) => [
+        i > 0 && el("span", { class: "b-sep" }, "›"),
+        i === crumbs.length - 1 ? el("strong", {}, label) : el("button", { type: "button", onclick: () => navigate(trail.slice(0, depth)) }, label),
+      ])
+      .filter(Boolean),
+  );
+}
+
+// The path to a box when nothing says how you came: its parents, or, for an outside service, the
+// screen that shows a component calling it.
+function trailFor(name) {
+  if (name === TOP) return [];
+  const n = node(name);
+  if (n.kind !== "outside") return [...ancestors(name), name];
+  const caller = boundaries.find((b) => b.provider === name && !refinedBy(b) && nodes.has(b.consumer) && node(b.consumer).kind !== "consumer");
+  if (!caller) return [name];
+  const at = node(caller.consumer).parent;
+  return [...trailFor(at ?? caller.consumer), name];
+}
+
+// Opening a box from the screen it is on adds it to the path you came by; a box elsewhere gets the
+// path trailFor gives it.
+function go(name) {
+  if (name === TOP) return navigate([]);
+  const i = trail.indexOf(name);
+  if (i >= 0) return navigate(trail.slice(0, i + 1));
+  navigate(screen.visible.has(name) || screen.boxes.includes(name) ? [...trail, name] : trailFor(name));
+}
+
+// Back returns to the previous screen as it was left: same scroll, same selection.
+function back() {
+  if (visited.length) navigate(visited.pop(), { remember: false, restore: true });
+  else if (trail.length) navigate(trail.slice(0, -1), { remember: false, restore: true });
+}
+
+// Changes screen. Opening a box grows it into the new screen's frame; going back shrinks the frame
+// into the box it came from. Everything else fades.
+const addressOf = (t) => `#${t.length ? t.map(slugOf).join("/") : "all"}`;
+function navigate(next, { remember = true, fromAddress = false, restore = false } = {}) {
+  const before = trail;
+  if (before.length === next.length && before.every((x, i) => x === next[i])) return;
+  if (remember) visited.push(before);
+  const scroller = document.getElementById("scroll");
+  memory.set(addressOf(before), { left: scroller.scrollLeft, top: scroller.scrollTop, selected });
+  const kept = restore ? memory.get(addressOf(next)) : null;
+  const deeper = next.length > before.length && before.every((x, i) => next[i] === x);
+  const shallower = before.length > next.length && next.every((x, i) => before[i] === x);
+  const frameEl = () => document.querySelector(".b-frame");
+  // Only one element may carry the name at a time; the last landing still has it.
+  for (const e of document.querySelectorAll(".b-frame, .b-box")) e.style.viewTransitionName = "";
+  const grow = deeper ? reg.get(`b:${next[before.length]}`) : shallower ? frameEl() : null;
+  if (grow) grow.style.viewTransitionName = "zoom";
+  // A box on both screens travels from its place on this one to its place on the next, such as a
+  // component that moves from Components to Used by when a component it calls opens.
+  const nextOpen = next.at(-1) ?? TOP;
+  const nextVisible = screenOf(nextOpen).visible;
+  const travellers = [...screen.visible].filter((n) => n !== nextOpen && nextVisible.has(n));
+  const travel = () => {
+    for (const n of travellers) {
+      const e = reg.get(`b:${n}`);
+      if (e) e.style.viewTransitionName = `b-${cssName(n)}`;
+    }
+  };
+  travel();
+  if (!fromAddress) {
+    const hash = addressOf(next);
+    // A sandboxed viewer may refuse to change the address; the screen changes all the same.
+    try {
+      if (decodeURIComponent(location.hash) !== hash) history.pushState(null, "", hash);
+    } catch {}
+  }
+  transition(() => {
+    trail = next;
+    openBox = next.at(-1) ?? TOP;
+    selected = kept?.selected ?? null;
+    render();
+    scroller.scrollTo(kept?.left ?? 0, kept?.top ?? 0);
+    const landing = deeper ? frameEl() : shallower ? reg.get(`b:${before[next.length]}`) : null;
+    if (grow && landing) landing.style.viewTransitionName = "zoom";
+    travel();
+  });
+}
+
+function fromHash() {
+  const parts = decodeURIComponent(location.hash.slice(1)).split("/").filter(Boolean);
+  if (parts[0] === "all") return [];
+  const names = parts.map((p) => bySlug.get(p));
+  if (!names.length || names.some((n) => !n)) return HOME;
+  return names.length === 1 ? trailFor(names[0]) : names;
+}
+
+// ---------- still images ----------
+
+// Every screen once: All providers, then each box that opens, in the order the map lists them.
+const screens = () => [[], ...[...nodes.keys()].filter(opens).map(trailFor)];
+
+// A still image cannot be clicked, so it carries under the drawing what the panel would say about
+// what the screen shows.
+function legendOf(s) {
+  const entry = (name, about) => el("li", { html: inline(`**${name}**: ${sentence(about ?? "")}`) });
+  const section = (title, about, items) =>
+    items.length > 0 && el("section", {}, el("h3", {}, title), about && text("p", about), el("ul", {}, items));
+  const acts = (c) => c.acts.map((a) => `${MODE_WORD[a.mode]} ${a.resource}`).join(", ");
+  return el(
+    "div",
+    { class: "b-legend" },
+    section("On this screen", null, [...s.consumers, ...s.boxes, ...s.uses].map((n) => entry(n, node(n).description))),
+    section("Interfaces", null, s.ports.map((p) => entry(p, interfaceText.get(p)))),
+    s.areas.map((g) =>
+      section(
+        `${g.name} (${g.type})`,
+        g.members[0].description,
+        g.capabilities.map((c) => entry(c.name, `takes ${c.takes}; gives ${c.gives}; ${acts(c)}.`)),
+      ),
+    ),
+    section("Resources", null, unique([...s.kept.values()].flat()).map((r) => entry(r, resourceByName.get(r).description))),
+  );
+}
+
+// Writes the size the image needs, and the addresses of every screen, on the page for shoot-map.mjs.
+function drawLegend(stage) {
+  const legend = legendOf(screen);
+  legend.style.width = `${Math.max(stage.offsetWidth, 1200)}px`;
+  document.querySelector(".b-legend")?.remove();
+  document.querySelector("main").after(legend);
+  const right = Math.max(stage.getBoundingClientRect().right, legend.getBoundingClientRect().right) + 16;
+  const bottom = legend.getBoundingClientRect().bottom + window.scrollY;
+  document.documentElement.dataset.stillSize = `${Math.ceil(right)}x${Math.ceil(bottom)}`;
+  document.documentElement.dataset.screens = screens().map(addressOf).join(" ");
+}
+
+const avg = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
+window.addEventListener("popstate", () => navigate(fromHash(), { fromAddress: true, remember: false, restore: true }));
+document.getElementById("scroll").addEventListener("click", clear);
+document.addEventListener("keydown", (e) => e.key === "Escape" && clear());
+window.addEventListener("resize", () => render());
+trail = fromHash();
+openBox = trail.at(-1) ?? TOP;
+render();
+document.fonts?.ready.then(render);
+</script>
+</body>
+</html>

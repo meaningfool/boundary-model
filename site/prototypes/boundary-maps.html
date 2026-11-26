@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Boundary maps in the wild</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a header with one tab per project and a strip of facts, then the project's interactive map filling the rest of the screen. */
+:root {
+  --bg: #ffffff; --fg: #111111; --fg2: #666666; --fg3: #888888; --fg4: #aaaaaa;
+  --line: #ebebeb; --line2: #d4d4d4; --panel: #fafafa; --inv-bg: #111111; --inv-fg: #ffffff;
+  --sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #0b0b0b; --fg: #ededed; --fg2: #a3a3a3; --fg3: #858585; --fg4: #5f5f5f; --line: #222222; --line2: #383838; --panel: #121212; --inv-bg: #ededed; --inv-fg: #0b0b0b; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --bg: #0b0b0b; --fg: #ededed; --fg2: #a3a3a3; --fg3: #858585; --fg4: #5f5f5f; --line: #222222; --line2: #383838; --panel: #121212; --inv-bg: #ededed; --inv-fg: #0b0b0b; color-scheme: dark; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 15px; line-height: 1.5; letter-spacing: -0.011em; -webkit-font-smoothing: antialiased; display: flex; flex-direction: column; }
+a { color: inherit; }
+p { margin: 0; }
+.head { padding: 18px max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px)); border-bottom: 1px solid var(--line); }
+.head-in { max-width: 1400px; margin: 0 auto; }
+.title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+.title h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.02em; margin: 0; }
+.title p { color: var(--fg3); font-size: 13.5px; }
+.tabs { display: flex; gap: 2px; margin-top: 14px; overflow-x: auto; scrollbar-width: none; }
+.tabs a { display: grid; gap: 1px; padding: 8px 14px 10px; text-decoration: none; border-bottom: 2px solid transparent; white-space: nowrap; }
+.tabs a b { font-size: 14px; font-weight: 500; color: var(--fg2); }
+.tabs a span { font-family: var(--mono); font-size: 10.5px; color: var(--fg4); }
+.tabs a[aria-current="page"] { border-bottom-color: var(--fg); }
+.tabs a[aria-current="page"] b { color: var(--fg); }
+.tabs a[aria-current="page"] span { color: var(--fg3); }
+.strip { padding: 12px max(16px, env(safe-area-inset-right, 0px)) 12px max(16px, env(safe-area-inset-left, 0px)); border-bottom: 1px solid var(--line); background: var(--panel); }
+.strip-in { max-width: 1400px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 10px 28px; align-items: start; }
+.strip .tag { font-size: 14.5px; color: var(--fg); }
+.strip .src { margin-top: 4px; font-family: var(--mono); font-size: 11px; color: var(--fg3); overflow-wrap: anywhere; }
+.strip .src a { color: var(--fg2); }
+.nums { display: flex; flex-wrap: wrap; gap: 6px; }
+.nums span { font-family: var(--mono); font-size: 11px; padding: 2px 8px; border: 1px solid var(--line2); border-radius: 999px; color: var(--fg2); background: var(--bg); }
+.nums span.strong { background: var(--inv-bg); color: var(--inv-fg); border-color: var(--inv-bg); }
+.notes { grid-column: 1 / -1; font-size: 12.5px; color: var(--fg3); line-height: 1.55; }
+.draft { display: inline-block; margin-right: 6px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; padding: 1px 6px; border: 1px dashed var(--fg3); border-radius: 4px; color: var(--fg2); }
+.frame { flex: 1; min-height: 640px; display: flex; }
+.frame iframe { flex: 1; width: 100%; border: 0; background: #ffffff; }
+@media (max-width: 760px) {
+  .strip-in { grid-template-columns: minmax(0, 1fr); }
+  .frame { min-height: 80vh; }
+}
+</style>
+
+<header class="head"><div class="head-in">
+  <div class="title"><h1>Boundary maps in the wild</h1><p>Extracted with the boundary model skills, v0.1.0. Each map is a draft no person has reviewed yet.</p></div>
+  <nav class="tabs" id="tabs" aria-label="Projects"></nav>
+</div></header>
+<section class="strip" id="strip" aria-live="polite"></section>
+<main class="frame"><iframe id="map" title="Interactive boundary map" loading="eager"></iframe></main>
+
+<script type="application/json" id="data">[{"id": "executor", "name": "Executor", "tagline": "Runs TypeScript apps that turn saved accounts into tools and serves those tools to AI agents through one MCP endpoint, without the agent seeing credentials.", "repo": "https://github.com/UsefulSoftwareCo/executor", "revision": "c8bb0468810bcdf2a909f67c9598420f498ccc35", "branch": "v2", "levels": 3, "counts": {"consumers": 5, "providers": 1, "components": 13, "outside": 7, "resources": 41, "boundaries": 26}, "file": "maps/executor.html", "notes": "About 44 minutes, on the v2 branch. Five kinds of users, agents among them. Executor opens into six components; the product server and the app runtime open once more; no Level 3 component has two parts that pass, so there is no Level 4. One agent did all the reading, and the repository's private notes were not in the export."}, {"id": "t3code", "name": "T3 Code", "tagline": "Desktop, web and mobile apps that control coding agents such as Claude Code, Codex, Cursor and OpenCode running on your own machine, through one local server.", "repo": "https://github.com/pingdotgg/t3code", "revision": "667cb3b25571fc3a1700f29d62453ed50acd5c7c", "branch": "", "levels": 4, "counts": {"consumers": 3, "providers": 1, "components": 41, "outside": 13, "resources": 48, "boundaries": 101}, "file": "maps/t3code.html", "notes": "About 52 minutes. The corpus leaves out the vendored repositories in .repos/ (about 24,000 of 33,539 files). The environment server opens into 17 components, worth a reviewer's first look. The change-coupling pass on the history was skipped; decisions rest on lint-enforced seams, typed contracts and which part writes which table. One agent did all the reading."}, {"id": "rivet", "name": "Rivet", "tagline": "Runs long-lived actors with in-memory state, a SQLite database per actor, WebSockets and scheduling, on a control plane you self-host or use as a managed cloud.", "repo": "https://github.com/rivet-dev/rivet", "revision": "f89614f0c2a065f0ce2d506cddba0dc3fba3cea1", "branch": "", "levels": 4, "counts": {"consumers": 2, "providers": 1, "components": 23, "outside": 5, "resources": 29, "boundaries": 34}, "file": "maps/rivet.html", "notes": "About 42 minutes. The corpus leaves out vendored libraries (vendor/). Four levels: the control plane opens into orchestration, node sessions, storage, tokens and a migrator, and storage opens again into tablets and log shards. Level 4 stops at the depth limit. Recent history is squashed sync commits, so change coupling is coarse. One agent did all the reading."}, {"id": "langchain", "name": "LangChain", "tagline": "The Python framework for building applications and agents on large language models: langchain-core, langchain, the classic chains, text splitters and the partner integrations.", "repo": "https://github.com/langchain-ai/langchain", "revision": "9d461bb46a40fcd5673e8d3417dad8b10e731557", "branch": "", "levels": 4, "counts": {"consumers": 2, "providers": 1, "components": 33, "outside": 27, "resources": 35, "boundaries": 64}, "file": "maps/langchain.html", "notes": "About 51 minutes. The corpus leaves out openwiki/, which a scheduled LLM workflow writes. One provider for all the packages; the partner packages are adapters, placed with the component whose contract each fulfils. Four levels; Level 4 stops at the depth limit. One agent did all the reading."}, {"id": "pi", "name": "Pi", "tagline": "A minimal, extensible coding agent harness, and the TypeScript libraries it is built from.", "repo": "https://github.com/earendil-works/pi", "revision": "362bf6f1bec2db70dc072e4db4eb5b2903f4e9f6", "branch": "", "levels": 3, "counts": {"consumers": 4, "providers": 8, "components": 11, "outside": 8, "resources": 36, "boundaries": 36}, "file": "maps/pi.html", "notes": "About 68 minutes in two passes. The corpus leaves out the experimental runtime and its apps (chord, durable, env, p2, p3). The second pass opened Pi Agent Core and Pi MCP; nothing opened at Level 4. One agent did all the reading: no subagents were available."}, {"id": "cloudflare-os", "name": "Cloudflare OS", "tagline": "An agent workspace built by Cloudflare's Workers team on Workers and Durable Objects: chat with an agent, build and share gadgets, and connect outside services through gatekeepers.", "repo": "https://github.com/cloudflare/cloudflare-os", "revision": "73919572bc1e70c3b51c0b36627d81ef06f3c65e", "branch": "", "levels": 4, "counts": {"consumers": 2, "providers": 1, "components": 17, "outside": 11, "resources": 36, "boundaries": 58}, "file": "maps/cloudflare-os.html", "notes": "About 42 minutes. The corpus leaves out 16 gatekeeper drivers for individual services, variants of one contract; the GitHub driver stays as the representative. The kernel opens into one Durable Object per concern; the workspace opens again into its host, the agent and sharing. One agent did all the reading."}, {"id": "astro", "name": "Astro", "tagline": "The web framework for content-driven websites: the framework, its official integrations and adapters, create-astro, the upgrade tool and the language tools.", "repo": "https://github.com/withastro/astro", "revision": "4c72ca58f95c3f78fd51747a027184e711ba200e", "branch": "", "levels": 4, "counts": {"consumers": 3, "providers": 1, "components": 25, "outside": 9, "resources": 21, "boundaries": 48}, "file": "maps/astro.html", "notes": "About 48 minutes. Three kinds of users: site developers, integration authors, and developers who render Astro components in their own Vite app. The site framework opens into 16 components, and the content layer opens again. The Level 3 split rests on state and contracts: 254 imports cross components without an enforced rule. One agent did all the reading."}, {"id": "joplin", "name": "Joplin", "tagline": "The open-source note-taking app with end-to-end encrypted sync: desktop, mobile, web and terminal apps, a web clipper, plugins, and Joplin Server.", "repo": "https://github.com/laurent22/joplin", "revision": "981e5a3ae7087162e3abccd9823e1acc8e11c389", "branch": "dev", "levels": 3, "counts": {"consumers": 4, "providers": 3, "components": 29, "outside": 15, "resources": 44, "boundaries": 74}, "file": "maps/joplin.html", "notes": "About 50 minutes. The corpus leaves out vendored forks of other libraries. Three providers: the apps, Joplin Server and the plugin repository. The apps open into 13 components over one shared database, which a reviewer should check first; six components open again. Nothing opens at Level 4. One agent did all the reading."}]</script>
+<script>
+(() => {
+  const P = JSON.parse(document.getElementById('data').textContent);
+  const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const pl = (n, one, many) => n + ' ' + (n === 1 ? one : (many || one + 's'));
+  const ids = P.map((p) => p.id);
+  const cur = () => { const h = location.hash.slice(1); return ids.includes(h) ? h : ids[0]; };
+  let shown = null;
+  function render() {
+    const id = cur();
+    const p = P.find((x) => x.id === id);
+    document.getElementById('tabs').innerHTML = P.map((x) => '<a href="#' + x.id + '"' + (x.id === id ? ' aria-current="page"' : '') + '><b>' + esc(x.name) + '</b><span>' + esc(x.levels + ' levels · ' + x.counts.components + ' components') + '</span></a>').join('');
+    const c = p.counts;
+    document.getElementById('strip').innerHTML = '<div class="strip-in">'
+      + '<div><p class="tag"><span class="draft">Unreviewed draft</span>' + esc(p.tagline) + '</p>'
+      + '<p class="src"><a href="' + esc(p.repo) + '" target="_blank" rel="noopener">' + esc(p.repo.replace('https://github.com/', '')) + '</a> at ' + esc(p.revision.slice(0, 7)) + (p.branch ? ' (' + esc(p.branch) + ')' : '') + '</p></div>'
+      + '<div class="nums"><span class="strong">' + esc(p.levels) + ' levels</span><span>' + pl(c.consumers, 'consumer') + '</span><span>' + pl(c.providers, 'provider') + '</span><span>' + pl(c.components, 'component') + '</span><span>' + pl(c.outside, 'outside service') + '</span><span>' + pl(c.boundaries, 'boundary', 'boundaries') + '</span><span>' + pl(c.resources, 'resource') + '</span></div>'
+      + (p.notes ? '<p class="notes">' + esc(p.notes) + '</p>' : '')
+      + '</div>';
+    if (shown !== id) { document.getElementById('map').src = p.file; shown = id; }
+  }
+  window.addEventListener('hashchange', render);
+  render();
+})();
+</script>

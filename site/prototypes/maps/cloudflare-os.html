@@ -1,0 +1,1111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cloudflare OS boundary map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono&family=Public+Sans:wght@400;600&display=swap">
+<style>
+/* Thin ink lines on paper, with one colour per kind of thing: consumers grey, components green,
+   outside services stone, interfaces blue, capabilities violet, resources amber. Layout: a
+   breadcrumb, then one open box whose columns are headed by what they hold, and a panel docked
+   beside it when something is selected, so the map stays scrollable. */
+:root {
+  --paper: #ffffff;
+  --ink: #1a1a1a;
+  --graphite: #6b6b6b;
+  --pencil: #c9c9c9;
+  --panel: #f5f5f4;
+  --panel-line: #e3e3e1;
+  --k-consumer: #6b7280;
+  --k-component: #2e8b57;
+  --k-outside: #8a7f72;
+  --k-interface: #2f6fdb;
+  --k-capability: #7a4fd1;
+  --k-resource: #b7791f;
+  --sans: "Public Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #17181a; --ink: #ececea; --graphite: #a0a09c; --pencil: #55565a; --panel: #212225; --panel-line: #33343a;
+    --k-consumer: #9aa1ad; --k-component: #5cc18a; --k-outside: #b0a596; --k-interface: #6f9cf0; --k-capability: #a585ef; --k-resource: #e0a64a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #17181a; --ink: #ececea; --graphite: #a0a09c; --pencil: #55565a; --panel: #212225; --panel-line: #33343a;
+  --k-consumer: #9aa1ad; --k-component: #5cc18a; --k-outside: #b0a596; --k-interface: #6f9cf0; --k-capability: #a585ef; --k-resource: #e0a64a;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  --k: var(--graphite);
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  margin: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: var(--paper);
+  color: var(--ink);
+  font: 14px/1.4 var(--sans);
+}
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+code { font-family: var(--mono); font-size: 0.92em; }
+
+.k-consumer { --k: var(--k-consumer); }
+.k-component { --k: var(--k-component); }
+.k-outside { --k: var(--k-outside); }
+.k-interface { --k: var(--k-interface); }
+.k-capability { --k: var(--k-capability); }
+.k-resource { --k: var(--k-resource); }
+
+.top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; padding-block: 12px 10px; border-bottom: 1px solid var(--panel-line); }
+.top h1 { margin: 0; font-size: 15px; font-weight: 600; }
+.top .rev { font-family: var(--mono); font-size: 12px; color: var(--graphite); }
+.top p { margin: 0; font-size: 13px; color: var(--graphite); }
+#nav { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; padding-block: 10px 0; font-size: 13px; }
+#nav button { color: var(--graphite); border-bottom: 1px dotted var(--pencil); }
+#nav .b-back-nav { margin-right: 8px; padding: 1px 8px; color: var(--ink); border: 1px solid var(--panel-line); border-radius: 3px; }
+#nav .b-back-nav:hover { border-color: var(--ink); }
+#nav .b-back-nav:disabled { color: var(--pencil); border-color: var(--panel-line); cursor: default; }
+#nav button:hover { color: var(--ink); }
+.b-sep { color: var(--pencil); }
+main { display: flex; min-height: 0; min-width: 0; }
+#scroll { flex: 1 1 auto; min-width: 0; overflow: auto; }
+
+/* ---- stage and zones ---- */
+.b-stage { position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: max-content; gap: 0 64px; align-items: start; width: max-content; min-width: 100%; padding: 14px 4px 48px; }
+.b-wires { position: absolute; top: 0; left: 0; z-index: 1; overflow: visible; pointer-events: none; }
+.b-wires path { fill: none; stroke: var(--pencil); stroke-width: 1.25; }
+.b-wires path.lit { stroke: var(--ink); stroke-width: 1.75; opacity: 1; }
+.b-wires path.dim { opacity: 0.18; }
+.b-zone h3 { margin: 0 0 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--k); }
+.z-consumer { --k: var(--k-consumer); }
+.z-interface { --k: var(--k-interface); }
+.z-capability { --k: var(--k-capability); }
+.z-component { --k: var(--k-component); }
+.z-resource { --k: var(--k-resource); }
+.z-uses { --k: var(--graphite); }
+.b-left > .b-zone-body { position: relative; width: 170px; }
+.b-left > .b-zone-body > .b-box { position: absolute; left: 0; width: 170px; }
+.b-col { display: flex; flex-direction: column; gap: 14px; }
+.b-right > .b-zone-body { position: relative; width: 210px; }
+.b-right > .b-zone-body > .b-box { position: absolute; left: 0; }
+.b-col.b-placed { position: relative; display: block; width: 210px; }
+.b-placed > .b-box { position: absolute; left: 0; }
+.b-cols { display: flex; align-items: flex-start; gap: 48px; }
+.dim { opacity: 0.22; }
+
+/* ---- the open box ---- */
+.b-frame { position: relative; border: 1.5px solid var(--ink); }
+.b-frame-head { position: relative; z-index: 2; padding: 10px 14px 12px; border-bottom: 1px solid var(--panel-line); background: var(--paper); }
+.b-frame-head h2 { margin: 0 0 4px; font-size: 20px; font-weight: 600; }
+.b-frame-head p { margin: 0; max-width: 70ch; color: var(--graphite); font-size: 13px; }
+.b-frame-head .b-through { margin-top: 4px; color: var(--ink); }
+.b-body { display: grid; grid-auto-flow: column; grid-auto-columns: max-content; gap: 0 44px; padding: 14px 20px 20px 0; }
+.z-interface { width: 184px; }
+.z-interface > h3 { padding-left: 13px; }
+.z-interface > .b-zone-body, .z-capability > .b-zone-body, .z-resource > .b-zone-body { position: relative; }
+.z-capability > .b-zone-body { width: 196px; }
+.z-resource > .b-zone-body { width: 180px; }
+.b-keeps { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin-top: 8px; }
+.b-keeps-label { font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--k-resource); }
+.b-keeps .b-chips { margin-top: 0; }
+
+/* ---- boxes: one shape for every kind ---- */
+.b-box { position: relative; z-index: 2; display: block; width: 210px; padding: 6px 10px 7px; text-align: left; background: color-mix(in srgb, var(--k) 6%, var(--paper)); border: 1px solid color-mix(in srgb, var(--k) 45%, var(--paper)); cursor: pointer; }
+.b-box:hover { border-color: var(--k); }
+.b-box.provider { border-width: 1.5px; }
+.b-box.k-outside { border-style: dashed; }
+.b-box.opens:hover { background: color-mix(in srgb, var(--k) 13%, var(--paper)); border-color: var(--k); }
+.b-box.lit { border-color: var(--k); box-shadow: 0 0 0 1.5px var(--k); }
+.b-box.chosen { box-shadow: 0 0 0 1.5px var(--k), 0 0 0 4px color-mix(in srgb, var(--ink) 25%, transparent); }
+.b-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.b-kind { font-size: 10.5px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--k); }
+.b-qual { font-size: 11px; color: var(--graphite); white-space: nowrap; }
+.b-name { display: block; width: 100%; font-weight: 600; font-size: 13.5px; text-align: left; }
+.b-sub { display: block; font-size: 11.5px; color: var(--graphite); }
+.b-via { display: block; margin-top: 2px; font-size: 11.5px; font-style: italic; color: var(--ink); }
+.b-area { position: absolute; left: 0; width: 100%; }
+
+/* ---- the way in: a bar at the foot of the box ---- */
+.b-go { display: flex; justify-content: space-between; align-items: baseline; width: calc(100% + 20px); margin: 7px -10px -7px; padding: 4px 10px; font-size: 12px; font-weight: 600; color: var(--k); border-top: 1px solid color-mix(in srgb, var(--k) 40%, var(--paper)); }
+.b-go span:last-child { font-size: 15px; line-height: 1; }
+.b-go:hover { background: var(--k); color: var(--paper); }
+.b-go.wide { --k: var(--k-component); width: 100%; margin: 18px 0 0; padding: 6px 10px; font-size: 13px; border: 1px solid var(--k); }
+
+/* ---- interfaces: dots on the edge of the open box ---- */
+.b-port { position: relative; display: block; width: calc(100% + 10px); margin-left: -10px; padding: 2px 0 2px 13px; font-size: 12px; line-height: 1.3; color: var(--ink); text-align: left; }
+.b-port::before { content: ""; position: absolute; left: -5px; top: 50%; width: 8px; height: 8px; margin-top: -4px; border-radius: 50%; border: 1.5px solid var(--k-interface); background: var(--paper); }
+.b-port:hover, .b-port.lit { color: var(--k-interface); }
+.b-port.lit { font-weight: 600; }
+.b-port.lit::before { background: var(--k-interface); }
+.b-port.edge { position: absolute; left: 0; width: 184px; margin-left: 0; padding-right: 0; font-size: 12.5px; background: var(--paper); }
+
+/* ---- resources as chips ---- */
+.b-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.b-chip { --k: var(--k-resource); padding: 1px 7px; font-size: 11.5px; border: 1px solid color-mix(in srgb, var(--k) 50%, var(--paper)); background: color-mix(in srgb, var(--k) 8%, var(--paper)); border-radius: 999px; }
+.b-chip:hover, .b-chip.lit { border-color: var(--k); }
+.b-chip.lit { box-shadow: 0 0 0 1px var(--k); }
+
+/* ---- panel ---- */
+#panel { position: relative; flex: none; width: 340px; overflow: auto; padding: 16px 18px 24px; background: var(--panel); border-left: 1px solid var(--panel-line); }
+#panel[hidden] { display: none; }
+@media (max-width: 760px) {
+  main { flex-direction: column; }
+  #scroll { flex: 1 1 0; min-height: 0; }
+  #panel { width: auto; max-height: 50%; border-left: 0; border-top: 1px solid var(--panel-line); }
+}
+#panel h2 { margin: 2px 0 6px; font-size: 18px; font-weight: 600; padding-right: 24px; }
+#panel h3 { margin: 18px 0 6px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--graphite); }
+#panel p { margin: 0 0 6px; }
+.b-note { font-size: 12.5px; color: var(--graphite); }
+.b-back { margin-bottom: 10px; font-size: 12.5px; color: var(--graphite); }
+.b-back:hover { color: var(--k-capability); }
+.b-props { margin: 0; padding-left: 18px; }
+.b-props li + li { margin-top: 2px; }
+.b-close { position: absolute; top: 10px; right: 12px; font-size: 20px; line-height: 1; color: var(--graphite); }
+.b-caps { margin: 12px 0 0; padding: 0; list-style: none; }
+.b-caps li { padding: 4px 0 4px 10px; border-left: 2px solid color-mix(in srgb, var(--k-capability) 30%, var(--panel)); }
+.b-caps li + li { margin-top: 4px; }
+.b-caps button { display: block; font-size: 13.5px; }
+.b-caps button:hover, .b-caps li.on button { color: var(--k-capability); }
+.b-caps li.on { border-left-color: var(--k-capability); }
+.b-caps span { display: block; font-size: 12px; color: var(--graphite); }
+/* What leaves fades first, what arrives fades in after, while the boxes on both screens travel. */
+::view-transition-group(*) { animation-duration: 560ms; animation-timing-function: cubic-bezier(0.45, 0, 0.2, 1); }
+::view-transition-old(root) { animation: 200ms ease-out both b-fade-out; }
+/* New content, such as a consumer that was not on the last screen, is fully there when the
+   travelling boxes land, at 560ms. */
+::view-transition-new(root) { animation: 280ms ease-in 280ms both b-fade-in; }
+/* Opening a box grows it into the frame of the next screen; going back shrinks the frame into it. */
+/* The rectangle grows or shrinks; what is inside it is shown at its real size, never stretched. */
+::view-transition-group(zoom) { overflow: hidden; }
+::view-transition-old(zoom), ::view-transition-new(zoom) { width: 100%; height: 100%; object-fit: none; object-position: left top; mix-blend-mode: normal; }
+::view-transition-old(zoom) { animation: 220ms ease-out both b-fade-out; }
+::view-transition-new(zoom) { animation: 400ms ease-in 160ms both b-fade-in; }
+@keyframes b-fade-out { to { opacity: 0; } }
+@keyframes b-fade-in { from { opacity: 0; } }
+
+/* ---- still images: the whole screen, then what the panel would say about it ---- */
+html.still, html.still body { height: auto; }
+html.still body, html.still main { display: block; }
+html.still #scroll { overflow: visible; }
+html.still #panel, html.still .b-back-nav, html.still .top p { display: none; }
+.b-legend { columns: 3; column-gap: 32px; padding: 16px 4px; border-top: 1px solid var(--panel-line); }
+.b-legend section { break-inside: avoid; margin-bottom: 16px; }
+.b-legend h3 { margin: 0 0 6px; font-size: 13px; }
+.b-legend p { margin: 0 0 6px; font-size: 13px; color: var(--graphite); }
+.b-legend ul { margin: 0; padding-left: 16px; }
+.b-legend li { margin-bottom: 4px; font-size: 13px; }
+</style>
+</head>
+<body>
+<header class="top">
+<h1>Cloudflare OS boundary map</h1><span class="rev">7391957</span>
+<p>Click anything to light what it connects to. Open, at the foot of a box, goes inside.</p>
+</header>
+<nav id="nav" aria-label="Where you are"></nav>
+<main><div id="scroll"></div><aside id="panel" hidden></aside></main>
+<script type="application/json" id="map-data">{"system":{"name":"Cloudflare OS","description":"A company's own AI productivity environment on Cloudflare Workers, where people chat with a code-writing agent, have it build small private apps called gadgets, share them, and reach outside services through gatekeepers that log every action and hold side effects for approval.","corpus":{"included":"The cloudflare/cloudflare-os repository at the revision below and its history since 2026-05-29: the kernel (workshop-backend, workshop-shared), the web app, the router, the gatekeeper packages gatekeeper-github (the representative driver), gatekeeper-mcp, gatekeeper-mcp-portal, gatekeeper-context and gatekeeper-scheduler, the shared libraries, bundled blueprints, docs, plans, scripts and CI configuration.","excluded":"Dependencies (pnpm-lock.yaml, vendored PDFium), generated output (worker-configuration.d.ts, generated wrangler.jsonc, routeTree.gen.ts), secrets, and the packages gatekeeper-cloudflare, gatekeeper-confluence, gatekeeper-email, gatekeeper-gitlab, gatekeeper-google, gatekeeper-homeassistant, gatekeeper-linear, gatekeeper-microsoft, gatekeeper-notion, gatekeeper-pagerduty, gatekeeper-slack, gatekeeper-spotify, gatekeeper-supabase, gatekeeper-websearch, gatekeeper-x and gatekeeper-zoominfo: drivers for individual outside services, variants of one driver contract; gatekeeper-github stays in as the representative driver."},"revision":"73919572bc1e70c3b51c0b36627d81ef06f3c65e"},"consumers":[{"name":"User","description":"A person at the company who signs in to the deployment to get work done with the agent and with gadgets, including in workspaces and gadgets other people shared with them."},{"name":"Deployment admin","description":"A person named in the deployment's list of admins, who configures the deployment for everyone, investigates users and workspaces, and reads the admin audit log."}],"providers":[{"name":"Cloudflare OS","description":"One company's deployment of Cloudflare OS, which its people open in a browser as one product.","resources":["Workspace","Chat","Gadget","Connection","Action","Hook","Scheduled task","Blueprint","Collaborator","Share link","Account","Connected account","Connector","AI model","AI usage","Unread state","Context collection","Deployment settings","Audit record","Deployment"],"parts":[{"name":"Workshop web app","why":"A single-page client that presents the Kernel's capabilities and hosts gadgets and gatekeeper apps in sandboxed frames; it keeps no state of its own, so it is part of the interfaces Workshop web app, Admin panel and Gatekeeper apps."},{"name":"Router","why":"The public origin, which passes requests on by path to the Kernel, the gatekeepers and the web app's files (packages/router/src/index.ts); routing machinery."},{"name":"Gatekeeper kit, MCP library and configurator runtime","why":"Libraries the gatekeeper variants build on (gatekeeper-kit, mcp-shared, configurator-ui); the gatekeeper owns policy and assembly."},{"name":"PDF renderer","why":"A stateless Worker with no route and no storage that draws PDF pages for one excluded driver; a library in its own isolate."},{"name":"Bundled blueprints","why":"Gadget source code the Kernel installs as blueprints on a deployment's first request; content, the built-in Blueprint resources."},{"name":"Gadgets","why":"User-written apps the Kernel runs in sandboxes; their code and data are the user's, and to consumers they are the Gadget resource."},{"name":"Shared libraries","why":"Typed storage, Office file readers and shared React UI (typed-storage, office-content, ui): libraries."},{"name":"Diagnostics libraries","why":"Server logging, metrics, tracing and frontend error reporting (observability, error-reporting): diagnostics, engineering tooling listed in excluded."},{"name":"Engineering tooling","why":"The API schema generator, test suites, evaluations, scripts and CI work on the system itself, so they sit outside the perimeter and are listed in excluded."}],"components":[{"name":"Kernel","description":"The server at the heart of a deployment, which keeps users, workspaces, chats, gadgets, blueprints and the deployment's settings, runs the agent and gadgets in sandboxes, and decides who may reach what.","resources":["Workspace","Chat","Gadget","Connection","Action","Hook","Blueprint","Collaborator","Share link","Account","Connected account","AI model","AI usage","Unread state","Deployment settings","Audit record","Deployment","Workspace entry","Directory entry"],"serves":[{"consumer":"User","area":"Work with the agent"},{"consumer":"User","area":"Review agent actions"},{"consumer":"User","area":"Connect outside services"},{"consumer":"User","area":"Share workspaces and gadgets"},{"consumer":"User","area":"Use blueprints"},{"consumer":"User","area":"Choose AI models"},{"consumer":"User","area":"Manage my account"},{"consumer":"User","area":"Follow activity"},{"consumer":"Deployment admin","area":"Configure the deployment"},{"consumer":"Deployment admin","area":"Investigate users and workspaces"},{"consumer":"Deployment admin","area":"Review the admin audit"},{"consumer":"Deployment admin","area":"Keep the deployment up to date"}],"parts":[{"name":"API front","why":"PublicApiImpl and AuthenticatedApiImpl in server.ts authenticate the WebSocket and pass requests on to the user account and the workspace; they hold no state."},{"name":"Sign-in attempt","why":"PendingLogin relays a session token from a gatekeeper sign-in flow to the waiting browser; its state is that token in transit, a step of signing in."},{"name":"Device session handoff","why":"A step of signing a native app in; the staged credential lives in the user account."},{"name":"AI model access","why":"Adapters to AI model providers and AI Gateway, with built-in model gatekeepers that keep nothing and pass a gadget's model calls on; which models are enabled comes from Admin settings."},{"name":"Web fetch gate","why":"FetchLoopback passes every untrusted fetch on to the public web after the workspace decides it (authorizeFetch)."},{"name":"Loopbacks","why":"Entrypoints that pass calls from sandboxed code back into the workspace."},{"name":"Blueprint catalog store","why":"KV and R2 storage for published blueprints, written by the workspace, admin settings, the API front and the user account, each for records it creates."},{"name":"Outside-service clients","why":"Adapters to the notification service, Browser Rendering and the deploy service (notification-service.ts, browser-export.ts, deployment-updates.ts), each placed with the component that calls it."},{"name":"Diagnostics","why":"Analytics, client error reports, logging and agent tracing (analytics.ts, client-errors.ts, observability.ts, agent-tracing.ts): engineering tooling, listed in excluded."}],"components":[{"name":"User account","description":"One person's account object, which keeps their identity and sessions, connected accounts, AI model settings and usage, workspace list, blueprint library, notification devices and private unread state.","resources":["Account","Connected account","AI model","AI usage","Unread state","Workspace entry","Blueprint","Connection"],"serves":[{"consumer":"User","area":"Manage my account"},{"consumer":"User","area":"Connect outside services"},{"consumer":"User","area":"Choose AI models"},{"consumer":"User","area":"Follow activity"},{"consumer":"User","area":"Use blueprints"},{"consumer":"User","area":"Work with the agent"}],"parts":[{"name":"Sign-in and sessions","why":"Kept in the account's one store and changed by the same class's methods."},{"name":"Connected accounts registry","why":"Kept in the account's one store; the credentials themselves are the gatekeeper's."},{"name":"AI model settings","why":"Kept in the account's one store and changed by the same class."},{"name":"Usage and billing","why":"The daily count and the billed Cloudflare account are kept in the account's one store; the usage checker only reads them."},{"name":"Outputs index","why":"Kept in the account's one store, filled from each workspace."},{"name":"Workspace list and shared-workspace records","why":"Kept in the account's one store and changed by the same class."},{"name":"Blueprint library","why":"Kept in the account's one store and changed by the same class."},{"name":"Unread state and notifications","why":"Kept in the account's one store; pushes go out through the notifications client."},{"name":"Admin user view","why":"Keeps nothing and returns the account's records to admins field by field through a narrowed host type."},{"name":"Connect callback and user selection exchange","why":"Entrypoints that pass a gatekeeper's callbacks and a selection ticket on to the account."}]},{"name":"Workspace","description":"One workspace's object, which keeps its chats, gadgets and their code history, connections, actions, hooks and sharing, runs its agent and gadgets, and decides what each caller may do there.","resources":["Workspace","Chat","Gadget","Connection","Action","Hook","Collaborator","Share link","Blueprint"],"serves":[{"consumer":"User","area":"Work with the agent"},{"consumer":"User","area":"Review agent actions"},{"consumer":"User","area":"Connect outside services"},{"consumer":"User","area":"Share workspaces and gadgets"},{"consumer":"User","area":"Use blueprints"},{"consumer":"Deployment admin","area":"Investigate users and workspaces"}],"parts":[{"name":"Observer ledger","why":"Its requirements live in the workspace host's action log; same store, same records."},{"name":"Auto-approval","why":"Decides whether an action may apply without a person, but marks the same action records the workspace host changes."},{"name":"Git store","why":"The workspace's storage for code history; first tested as a Kernel part in round 2, it belongs to the workspace."},{"name":"Worktree bindings and replicas","why":"RPC objects handed to sandboxed code and per-execution in-memory state."},{"name":"Gadget runtime and code execution","why":"How the workspace host runs gadgets and code in sandboxes and hands them bindings."},{"name":"Chat cache warming","why":"Provider behavior: resends a turn's last model request before the provider's cache expires."},{"name":"Admin workspace view","why":"A read view of the workspace's metadata for admins; keeps nothing."}],"components":[{"name":"Workspace host","description":"The core of a workspace, which keeps its chats, gadgets, connections, action log and hooks, runs gadgets and the agent's code in sandboxes, and serves the workspace's API.","resources":["Workspace","Chat","Gadget","Connection","Action","Hook","Blueprint"],"serves":[{"consumer":"User","area":"Work with the agent"},{"consumer":"User","area":"Review agent actions"},{"consumer":"User","area":"Connect outside services"},{"consumer":"User","area":"Use blueprints"}],"parts":[]},{"name":"Agent","description":"The code-writing agent loop, which decides how each chat turn runs: what it asks the model, which tools it calls and in what order, and when it retries or compacts the history.","resources":["Chat","Gadget"],"serves":[{"consumer":"User","area":"Work with the agent"}],"parts":[]},{"name":"Sharing","description":"The workspace's permission graph, which keeps its collaborators and share links and decides each person's effective access.","resources":["Collaborator","Share link"],"serves":[{"consumer":"User","area":"Share workspaces and gadgets"}],"parts":[]}]},{"name":"Admin settings","description":"The deployment-wide settings object, the only writer of the deployment's settings, model catalog, standard formats and featured blueprints, which also installs bundled blueprints and checks for updates.","resources":["Deployment settings","AI model","Blueprint","Deployment"],"serves":[{"consumer":"Deployment admin","area":"Configure the deployment"},{"consumer":"Deployment admin","area":"Investigate users and workspaces"},{"consumer":"Deployment admin","area":"Review the admin audit"},{"consumer":"Deployment admin","area":"Keep the deployment up to date"}],"parts":[{"name":"Settings store","why":"Kept in the one AdminSettings store and changed only by its methods."},{"name":"Model catalog","why":"GatewayModels merges stored settings with the suggested catalog and keeps nothing."},{"name":"Admin API","why":"AdminApiImpl passes calls on to the settings object, the directory, the audit log and the views."},{"name":"Featured blueprints and output formats","why":"Kept by the same settings object, beside the settings."},{"name":"Bundled blueprint installer and update check","why":"Steps run by the settings object."},{"name":"Admin writes","why":"admin-writes.ts computes the arguments a write takes; it keeps nothing."}]},{"name":"Admin audit log","description":"The deployment-wide record of admin actions, which records each setting change, inspection call and workspace write before it takes effect, and prunes by retention.","resources":["Audit record"],"serves":[{"consumer":"Deployment admin","area":"Review the admin audit"}],"parts":[{"name":"Recording, listing and statistics","why":"All work on the one audit store, changed only by append."},{"name":"Text bounds","why":"cutAdminAuditText bounds text a user controls before it is stored; a helper."}]},{"name":"User directory","description":"The deployment-wide list of users and workspaces behind user search and the admin listings, fed by each account and workspace.","resources":["Directory entry"],"serves":[{"consumer":"User","area":"Share workspaces and gadgets"},{"consumer":"Deployment admin","area":"Investigate users and workspaces"}],"parts":[{"name":"Search table, admin listings and feeds","why":"One store by design, changed by one class."}]}]},{"name":"Gatekeepers","description":"The connectors, one Worker per outside service or built-in service, that hold connected accounts' credentials, give agents and gadgets narrow access to single resources, log every read, and hold every change for approval.","resources":["Connector","Connected account","Connection","Action","Hook","Scheduled task","Context collection","Library entry","Public collection entry"],"serves":[{"consumer":"User","area":"Connect outside services"},{"consumer":"User","area":"Review agent actions"},{"consumer":"User","area":"Keep context for agents"},{"consumer":"User","area":"List scheduled tasks"},{"consumer":"User","area":"Manage my account"},{"consumer":"Deployment admin","area":"Configure the deployment"}],"parts":[{"name":"Vendor entry","why":"Stateless; describes the connector and starts the account's connect flow."},{"name":"Verifier","why":"A token for a user that the connected account mints for observer checks."},{"name":"Sessions","why":"The RPC objects a resource gatekeeper hands out; part of its interface."},{"name":"Configurator UIs and management apps","why":"Clients in sandboxed frames that present an account's or a resource's capabilities."},{"name":"Connect pages and OAuth callback","why":"Steps of connecting an account."},{"name":"Kit, MCP library and configurator runtime","why":"Libraries the variants build on; the gatekeeper owns provider facts, policy and assembly."}],"components":[{"name":"Connected account","description":"A gatekeeper's object for one connected account, with variants per connector, which keeps the account's credentials and grants and mints a resource gatekeeper for each resource granted.","resources":["Connected account","Connector","Connection","Scheduled task","Context collection"],"serves":[{"consumer":"User","area":"Connect outside services"},{"consumer":"User","area":"Manage my account"},{"consumer":"User","area":"Keep context for agents"},{"consumer":"User","area":"List scheduled tasks"}],"parts":[{"name":"Credential record and connect handshake","why":"Kept in the account object's one store through kit libraries."},{"name":"Entrypoint, verifier and management APIs","why":"Pass calls on to the account object or to Context collections."},{"name":"Resource configurators","why":"Clients that present the account's resources for picking."}]},{"name":"Resource gatekeeper","description":"A gatekeeper's object for one granted resource, with variants per connector, installed inside the workspace, which keeps that connection's caches, action journal and simulated results and decides which calls are reads and which are held changes.","resources":["Connection","Action"],"serves":[{"consumer":"User","area":"Review agent actions"},{"consumer":"User","area":"Connect outside services"}],"parts":[{"name":"Facet store","why":"One store per connection, changed only by the facet class."},{"name":"Sessions and outside-service clients","why":"The interface it hands out and adapters to the outside service."},{"name":"Kit modules","why":"Libraries for journals, simulation, cursors and observer tracking."}]},{"name":"Event source","description":"A gatekeeper's hook driver, with variants such as the GitHub webhook driver and the scheduler, which keeps each enabled hook's registration and decides when it fires.","resources":["Hook","Scheduled task"],"serves":[{"consumer":"User","area":"Connect outside services"},{"consumer":"User","area":"List scheduled tasks"}],"parts":[{"name":"Hook controller","why":"Its state is only in props; it passes enable and disable on to the driver."},{"name":"Driver store","why":"One store per variant, changed only by the driver class."},{"name":"Event parsing and schedule computation","why":"Keep nothing."}]},{"name":"Context collections","description":"The Context Library's store of collections of documents and skills that agents read, with their sharing, libraries and public listing.","resources":["Context collection","Library entry","Public collection entry"],"serves":[{"consumer":"User","area":"Keep context for agents"},{"consumer":"Deployment admin","area":"Configure the deployment"}],"parts":[],"components":[{"name":"Collection","description":"One collection's object, which keeps its documents, skills, grants and git mirror tokens and answers who may read or edit it.","resources":["Context collection"],"serves":[{"consumer":"User","area":"Keep context for agents"}],"parts":[]},{"name":"Collection library","description":"One account's index of the collections it created or was given.","resources":["Library entry"],"serves":[{"consumer":"User","area":"Keep context for agents"}],"parts":[]},{"name":"Public collection registry","description":"A sharing domain's list of public collections, the one writer of the snapshot sessions read.","resources":["Public collection entry"],"serves":[{"consumer":"User","area":"Keep context for agents"}],"parts":[]}]}]}]}],"outsideServices":[{"name":"AI model providers","description":"The language model services, such as Anthropic, OpenAI, Google Gemini and Workers AI, that chats and gadgets call directly or through Cloudflare AI Gateway.","resources":["AI model","Gateway request log"]},{"name":"Cloudflare API","description":"Cloudflare's account API, which lists a user's Cloudflare accounts and their AI Gateway credit balance.","resources":["Cloudflare account"]},{"name":"Notification service","description":"The Cloudflare-operated service that delivers push notifications to a user's registered devices.","resources":["Device subscription"]},{"name":"Deploy service","description":"The service that installed the deployment, which answers whether a newer release exists.","resources":["Release"]},{"name":"Cloudflare Access","description":"Cloudflare's identity proxy in front of some deployments, whose sign-in tokens the Kernel only verifies.","resources":["Access session"]},{"name":"Browser Rendering","description":"Cloudflare's headless browser service, used to print gadgets as PDF.","resources":["Browser session"]},{"name":"Public web","description":"Public websites that the agent and gadgets may read under the workspace's fetch policy.","resources":["Web page"]},{"name":"GitHub","description":"GitHub, reached by the GitHub gatekeeper for sign-in, repositories, issues, pull requests and webhooks.","resources":["GitHub account","GitHub repository","Repository webhook"]},{"name":"MCP servers","description":"Any Model Context Protocol server whose endpoint a user pastes in.","resources":["MCP server"]},{"name":"MCP server portal","description":"The organization's MCP portal, one administrator-configured URL behind which the approved MCP servers sit.","resources":["MCP server"]},{"name":"Cloudflare Artifacts","description":"Cloudflare's git repository service, which mirrors Context Library collections as git repositories.","resources":["Git repository"]}],"resources":[{"name":"Workspace","description":"A space owned by one user that holds chats, gadgets and connections, and can be shared.","properties":["title","owner","pinned","last active","people present"]},{"name":"Chat","description":"A conversation with the agent in a workspace, holding its messages, tool calls and the code changes it proposes until they are merged.","properties":["title","model","turn status","attachments","proposed changes"]},{"name":"Gadget","description":"A small app in a workspace, with client and server code, its own storage and its bound connections, built by the agent or by hand.","properties":["code history","bindings","blueprint followed","export formats","console logs"]},{"name":"Connection","description":"An outside resource, such as one GitHub repository or one MCP server, introduced to a workspace through a gatekeeper so its agent and gadgets may use it.","properties":["granularity","auto-approval rules","observers","protected-resource requirements"]},{"name":"Action","description":"A change an agent or gadget asked a connection to make, held and simulated until a person approves or rejects it.","properties":["status","kind","description","auto-approvable"]},{"name":"Hook","description":"A callback through which a gatekeeper wakes a gadget, for a scheduled task or an outside event.","properties":["enabled","target gadget"]},{"name":"Scheduled task","description":"A schedule that fires a gadget's callback after an interval, on a calendar rule or once.","properties":["cadence","time zone","status"]},{"name":"Blueprint","description":"A shareable copy of a gadget's code, with releases, from which anyone holding its link can create a gadget of their own.","properties":["releases","bindings","featured","standard format","in library","pinned"]},{"name":"Collaborator","description":"A person given access to a workspace they do not own: to build in it, or to use or only view one gadget.","properties":["grant","added by"]},{"name":"Share link","description":"A link whose secret key gives whoever opens it a fixed grant on a workspace or a gadget, until it is revoked.","properties":["name","grant","default link"]},{"name":"Account","description":"A person's account on the deployment: identity, profile, sign-in method and onboarding state.","properties":["display name","avatar","commit email","preferred model","notification devices","admin"]},{"name":"Connected account","description":"A person's account at an outside service, connected through a gatekeeper that alone holds its credentials.","properties":["connector","expired","granted resource types"]},{"name":"Connector","description":"An outside or built-in service the deployment can connect to through a gatekeeper, with the kinds of resource it offers.","properties":["resource types","provides sign-in","provisioned automatically","availability"]},{"name":"AI model","description":"A language or decision model that chats and gadgets can use, offered by the deployment or added by a user with their own key.","properties":["provider","mode","reasoning level","order"]},{"name":"AI usage","description":"A user's free daily allowance of AI use and the Cloudflare account their further use is billed to.","properties":["calls left today","billed account","balance"]},{"name":"Unread state","description":"A user's private read positions and unread counts across the chats they follow.","properties":["unread count","notifications on","workspace mute"]},{"name":"Context collection","description":"A collection of documents and skills that agents read: private and shareable, or public and edited by admins.","properties":["visibility","members and roles","git source","git tokens"]},{"name":"Deployment settings","description":"The settings an admin changes for the whole deployment.","properties":["signups","user search","view-only sharing","site name and logo","instructions","banner","web fetch policy","connector availability","inspection level","audit retention","update checks"]},{"name":"Audit record","description":"A record of one admin action: a setting change, an inspection call or a workspace write.","properties":["admin","time","reason","via"]},{"name":"Deployment","description":"The running installation itself, with its release and whether a newer one is available.","properties":["release","update available","modified workers"]},{"name":"Workspace entry","description":"A user account's record of a workspace it owns or has opened, with its title, role, last activity and outputs."},{"name":"Directory entry","description":"The deployment-wide listing of a user or a workspace that user search and the admin listings read."},{"name":"Library entry","description":"An account's entry for a context collection it created or was given."},{"name":"Public collection entry","description":"A sharing domain's listing of one public context collection."},{"name":"Gateway request log","description":"AI Gateway's log of each model request, from which the Kernel reads its cost."},{"name":"Cloudflare account","description":"A user's Cloudflare account, with its AI Gateway credit balance."},{"name":"Device subscription","description":"A device registered to receive push notifications for a user."},{"name":"Release","description":"A release of Cloudflare OS that the deploy service can install."},{"name":"Access session","description":"A person's signed-in Cloudflare Access session, with their email."},{"name":"Browser session","description":"A headless browser launched to load and print a page."},{"name":"Web page","description":"A public page or document on the web."},{"name":"GitHub account","description":"A person's GitHub identity, with its verified email and granted scopes."},{"name":"GitHub repository","description":"A GitHub repository with its files, issues, pull requests and CI runs."},{"name":"Repository webhook","description":"A webhook registered on a GitHub repository, through which GitHub reports its events."},{"name":"MCP server","description":"A Model Context Protocol server and the tools it offers."},{"name":"Git repository","description":"A git repository hosted by Cloudflare Artifacts."}],"interfaces":[{"name":"Workshop web app","description":"The single-page web app at the deployment's address, in a browser or inside a native app shell, where people chat, build, use and share gadgets."},{"name":"Gatekeeper apps","description":"The management apps of some gatekeepers, such as the Context Library and Scheduled Tasks, opened inside the web app at /gatekeepers/\u003capp>."},{"name":"Push notifications","description":"Notifications pushed to a user's registered devices when a chat they follow gets a message."},{"name":"Admin panel","description":"The /admin pages of the web app, shown only to deployment admins."},{"name":"API command line","description":"The `cf-os api` command, a generated client of the same API, which on a deployment only admins may use."},{"name":"gatekeeper contract","description":"The RPC contract every gatekeeper Worker implements for the Kernel: vendor, connected account, resource gatekeeper and hooks, with the approval queue the Kernel hands back."},{"name":"model provider APIs","description":"The HTTPS APIs of the model providers, AI Gateway's API and its logs, and the Workers AI binding."},{"name":"Cloudflare account API","description":"Cloudflare's REST API for accounts and AI Gateway credit balance."},{"name":"notification service API","description":"The notification service's signed HTTPS API for registering devices and publishing notifications."},{"name":"update check","description":"The deploy service's URL that answers which release is newest."},{"name":"Access identity tokens","description":"The signed token Cloudflare Access attaches to each request, which the Kernel verifies."},{"name":"Browser Rendering binding","description":"The binding through which the Kernel launches a headless browser."},{"name":"public HTTP fetch","description":"Outbound requests to the public internet, restricted to public addresses."},{"name":"GitHub API","description":"GitHub's OAuth, REST and git APIs, and the webhooks GitHub posts back."},{"name":"MCP endpoint","description":"A Model Context Protocol server's HTTP endpoint, with its OAuth discovery chain."},{"name":"MCP portal endpoint","description":"The organization's MCP portal URL, speaking the Model Context Protocol for each upstream server."},{"name":"Artifacts binding","description":"The binding through which the Context Library reads and writes git repositories in Cloudflare Artifacts."},{"name":"user account RPC","description":"The methods of a user's account object that other kernel objects call."},{"name":"workspace RPC","description":"The methods of a workspace object that other kernel objects call."},{"name":"workspace admin view","description":"The workspace's admin entry, reached only over the Durable Object binding, and the time-limited AdminWorkspaceView it returns."},{"name":"account admin view","description":"The account's admin entry, reached only over the Durable Object binding, and the AdminUserView it returns."},{"name":"directory RPC","description":"The methods of the user directory object: feeds, search and listings."},{"name":"audit log RPC","description":"The methods of the admin audit log object: append, list and stats."},{"name":"gatekeeper account contract","description":"The vendor and connected-account part of the gatekeeper contract: describe, connect, reconnect, revoke, configure, mint, verify, open an app and save a file, with the connect callback sent back."},{"name":"resource gatekeeper contract","description":"The resource gatekeeper's part of the gatekeeper contract, its agent-facing session types, and the approval queue the workspace hands it."},{"name":"hook contract","description":"The hook controller a gatekeeper hands the workspace to enable or disable a hook, and the hook initiator the workspace hands back for deliveries."},{"name":"account token methods","description":"A variant's own account methods that its resource gatekeeper calls for tokens and access checks."},{"name":"schedule driver methods","description":"The scheduler driver's methods for listing a workspace's or an account's schedules."},{"name":"Context Library management API","description":"The API behind the Context Library app: collections, documents, skills, sharing and git tokens."},{"name":"Context Library agent session","description":"The read session the agent gets for context: search, list and read."},{"name":"agent hooks","description":"The runAgent entry and the AgentHooks interface through which the agent reads and writes its chat in the workspace."},{"name":"sharing manager","description":"The methods of the workspace's sharing manager over its collaborators and share links."},{"name":"collection library methods","description":"The methods of an account's collection library object."},{"name":"public registry methods","description":"The methods of a sharing domain's public collection registry."}],"places":[{"place":"Excluded gatekeeper drivers","kind":"excluded","paths":["packages/gatekeeper-cloudflare/**/*","packages/gatekeeper-confluence/**/*","packages/gatekeeper-email/**/*","packages/gatekeeper-gitlab/**/*","packages/gatekeeper-google/**/*","packages/gatekeeper-homeassistant/**/*","packages/gatekeeper-linear/**/*","packages/gatekeeper-microsoft/**/*","packages/gatekeeper-notion/**/*","packages/gatekeeper-pagerduty/**/*","packages/gatekeeper-slack/**/*","packages/gatekeeper-spotify/**/*","packages/gatekeeper-supabase/**/*","packages/gatekeeper-websearch/**/*","packages/gatekeeper-x/**/*","packages/gatekeeper-zoominfo/**/*"]},{"place":"Generated output","kind":"excluded","paths":["**/worker-configuration.d.ts","**/wrangler.jsonc","**/*.gen.ts"]},{"place":"Tests","kind":"tooling","paths":["**/*.test.*","**/__tests__/**","**/__integration__/**","**/__fixtures__/**","**/vitest*.config.ts"]},{"place":"Dependencies","kind":"excluded","paths":["pnpm-lock.yaml","packages/pdf-renderer/vendor/**"]},{"place":"Cloudflare OS","kind":"component","paths":["packages/router/**"]},{"place":"Kernel","kind":"component","paths":["packages/workshop-backend/**","packages/workshop-shared/**"]},{"place":"gatekeeper contract","kind":"interface","paths":["packages/workshop-shared/src/gatekeeper.ts","packages/workshop-shared/src/gatekeeper-app.ts","packages/workshop-shared/src/worktree-replica.ts","packages/workshop-shared/src/cloudflare-gatekeeper.ts"]},{"place":"Workspace host","kind":"component","paths":["packages/workshop-backend/src/overseer.ts","packages/workshop-backend/src/storage-schema/overseer-*","packages/workshop-backend/src/git-*","packages/workshop-backend/src/worktree-*","packages/workshop-backend/src/auto-approval.ts","packages/workshop-backend/src/observer-ledger.ts","packages/workshop-backend/src/chat-*","packages/workshop-backend/src/ui-bundle.ts","packages/workshop-backend/src/exports-*","packages/workshop-backend/src/gadget-export.ts","packages/workshop-backend/src/export-limits.ts","packages/workshop-backend/src/browser-export.ts","packages/workshop-backend/browser/**","packages/workshop-backend/src/grep.ts","packages/workshop-backend/src/line-window.ts","packages/workshop-backend/src/three-way-merge.ts","packages/workshop-backend/src/diff3.d.ts","packages/workshop-backend/src/read-file-result.ts","packages/workshop-backend/src/session-watchers.ts","packages/workshop-backend/src/*-binding.d.ts","packages/workshop-backend/src/*-binding.txt"]},{"place":"Agent","kind":"component","paths":["packages/workshop-backend/src/agent.ts","packages/workshop-backend/src/agent-catalog.ts","packages/workshop-backend/src/agent-compaction.ts","packages/workshop-backend/src/anthropic-compaction.ts","packages/workshop-backend/src/code-preview.ts","packages/workshop-backend/src/streaming-json-parser.ts","packages/workshop-backend/src/system-prompt-blocks.ts","packages/workshop-backend/src/slash-commands.ts"]},{"place":"Sharing","kind":"component","paths":["packages/workshop-backend/src/sharing.ts"]},{"place":"User account","kind":"component","paths":["packages/workshop-backend/src/user.ts","packages/workshop-backend/src/storage-schema/user-storage.ts","packages/workshop-backend/src/admin-user-view.ts","packages/workshop-backend/src/notification-service.ts"]},{"place":"Admin settings","kind":"component","paths":["packages/workshop-backend/src/admin-settings.ts","packages/workshop-backend/src/admin-config.ts","packages/workshop-backend/src/admin-access.ts","packages/workshop-backend/src/admin-writes.ts","packages/workshop-backend/src/admin-view.ts","packages/workshop-backend/src/storage-schema/admin-settings-storage.ts","packages/workshop-backend/src/bundled-blueprints.ts","packages/workshop-backend/src/deployment-updates.ts","packages/workshop-backend/src/site-logo.ts"]},{"place":"Admin audit log","kind":"component","paths":["packages/workshop-backend/src/admin-audit.ts"]},{"place":"User directory","kind":"component","paths":["packages/workshop-backend/src/user-directory.ts"]},{"place":"Workshop web app","kind":"interface","paths":["packages/workshop-frontend/**","packages/gatekeeper-github/src/configurator/**","packages/gatekeeper-mcp/src/configurator/**","packages/gatekeeper-mcp-portal/src/configurator/**"]},{"place":"Admin panel","kind":"interface","paths":["packages/workshop-frontend/src/AdminPage.tsx","packages/workshop-frontend/src/adminTab.ts","packages/workshop-frontend/src/routes/admin.tsx","packages/workshop-frontend/src/features/admin-audit/**","packages/workshop-frontend/src/features/deployment-updates/**","packages/workshop-frontend/src/components/format/AdminFormatsPanel.tsx","packages/workshop-frontend/src/features/ai-models/Admin*","packages/workshop-frontend/src/features/ai-models/Gateway*","packages/workshop-frontend/src/features/ai-models/AddGatewayModelForm.tsx","packages/workshop-frontend/src/features/ai-models/AllowedModelsField.tsx","packages/workshop-frontend/src/features/ai-models/useGatewayTests.ts","packages/workshop-frontend/src/features/ai-models/MoveButtons.tsx"]},{"place":"Gatekeeper apps","kind":"interface","paths":["packages/gatekeeper-context/app/**","packages/gatekeeper-scheduler/app/**","packages/workshop-frontend/src/GatekeeperAppPage.tsx","packages/workshop-frontend/src/SandboxedGatekeeperApp.tsx","packages/workshop-frontend/src/gatekeeperAppNavigation.ts","packages/workshop-frontend/src/useGatekeeperApps.ts","packages/workshop-frontend/src/routes/gatekeepers_.$appId.$.tsx"]},{"place":"API command line","kind":"interface","paths":["packages/api-cli/**"]},{"place":"Context page mock","kind":"cleanup","paths":["packages/workshop-frontend/src/routes/context.tsx"]},{"place":"Gatekeepers","kind":"component","paths":["packages/gatekeeper-github/**","packages/gatekeeper-mcp/**","packages/gatekeeper-mcp-portal/**","packages/gatekeeper-context/**","packages/gatekeeper-scheduler/**"]},{"place":"Connected account","kind":"component","paths":["packages/gatekeeper-github/src/github-configurators.ts","packages/gatekeeper-mcp/src/connect-form.ts","packages/gatekeeper-scheduler/src/management.ts","packages/gatekeeper-scheduler/src/management-types.ts","packages/gatekeeper-scheduler/src/app-api.ts","packages/gatekeeper-context/src/context-api.ts","packages/gatekeeper-context/src/app-api.ts"]},{"place":"Resource gatekeeper","kind":"component","paths":["packages/gatekeeper-github/src/github-api.ts","packages/gatekeeper-github/src/github-ci.ts","packages/gatekeeper-github/src/github-search.ts","packages/gatekeeper-github/src/git-commits.ts","packages/gatekeeper-github/src/repo-subresources.ts","packages/gatekeeper-github/src/types.d.ts","packages/gatekeeper-github/src/types.txt","packages/gatekeeper-mcp/src/server-subresources.ts","packages/gatekeeper-scheduler/src/types.d.ts","packages/gatekeeper-scheduler/src/types.txt","packages/gatekeeper-context/src/library-read.ts","packages/gatekeeper-context/src/context-observers.ts"]},{"place":"Event source","kind":"component","paths":["packages/gatekeeper-github/src/github-hooks.ts","packages/gatekeeper-github/src/github-webhook-events.ts","packages/gatekeeper-scheduler/src/schedule-driver.ts","packages/gatekeeper-scheduler/src/driver-state.ts","packages/gatekeeper-scheduler/src/scheduler-core.ts","packages/gatekeeper-scheduler/src/schedule-types.ts"]},{"place":"Context collections","kind":"component","paths":["packages/gatekeeper-context/src/domain.ts","packages/gatekeeper-context/src/concurrency.ts","packages/gatekeeper-context/src/context-types.ts","packages/gatekeeper-context/src/agent-skill.ts"]},{"place":"Collection","kind":"component","paths":["packages/gatekeeper-context/src/context-collection.ts","packages/gatekeeper-context/src/collection-access.ts","packages/gatekeeper-context/src/artifact-sync.ts","packages/gatekeeper-context/src/context-storage.ts","packages/gatekeeper-context/src/description-extractors.ts"]},{"place":"Collection library","kind":"component","paths":["packages/gatekeeper-context/src/user-library.ts"]},{"place":"Public collection registry","kind":"component","paths":["packages/gatekeeper-context/src/registry-do.ts","packages/gatekeeper-context/src/collection-kv.ts"]},{"place":"Gatekeeper kit","kind":"library","paths":["packages/gatekeeper-kit/**"]},{"place":"MCP library","kind":"library","paths":["packages/mcp-shared/**"]},{"place":"Configurator UI runtime","kind":"library","paths":["packages/configurator-ui/**"]},{"place":"PDF renderer","kind":"library","paths":["packages/pdf-renderer/**"]},{"place":"Bundled blueprints","kind":"library","paths":["packages/bundled-blueprints/**"]},{"place":"Shared libraries","kind":"library","paths":["packages/typed-storage/**","packages/office-content/**","packages/ui/**"]},{"place":"Diagnostics","kind":"tooling","paths":["packages/observability/**","packages/error-reporting/**","packages/workshop-backend/src/analytics.ts","packages/workshop-backend/src/client-errors.ts","packages/workshop-backend/src/observability.ts","packages/workshop-backend/src/agent-tracing.ts"]},{"place":"Test suites and evaluations","kind":"tooling","paths":["packages/integration-tests/**","packages/workshop-evals/**"]},{"place":"Build, release and dev tooling","kind":"tooling","paths":["scripts/**",".github/**",".agents/**","packages/api-schema/**","packages/workshop-backend/scripts/**","packages/bundled-blueprints/src/**","packages/pdf-renderer/scripts/**","packages/gatekeeper-context/build-app.ts","packages/gatekeeper-scheduler/build-app.ts","packages/gatekeeper-github/deploy-inputs.json","package.json","pnpm-workspace.yaml","tsconfig.json","vite.config.ts","cloudflare.config.ts",".gitignore",".gitattributes",".npmrc"]},{"place":"Documentation","kind":"tooling","paths":["docs/**","plans/**","README.md","AGENTS.md","REVIEW.md","CONTRIBUTING.md","LICENSE"]}],"boundaries":[{"consumer":"User","provider":"Cloudflare OS","interfaces":["Workshop web app","Gatekeeper apps","Push notifications"],"areas":[{"name":"Work with the agent","type":"core","description":"Chat with the agent in a workspace, have it build and change gadgets, and use what it made.","capabilities":[{"name":"Create workspace","takes":"nothing","gives":"a new, empty workspace only its owner can open","acts":[{"mode":"produces","resource":"Workspace"}],"interfaces":["Workshop web app"]},{"name":"List workspaces","takes":"nothing","gives":"the user's own and shared workspaces, with owner, last activity and pin","acts":[{"mode":"observes","resource":"Workspace"}],"interfaces":["Workshop web app"]},{"name":"Edit workspace","takes":"a workspace and a new title or pin","gives":"the workspace with its new title or pin","acts":[{"mode":"mutates","resource":"Workspace"}],"interfaces":["Workshop web app"]},{"name":"Delete workspace","takes":"a workspace the user owns","gives":"the workspace gone for everyone","acts":[{"mode":"mutates","resource":"Workspace"}],"interfaces":["Workshop web app"]},{"name":"Start chat","takes":"a prompt, a model and optional attachments","gives":"a new chat whose agent turn has begun","acts":[{"mode":"produces","resource":"Chat"},{"mode":"observes","resource":"AI model"}],"interfaces":["Workshop web app"]},{"name":"Send chat message","takes":"a message with optional attachments","gives":"the agent's next turn: its replies, tool calls and proposed changes","acts":[{"mode":"mutates","resource":"Chat"}],"interfaces":["Workshop web app"]},{"name":"Follow chat","takes":"a chat","gives":"the chat's history and the live stream of the agent's turn","acts":[{"mode":"observes","resource":"Chat"}],"interfaces":["Workshop web app"]},{"name":"Stop agent","takes":"a chat whose agent is working","gives":"the turn stopped, with its work so far kept","acts":[{"mode":"mutates","resource":"Chat"}],"interfaces":["Workshop web app"]},{"name":"Merge chat changes","takes":"a chat with proposed changes","gives":"the changes merged into the workspace's gadgets","acts":[{"mode":"mutates","resource":"Gadget"},{"mode":"mutates","resource":"Chat"}],"interfaces":["Workshop web app"]},{"name":"Revert chat changes","takes":"a chat and the changes to undo","gives":"the chat's draft without those changes","acts":[{"mode":"mutates","resource":"Chat"}],"interfaces":["Workshop web app"]},{"name":"Update chat with latest code","takes":"a chat whose workspace has moved on","gives":"the chat's draft rebased on the workspace's current code","acts":[{"mode":"mutates","resource":"Chat"}],"interfaces":["Workshop web app"]},{"name":"Edit chat title","takes":"a chat and a title","gives":"the chat with its new title","acts":[{"mode":"mutates","resource":"Chat"}],"interfaces":["Workshop web app"]},{"name":"Delete chat","takes":"a chat","gives":"the chat removed, with any unmerged changes","acts":[{"mode":"mutates","resource":"Chat"}],"interfaces":["Workshop web app"]},{"name":"Create gadget","takes":"a title","gives":"an empty gadget in the workspace","acts":[{"mode":"produces","resource":"Gadget"}],"interfaces":["Workshop web app"]},{"name":"Use gadget","takes":"a gadget","gives":"the gadget's app running in a sandboxed frame, live with whoever else has it open","acts":[{"mode":"observes","resource":"Gadget"},{"mode":"mutates","resource":"Gadget"}],"interfaces":["Workshop web app"]},{"name":"Edit gadget code","takes":"file edits","gives":"the gadget's code with the edits","acts":[{"mode":"mutates","resource":"Gadget"}],"interfaces":["Workshop web app"]},{"name":"Browse gadget code","takes":"a gadget and a commit","gives":"its files, commit log and changed paths","acts":[{"mode":"observes","resource":"Gadget"}],"interfaces":["Workshop web app"]},{"name":"Read gadget console logs","takes":"a gadget","gives":"the log lines its code writes as it runs","acts":[{"mode":"observes","resource":"Gadget"}],"interfaces":["Workshop web app"]},{"name":"Export gadget","takes":"a gadget and an export format","gives":"a file such as a PDF or a standalone HTML page","acts":[{"mode":"produces","resource":"Gadget"}],"interfaces":["Workshop web app"]},{"name":"List my outputs","takes":"nothing","gives":"the documents and other things the user made, across workspaces","acts":[{"mode":"observes","resource":"Gadget"}],"interfaces":["Workshop web app"]},{"name":"See who is present","takes":"a workspace","gives":"the people viewing it now, with their roles","acts":[{"mode":"observes","resource":"Workspace"}],"interfaces":["Workshop web app"]}]},{"name":"Review agent actions","type":"supporting","description":"Decide on the changes agents and gadgets queued for approval, and on what they asked to reach.","capabilities":[{"name":"List actions","takes":"a workspace and a filter","gives":"its pending and past actions, each with what it would do","acts":[{"mode":"observes","resource":"Action"}],"interfaces":["Workshop web app"]},{"name":"Change action status","takes":"an action, approved or rejected","gives":"the action applied to the outside service, or withdrawn","acts":[{"mode":"mutates","resource":"Action"}],"interfaces":["Workshop web app"]},{"name":"Set auto-approval","takes":"a connection and an action kind","gives":"a rule that applies actions of that kind without asking","acts":[{"mode":"mutates","resource":"Connection"}],"interfaces":["Workshop web app"]},{"name":"Answer agent request","takes":"the agent's request for a connection or for a web address the policy refuses, accepted or denied","gives":"the agent resumed with that access, or told no","acts":[{"mode":"mutates","resource":"Chat"},{"mode":"mutates","resource":"Connection"}],"interfaces":["Workshop web app"]}]},{"name":"Connect outside services","type":"supporting","description":"Connect accounts at outside services and introduce specific resources of them to a workspace.","capabilities":[{"name":"List connectors","takes":"nothing","gives":"the services the deployment can connect to, with the resources each offers","acts":[{"mode":"observes","resource":"Connector"}],"interfaces":["Workshop web app"]},{"name":"Connect account","takes":"a connector and, for some, the resource types to grant","gives":"a connected account, after the outside service's consent page","acts":[{"mode":"produces","resource":"Connected account"}],"interfaces":["Workshop web app"]},{"name":"Reconnect account","takes":"a connected account whose access expired or must widen","gives":"the account with fresh credentials","acts":[{"mode":"mutates","resource":"Connected account"}],"interfaces":["Workshop web app"]},{"name":"Disconnect account","takes":"a connected account","gives":"the account revoked, with every connection made through it","acts":[{"mode":"mutates","resource":"Connected account"}],"interfaces":["Workshop web app"]},{"name":"List connected accounts","takes":"nothing","gives":"the user's connected accounts and their state","acts":[{"mode":"observes","resource":"Connected account"}],"interfaces":["Workshop web app"]},{"name":"Introduce resource","takes":"a resource link or a pick in the connector's chooser, and the account to use","gives":"a connection the workspace's agent and gadgets may use","acts":[{"mode":"produces","resource":"Connection"}],"interfaces":["Workshop web app"]},{"name":"Add model or agent binding","takes":"a model, or settings for spawning agents","gives":"a connection a gadget can call to run a model or an agent","acts":[{"mode":"produces","resource":"Connection"}],"interfaces":["Workshop web app"]},{"name":"Bind connection to gadget","takes":"a gadget, a connection and a name","gives":"the gadget with the connection in its environment","acts":[{"mode":"mutates","resource":"Gadget"}],"interfaces":["Workshop web app"]},{"name":"Remove connection","takes":"a connection","gives":"the connection gone from the workspace","acts":[{"mode":"mutates","resource":"Connection"}],"interfaces":["Workshop web app"]},{"name":"List hooks","takes":"a workspace","gives":"the scheduled tasks and outside events that may wake its gadgets","acts":[{"mode":"observes","resource":"Hook"}],"interfaces":["Workshop web app"]},{"name":"Change hook status","takes":"a hook, enabled, disabled or deleted","gives":"callbacks starting or stopping","acts":[{"mode":"mutates","resource":"Hook"}],"interfaces":["Workshop web app"]},{"name":"Save export to account","takes":"a gadget export and a place in a connected account","gives":"the file saved in the outside service","acts":[{"mode":"produces","resource":"Gadget"},{"mode":"produces","resource":"Connected account"}],"interfaces":["Workshop web app"]}]},{"name":"Share workspaces and gadgets","type":"supporting","description":"Give other people access to a workspace or a gadget, and open what others shared.","capabilities":[{"name":"Invite collaborator","takes":"a person and a grant: the workspace, or one gadget to use or only view","gives":"the person added with that grant","acts":[{"mode":"produces","resource":"Collaborator"}],"interfaces":["Workshop web app"]},{"name":"Remove collaborator","takes":"a collaborator, after a preview of who else would lose access","gives":"their access removed, with everyone who had it only through them","acts":[{"mode":"mutates","resource":"Collaborator"}],"interfaces":["Workshop web app"]},{"name":"List collaborators","takes":"a workspace or a gadget","gives":"who holds what grant","acts":[{"mode":"observes","resource":"Collaborator"}],"interfaces":["Workshop web app"]},{"name":"Create share link","takes":"a grant and an optional name","gives":"a link whose secret key admits whoever opens it","acts":[{"mode":"produces","resource":"Share link"}],"interfaces":["Workshop web app"]},{"name":"Change share link","takes":"a share link, renamed or revoked","gives":"the link with its new name, or dead with everyone who joined only through it","acts":[{"mode":"mutates","resource":"Share link"}],"interfaces":["Workshop web app"]},{"name":"List share links","takes":"a workspace or a gadget","gives":"the links the user manages","acts":[{"mode":"observes","resource":"Share link"}],"interfaces":["Workshop web app"]},{"name":"Join through share link","takes":"a share link","gives":"access to the workspace or gadget it grants, once the user's own accounts cover its protected resources","acts":[{"mode":"produces","resource":"Collaborator"}],"interfaces":["Workshop web app"]},{"name":"Open gadget snapshot","takes":"a gadget shared to view only","gives":"a private copy of its stored state, with no live connections","acts":[{"mode":"observes","resource":"Gadget"}],"interfaces":["Workshop web app"]},{"name":"Search users","takes":"a name or an email","gives":"matching people to share with","acts":[{"mode":"observes","resource":"Account"}],"interfaces":["Workshop web app"]},{"name":"List protected resources","takes":"a gadget","gives":"the connections a recipient of the live gadget must verify with their own account","acts":[{"mode":"observes","resource":"Connection"}],"interfaces":["Workshop web app"]},{"name":"Dismiss shared workspace","takes":"a workspace someone shared","gives":"it gone from the user's home page, access kept","acts":[{"mode":"mutates","resource":"Workspace"}],"interfaces":["Workshop web app"]}]},{"name":"Use blueprints","type":"supporting","description":"Publish gadgets as templates and start from other people's.","capabilities":[{"name":"Publish blueprint","takes":"a gadget and annotations for its bindings","gives":"a blueprint others can copy through its link","acts":[{"mode":"produces","resource":"Blueprint"}],"interfaces":["Workshop web app"]},{"name":"Release blueprint update","takes":"a blueprint whose gadget changed","gives":"a new release that gadgets made from it can take","acts":[{"mode":"mutates","resource":"Blueprint"}],"interfaces":["Workshop web app"]},{"name":"Delete blueprint","takes":"a blueprint the user published","gives":"the blueprint gone","acts":[{"mode":"mutates","resource":"Blueprint"}],"interfaces":["Workshop web app"]},{"name":"List blueprints","takes":"nothing","gives":"the user's own, library, featured and standard-format blueprints","acts":[{"mode":"observes","resource":"Blueprint"}],"interfaces":["Workshop web app"]},{"name":"Change blueprint library","takes":"a blueprint, added, removed or pinned","gives":"the user's library with that change","acts":[{"mode":"mutates","resource":"Blueprint"}],"interfaces":["Workshop web app"]},{"name":"View blueprint","takes":"a blueprint link, signed in or not","gives":"the blueprint's description, screenshot and current release","acts":[{"mode":"observes","resource":"Blueprint"}],"interfaces":["Workshop web app"]},{"name":"Create workspace from blueprint","takes":"a blueprint or a standard format, and an account or model for each of its bindings","gives":"a new workspace with a gadget made from it","acts":[{"mode":"produces","resource":"Workspace"},{"mode":"observes","resource":"Blueprint"}],"interfaces":["Workshop web app"]},{"name":"Update gadget from blueprint","takes":"a gadget that follows a blueprint","gives":"a proposal merging the blueprint's newest release into the gadget","acts":[{"mode":"mutates","resource":"Gadget"}],"interfaces":["Workshop web app"]},{"name":"Download blueprint","takes":"a blueprint link","gives":"a .gadget archive another deployment can import","acts":[{"mode":"produces","resource":"Blueprint"}],"interfaces":["Workshop web app"]},{"name":"Import blueprint","takes":"a .gadget archive","gives":"a blueprint in the user's library","acts":[{"mode":"produces","resource":"Blueprint"}],"interfaces":["Workshop web app"]}]},{"name":"Keep context for agents","type":"supporting","description":"Write and share collections of documents and skills that agents read while they work.","capabilities":[{"name":"Create context collection","takes":"a name and a description","gives":"a private collection the user owns","acts":[{"mode":"produces","resource":"Context collection"}],"interfaces":["Gatekeeper apps"]},{"name":"List context collections","takes":"nothing","gives":"the collections the user created, was given, or that are public","acts":[{"mode":"observes","resource":"Context collection"}],"interfaces":["Gatekeeper apps"]},{"name":"Edit context collection","takes":"documents and skills to add, change, move or delete","gives":"the collection with those changes","acts":[{"mode":"mutates","resource":"Context collection"}],"interfaces":["Gatekeeper apps"]},{"name":"Share context collection","takes":"people and roles, or everyone may view","gives":"the collection with its new members","acts":[{"mode":"mutates","resource":"Context collection"}],"interfaces":["Gatekeeper apps"]},{"name":"Sync collection from git","takes":"a git source, or a token to mint or revoke for the collection's mirror","gives":"the collection's documents matching the repository, or the token","acts":[{"mode":"mutates","resource":"Context collection"}],"interfaces":["Gatekeeper apps"]},{"name":"Delete context collection","takes":"a collection the user owns, or one to leave","gives":"the collection gone, or the user no longer a member","acts":[{"mode":"mutates","resource":"Context collection"}],"interfaces":["Gatekeeper apps"]}]},{"name":"List scheduled tasks","type":"supporting","description":"See the schedules the agent registered across the user's workspaces.","capabilities":[{"name":"List scheduled tasks","takes":"a search","gives":"the user's schedules with their cadence, status and workspace","acts":[{"mode":"observes","resource":"Scheduled task"}],"interfaces":["Gatekeeper apps"]}]},{"name":"Choose AI models","type":"supporting","description":"Pick the models chats use, add models with one's own key, and pay for usage beyond the free allowance.","capabilities":[{"name":"List models","takes":"nothing","gives":"the models the user may pick, in the deployment's order","acts":[{"mode":"observes","resource":"AI model"}],"interfaces":["Workshop web app"]},{"name":"Add own model","takes":"a provider, a model name and an API key","gives":"a model that runs on the user's own key","acts":[{"mode":"produces","resource":"AI model"}],"interfaces":["Workshop web app"]},{"name":"Edit own model","takes":"one of the user's own models, changed or deleted","gives":"the model with its new settings, or gone","acts":[{"mode":"mutates","resource":"AI model"}],"interfaces":["Workshop web app"]},{"name":"Set preferred model","takes":"a model, as the default or the quick model","gives":"new chats starting with it","acts":[{"mode":"mutates","resource":"Account"}],"interfaces":["Workshop web app"]},{"name":"See AI usage","takes":"nothing","gives":"the free calls left today and the billed account's balance","acts":[{"mode":"observes","resource":"AI usage"}],"interfaces":["Workshop web app"]},{"name":"Choose billed Cloudflare account","takes":"one of the user's Cloudflare accounts","gives":"further usage billed to that account","acts":[{"mode":"mutates","resource":"AI usage"}],"interfaces":["Workshop web app"]}]},{"name":"Manage my account","type":"supporting","description":"Sign up, sign in and keep one's profile.","capabilities":[{"name":"Sign up","takes":"a username, a display name and a password","gives":"a new account and a session","acts":[{"mode":"produces","resource":"Account"}],"interfaces":["Workshop web app"]},{"name":"Sign in","takes":"a password, a sign-in through an allowed connector, or a Cloudflare Access session","gives":"a session in the web app or a native app","acts":[{"mode":"observes","resource":"Account"}],"interfaces":["Workshop web app"]},{"name":"Change password","takes":"the old and the new password","gives":"the account with its new password","acts":[{"mode":"mutates","resource":"Account"}],"interfaces":["Workshop web app"]},{"name":"Edit profile","takes":"a display name, a commit email or an avatar","gives":"the account with its new profile","acts":[{"mode":"mutates","resource":"Account"}],"interfaces":["Workshop web app"]},{"name":"Complete onboarding","takes":"the built-in connectors to turn on","gives":"the account ready, with those connectors connected","acts":[{"mode":"mutates","resource":"Account"},{"mode":"produces","resource":"Connected account"}],"interfaces":["Workshop web app"]}]},{"name":"Follow activity","type":"supporting","description":"Know which chats have news, and be told when they do.","capabilities":[{"name":"List unread chats","takes":"nothing, or a workspace","gives":"the chats with unread messages and their counts","acts":[{"mode":"observes","resource":"Unread state"}],"interfaces":["Workshop web app"]},{"name":"Mark chats read","takes":"a chat, a workspace or everything, read or unread","gives":"the unread counts with that change","acts":[{"mode":"mutates","resource":"Unread state"}],"interfaces":["Workshop web app"]},{"name":"Change notifications","takes":"a chat to follow, or a workspace to mute","gives":"notifications on or off for it","acts":[{"mode":"mutates","resource":"Unread state"}],"interfaces":["Workshop web app"]},{"name":"Register device","takes":"a browser or native push subscription","gives":"the device able to receive notifications","acts":[{"mode":"mutates","resource":"Account"}],"interfaces":["Workshop web app"]},{"name":"Get notified","takes":"a chat the user follows getting a message","gives":"a push notification and the app's badge count","acts":[{"mode":"reacts","resource":"Unread state"}],"interfaces":["Push notifications"]}]}],"evidence":[{"path":"README.md","shows":"What the product offers its users: agent chat, gadgets, sharing, blueprints and gatekeepers"},{"path":"packages/workshop-shared/src/api.ts","shows":"PublicApi, AuthenticatedApi, Overseer and GadgetClient, the API the web app calls for every capability"},{"path":"packages/workshop-frontend/src/routes/workspace.$id.tsx","shows":"The workspace screen where chats and gadgets live"},{"path":"docs/sharing.md","shows":"Collaborators, share links, snapshots and revocation as users see them"},{"path":"docs/blueprints.md","shows":"Publishing, releasing, instantiating and updating from blueprints"},{"path":"packages/gatekeeper-scheduler/README.md","shows":"The user flow for scheduled tasks and the read-only Scheduled app"},{"path":"packages/gatekeeper-context/AGENTS.md","shows":"The Context Library's collections, sharing and management app"},{"path":"docs/notifications.md","shows":"Device registration and push delivery"},{"path":"docs/public-server.md","shows":"Sign-in through connectors, the free daily allowance and billing to the user's Cloudflare account"}]},{"consumer":"Deployment admin","provider":"Cloudflare OS","interfaces":["Admin panel","API command line","Gatekeeper apps"],"areas":[{"name":"Configure the deployment","type":"core","description":"Set what the deployment offers everyone: its settings, connectors, models, formats and public context.","capabilities":[{"name":"Change deployment settings","takes":"signups, user search, view-only sharing, site name and logo, agent instructions, announcement, banner, accent colour or web fetch policy","gives":"the settings in force for every user, recorded in the audit log","acts":[{"mode":"mutates","resource":"Deployment settings"}],"interfaces":["Admin panel","API command line"]},{"name":"Choose offered connectors","takes":"a connector or resource type, and whether it is offered, optional or on for everyone","gives":"the connectors users see, and auto-provisioned ones turned on or dormant","acts":[{"mode":"mutates","resource":"Deployment settings"}],"interfaces":["Admin panel","API command line"]},{"name":"Manage deployment models","takes":"a provider or model, with its mode, order, settings or default reasoning, or whether users may add their own","gives":"the model pickers and running chats following that choice","acts":[{"mode":"mutates","resource":"AI model"}],"interfaces":["Admin panel","API command line"]},{"name":"Test a model","takes":"a provider, a model or a new model's settings","gives":"the result of one real request, naming the model that answered","acts":[{"mode":"observes","resource":"AI model"}],"interfaces":["Admin panel","API command line"]},{"name":"Manage standard formats","takes":"a blueprint to promote, change, order or remove as a format","gives":"the New Document menu with that change","acts":[{"mode":"mutates","resource":"Blueprint"}],"interfaces":["Admin panel","API command line"]},{"name":"Feature blueprint","takes":"a blueprint, featured or not","gives":"it shown, or not, on every home page","acts":[{"mode":"mutates","resource":"Blueprint"}],"interfaces":["Admin panel","API command line"]},{"name":"Edit public context collections","takes":"a public collection's documents and skills","gives":"context every user's agents read","acts":[{"mode":"mutates","resource":"Context collection"}],"interfaces":["Gatekeeper apps"]}]},{"name":"Investigate users and workspaces","type":"supporting","description":"Find a user or a workspace and look at its metadata, or act on a workspace that misbehaves.","capabilities":[{"name":"List users","takes":"a search and a page","gives":"accounts with their creation and last sign-in","acts":[{"mode":"observes","resource":"Account"}],"interfaces":["Admin panel","API command line"]},{"name":"List workspaces","takes":"a search, an owner and a page","gives":"workspaces with title, owner and last activity","acts":[{"mode":"observes","resource":"Workspace"}],"interfaces":["Admin panel","API command line"]},{"name":"Inspect workspace","takes":"a workspace, a reason and a lifetime","gives":"a time-limited view of its chats, files, connections, actions and sharing metadata, never their content, each call recorded first","acts":[{"mode":"observes","resource":"Workspace"},{"mode":"observes","resource":"Chat"},{"mode":"observes","resource":"Gadget"},{"mode":"observes","resource":"Connection"},{"mode":"observes","resource":"Action"}],"interfaces":["Admin panel","API command line"]},{"name":"Inspect user account","takes":"an account, a reason and a lifetime","gives":"a time-limited view of its workspaces, connected accounts, models and sessions, without any secret","acts":[{"mode":"observes","resource":"Account"},{"mode":"observes","resource":"Connected account"}],"interfaces":["Admin panel","API command line"]},{"name":"Change a workspace","takes":"a workspace, stop an agent or restart, and a reason, where the deployment allows writes","gives":"the agent stopped or the workspace restarted, recorded first","acts":[{"mode":"mutates","resource":"Workspace"},{"mode":"mutates","resource":"Chat"}],"interfaces":["Admin panel","API command line"]},{"name":"Set inspection level and retention","takes":"an inspection level and an audit retention, within the environment's bounds","gives":"inspection allowed or off, and records kept that long","acts":[{"mode":"mutates","resource":"Deployment settings"}],"interfaces":["Admin panel","API command line"]}]},{"name":"Review the admin audit","type":"supporting","description":"Know who looked at what and who changed which setting.","capabilities":[{"name":"List audit records","takes":"filters by kind, admin, method, workspace, owner and time","gives":"matching records, newest first","acts":[{"mode":"observes","resource":"Audit record"}],"interfaces":["Admin panel","API command line"]},{"name":"Get audit statistics","takes":"a number of days and a kind","gives":"counts by day and by admin, and the number of writes","acts":[{"mode":"observes","resource":"Audit record"}],"interfaces":["Admin panel","API command line"]}]},{"name":"Keep the deployment up to date","type":"supporting","description":"Know when a newer release exists and how often to ask.","capabilities":[{"name":"See update status","takes":"nothing","gives":"the running release, whether a newer one is available and which Workers were modified","acts":[{"mode":"observes","resource":"Deployment"}],"interfaces":["Admin panel","API command line"]},{"name":"Check for updates","takes":"nothing","gives":"the status after asking the deploy service now","acts":[{"mode":"observes","resource":"Deployment"}],"interfaces":["Admin panel","API command line"]},{"name":"Change update checks","takes":"whether to check, the interval, the minimum release age and the notice snooze","gives":"update checks following those settings","acts":[{"mode":"mutates","resource":"Deployment settings"}],"interfaces":["Admin panel","API command line"]}]}],"evidence":[{"path":"docs/admin-access.md","shows":"The admin surface: settings, directory, inspection, writes, access levels and the audit"},{"path":"packages/workshop-shared/src/api.ts","shows":"AdminApi, AdminWorkspaceView and AdminUserView"},{"path":"packages/workshop-frontend/src/AdminPage.tsx","shows":"The admin panel and its tabs"},{"path":"packages/api-cli/README.md","shows":"The command line that only deployment admins may use on a deployment"},{"path":"docs/public-server.md","shows":"The Models tab and the environment's bounds on inspection, retention and writes"},{"path":"packages/gatekeeper-context/AGENTS.md","shows":"Public collections, created and edited only by deployment admins"}]},{"consumer":"Kernel","provider":"Gatekeepers","interfaces":["gatekeeper contract"],"areas":[{"name":"Use outside resources","type":"core","description":"Grant agents and gadgets one outside resource at a time, and have every read checked and every change held for approval.","capabilities":[{"name":"Grant a resource","takes":"a connected account and a resource URL","gives":"a gatekeeper class the workspace installs as a connection","acts":[{"mode":"produces","resource":"Connection"}]},{"name":"Use a granted resource","takes":"a connection and the workspace's approval queue","gives":"a session whose reads are authorized observations and whose writes become pending actions, simulated meanwhile","acts":[{"mode":"observes","resource":"Connection"},{"mode":"produces","resource":"Action"}]},{"name":"Change action status","takes":"a pending or applied action, approved, rejected or reverted","gives":"the change made in the outside service, withdrawn or undone","acts":[{"mode":"mutates","resource":"Action"}]},{"name":"Admit an observer","takes":"a connection and a collaborator's verifier","gives":"the collaborator admitted, or refused, as someone who may see what the connection read","acts":[{"mode":"mutates","resource":"Connection"}]},{"name":"List auto-approvable action kinds","takes":"a connection","gives":"the kinds of action a user may approve in advance","acts":[{"mode":"observes","resource":"Connection"}]},{"name":"Change hook status","takes":"a hook the gatekeeper bound, enabled or disabled","gives":"events delivered into the workspace, or stopped","acts":[{"mode":"mutates","resource":"Hook"}]}]},{"name":"Connect accounts","type":"supporting","description":"Connect, keep and drop users' accounts at outside services.","capabilities":[{"name":"List connectors","takes":"nothing","gives":"each bound gatekeeper's description, resource types and agent-facing types","acts":[{"mode":"observes","resource":"Connector"}]},{"name":"Connect account","takes":"a connector, a user and a callback","gives":"a flow URL, then the connected account through the callback","acts":[{"mode":"produces","resource":"Connected account"}]},{"name":"Reconnect account","takes":"a connected account","gives":"new credentials, staged until the Workshop commits them","acts":[{"mode":"mutates","resource":"Connected account"}]},{"name":"Disconnect account","takes":"a connected account","gives":"the account and every connection made through it broken","acts":[{"mode":"mutates","resource":"Connected account"}]},{"name":"Read sign-in email","takes":"a connected account of a sign-in connector","gives":"its provider-verified email","acts":[{"mode":"observes","resource":"Connected account"}]},{"name":"Choose a resource","takes":"a connected account and a resource type","gives":"a configurator frame that returns the resource URL the user picked","acts":[{"mode":"observes","resource":"Connected account"}]},{"name":"Open management app","takes":"a connected account that provides a UI","gives":"the app's frame, such as the Context Library or Scheduled Tasks","acts":[{"mode":"observes","resource":"Connected account"}]},{"name":"Save file to account","takes":"a connected account, a destination and a file","gives":"the file created in the outside service","acts":[{"mode":"produces","resource":"Connected account"}]}]}],"evidence":[{"path":"packages/workshop-shared/src/gatekeeper.ts","shows":"The gatekeeper contract: GatekeeperVendor, GatekeeperUser, GatekeeperConnectCallback, Gatekeeper, ApprovalQueue, HookController, HookInitiator"},{"path":"packages/workshop-backend/src/auth/auth-vendors.ts","shows":"The registry: every GATEKEEPER_* binding becomes a vendor, all alike"},{"path":"packages/workshop-backend/AGENTS.md","shows":"Auto-provisioned gatekeepers, singletons and management apps"},{"path":".agents/skills/write-gatekeeper/SKILL.md","shows":"The seven responsibilities each gatekeeper takes on"}]},{"consumer":"Kernel","provider":"AI model providers","interfaces":["model provider APIs"],"areas":[{"name":"Run models","type":"core","description":"Have a model answer a request, and know what each request cost.","capabilities":[{"name":"Run model request","takes":"a prompt, tools and a model, with the deployment's or the user's credentials","gives":"the model's streamed answer and token counts","acts":[{"mode":"produces","resource":"AI model"}]},{"name":"Convert document to Markdown","takes":"a fetched document such as a PDF","gives":"its text as Markdown","acts":[{"mode":"produces","resource":"AI model"}]}]},{"name":"Read request cost","type":"supporting","description":"Read the cost AI Gateway logged for a request.","capabilities":[{"name":"Read request cost","takes":"a request's log id","gives":"the cost the gateway logged","acts":[{"mode":"observes","resource":"Gateway request log"}]}]}],"evidence":[{"path":"packages/workshop-backend/src/ai-models.ts","shows":"Provider endpoints, AI Gateway routing and the built-in model gatekeepers"},{"path":"packages/workshop-backend/src/ai-gateway.ts","shows":"AI Gateway configuration and reads of its logs"},{"path":"packages/workshop-backend/src/web-fetch.ts","shows":"Workers AI's Markdown conversion for fetched documents"},{"path":"docs/public-server.md","shows":"Gateway mode, the WORKERS_AI binding and the providers"}]},{"consumer":"Kernel","provider":"Cloudflare API","interfaces":["Cloudflare account API"],"areas":[{"name":"Read Cloudflare accounts","type":"core","description":"Know which Cloudflare accounts a user can bill AI use to, and their balance.","capabilities":[{"name":"List Cloudflare accounts","takes":"a token from the user's connected Cloudflare account","gives":"the accounts it can reach","acts":[{"mode":"observes","resource":"Cloudflare account"}]},{"name":"Read credit balance","takes":"an account","gives":"its AI Gateway credit balance","acts":[{"mode":"observes","resource":"Cloudflare account"}]}]}],"evidence":[{"path":"packages/workshop-backend/src/ai-gateway-billing/cloudflare/account-service.ts","shows":"Calls to api.cloudflare.com for accounts"},{"path":"packages/workshop-backend/src/ai-gateway-billing/cloudflare/connection-service.ts","shows":"Balance reads and the billing route of a request"},{"path":"docs/ai-gateway-billing.md","shows":"The free allowance and billing to the user's own credits"}]},{"consumer":"Kernel","provider":"Notification service","interfaces":["notification service API"],"areas":[{"name":"Push notifications","type":"core","description":"Register users' devices and push notifications to them.","capabilities":[{"name":"Register device","takes":"a device's push subscription, signed with the installation's key","gives":"an opaque subscription id","acts":[{"mode":"produces","resource":"Device subscription"}]},{"name":"Send push notification","takes":"a subscription id and a fixed notification template","gives":"the notification delivered to the device","acts":[{"mode":"reacts","resource":"Device subscription"}]}]}],"evidence":[{"path":"packages/workshop-backend/src/notification-service.ts","shows":"The signed client of the notification service"},{"path":"docs/notifications.md","shows":"Registration, delivery and the deployment contract"}]},{"consumer":"Kernel","provider":"Deploy service","interfaces":["update check"],"areas":[{"name":"Check for newer release","type":"core","description":"Ask the service that installed the deployment for its newest release.","capabilities":[{"name":"Check for newer release","takes":"the running release","gives":"the newest release and when it became available","acts":[{"mode":"observes","resource":"Release"}]}]}],"evidence":[{"path":"packages/workshop-backend/src/deployment-updates.ts","shows":"The install description and the update check request"}]},{"consumer":"Kernel","provider":"Cloudflare Access","interfaces":["Access identity tokens"],"areas":[{"name":"Verify Access sign-in","type":"core","description":"Know who a request comes from on a deployment behind Access.","capabilities":[{"name":"Verify Access sign-in","takes":"the request's Access token","gives":"the verified email, or a refusal","acts":[{"mode":"observes","resource":"Access session"}]}]}],"evidence":[{"path":"packages/workshop-backend/src/access.ts","shows":"Verification of the Access JWT against CF_ACCESS_AUD and CF_ACCESS_ISS"},{"path":"packages/workshop-backend/src/server.ts","shows":"Access sessions checked before the API is served"}]},{"consumer":"Kernel","provider":"Browser Rendering","interfaces":["Browser Rendering binding"],"areas":[{"name":"Render gadget as PDF","type":"core","description":"Print a gadget's page to PDF in a headless browser.","capabilities":[{"name":"Render gadget as PDF","takes":"a gadget's export page","gives":"the printed PDF","acts":[{"mode":"produces","resource":"Browser session"}]}]}],"evidence":[{"path":"packages/workshop-backend/src/browser-export.ts","shows":"Launching a browser through the BROWSER binding to print an export"},{"path":"packages/workshop-backend/cloudflare.config.ts","shows":"The BROWSER binding"}]},{"consumer":"Kernel","provider":"Public web","interfaces":["public HTTP fetch"],"areas":[{"name":"Fetch web page","type":"core","description":"Read a public page for the agent or a gadget.","capabilities":[{"name":"Fetch web page","takes":"a public URL, by GET or HEAD, without credentials","gives":"the page or document","acts":[{"mode":"observes","resource":"Web page"}]}]}],"evidence":[{"path":"packages/workshop-backend/src/web-fetch.ts","shows":"The agent's webFetch tool"},{"path":"packages/workshop-backend/src/fetch-loopback.ts","shows":"The gate every untrusted fetch passes through"},{"path":"docs/unified-fetch.md","shows":"The four ways untrusted code reads the web, and the policy"}]},{"consumer":"Gatekeepers","provider":"GitHub","interfaces":["GitHub API"],"areas":[{"name":"Work on repositories","type":"core","description":"Read and change a user's repositories, issues and pull requests on their behalf.","capabilities":[{"name":"Read repository data","takes":"a token and a repository, issue or pull request","gives":"files, issues, pull requests, reviews and CI runs","acts":[{"mode":"observes","resource":"GitHub repository"}]},{"name":"Change repository data","takes":"an approved action: a push, a comment, a review, a merge or a new issue","gives":"the change made on GitHub","acts":[{"mode":"mutates","resource":"GitHub repository"}]},{"name":"Register repository webhook","takes":"a repository and the events wanted","gives":"a webhook through which GitHub posts those events back","acts":[{"mode":"produces","resource":"Repository webhook"}]}]},{"name":"Authorize GitHub account","type":"supporting","description":"Get and refresh a user's grant, and read their verified email for sign-in.","capabilities":[{"name":"Authorize GitHub account","takes":"an OAuth code or refresh token","gives":"an access token with its scopes, and the account's verified email","acts":[{"mode":"observes","resource":"GitHub account"}]}]}],"evidence":[{"path":"packages/gatekeeper-github/src/github-api.ts","shows":"The GitHub REST client the gatekeeper calls"},{"path":"packages/gatekeeper-github/src/github-hooks.ts","shows":"Webhook registration and delivery"},{"path":"packages/gatekeeper-github/README.md","shows":"OAuth app setup, scopes, sign-in and event hooks"}]},{"consumer":"Gatekeepers","provider":"MCP servers","interfaces":["MCP endpoint"],"areas":[{"name":"Call MCP tools","type":"core","description":"Use the tools of an MCP server a user pasted in.","capabilities":[{"name":"List MCP tools","takes":"an endpoint and a token","gives":"the server's tools and their schemas","acts":[{"mode":"observes","resource":"MCP server"}]},{"name":"Call MCP tool","takes":"a tool and its arguments","gives":"the tool's result","acts":[{"mode":"mutates","resource":"MCP server"}]}]},{"name":"Authorize MCP server","type":"supporting","description":"Run the server's OAuth discovery chain for a user.","capabilities":[{"name":"Authorize MCP server","takes":"an endpoint URL","gives":"a token for that server","acts":[{"mode":"observes","resource":"MCP server"}]}]}],"evidence":[{"path":"packages/mcp-shared/src/client.ts","shows":"The MCP client"},{"path":"packages/mcp-shared/src/oauth.ts","shows":"The OAuth discovery chain"},{"path":"packages/gatekeeper-mcp/README.md","shows":"Any MCP server as a capability"}]},{"consumer":"Gatekeepers","provider":"MCP server portal","interfaces":["MCP portal endpoint"],"areas":[{"name":"Call portal tools","type":"core","description":"Use the tools of one upstream server behind the organization's portal.","capabilities":[{"name":"List portal servers and tools","takes":"the portal URL and a token","gives":"the upstream servers and their tools","acts":[{"mode":"observes","resource":"MCP server"}]},{"name":"Call portal tool","takes":"a tool of one upstream server and its arguments","gives":"the tool's result","acts":[{"mode":"mutates","resource":"MCP server"}]}]},{"name":"Authorize portal","type":"supporting","description":"Sign a user in to the portal.","capabilities":[{"name":"Authorize portal","takes":"the administrator-configured portal URL","gives":"a token for the portal","acts":[{"mode":"observes","resource":"MCP server"}]}]}],"evidence":[{"path":"packages/gatekeeper-mcp-portal/src/portal.ts","shows":"The portal gatekeeper and its server recovery"},{"path":"packages/gatekeeper-mcp-portal/README.md","shows":"One administrator URL, grants scoped to one upstream server"}]},{"consumer":"Gatekeepers","provider":"Cloudflare Artifacts","interfaces":["Artifacts binding"],"areas":[{"name":"Mirror collection to git repository","type":"core","description":"Keep a context collection in step with a git repository.","capabilities":[{"name":"Mirror collection to git repository","takes":"a repository and branch, or a token to mint or revoke","gives":"the repository's documents at a commit, or the token","acts":[{"mode":"observes","resource":"Git repository"},{"mode":"mutates","resource":"Git repository"}]}]}],"evidence":[{"path":"packages/gatekeeper-context/src/artifact-sync.ts","shows":"Reading a repository's tree into a collection"},{"path":"scripts/release/manifest-lib.ts","shows":"The Artifacts binding is closed beta and dropped from customer manifests"}]},{"consumer":"Workspace","provider":"User account","interfaces":["user account RPC"],"areas":[{"name":"Act for the workspace's people","type":"core","description":"Get from a person's account what a workspace needs to work for them: their profile, their model, their connected accounts.","capabilities":[{"name":"Look up user profile","takes":"a user id","gives":"the person's name, profile id and avatar","acts":[{"mode":"observes","resource":"Account"}]},{"name":"Resolve chat model","takes":"the person prompting and a model id","gives":"the model's settings, credentials and billing route for the turn, refused when disabled or over the free allowance","acts":[{"mode":"observes","resource":"AI model"},{"mode":"mutates","resource":"AI usage"}]},{"name":"List the user's models","takes":"a user","gives":"the models the person may pick","acts":[{"mode":"observes","resource":"AI model"}]},{"name":"Mint gatekeeper from a connected account","takes":"an account id and a resource URL, or an ambient connector","gives":"a gatekeeper class to install as a connection, after the account checks the resource is enabled","acts":[{"mode":"observes","resource":"Connected account"},{"mode":"produces","resource":"Connection"}]},{"name":"List a user's connected accounts","takes":"a user and a connector","gives":"the accounts they could use for a binding, and a verifier for one","acts":[{"mode":"observes","resource":"Connected account"}]}]},{"name":"Keep the account's records of the workspace","type":"supporting","description":"Keep each person's list of workspaces, blueprints and unread chats in step with the workspace.","capabilities":[{"name":"Record workspace for its owner","takes":"a title, last activity, outputs, or the workspace's deletion","gives":"the owner's entry for the workspace up to date","acts":[{"mode":"mutates","resource":"Workspace entry"}]},{"name":"Record shared workspace for a collaborator","takes":"a collaborator's open, new role or removal","gives":"the collaborator's entry for the workspace up to date","acts":[{"mode":"mutates","resource":"Workspace entry"}]},{"name":"Deliver chat activity","takes":"a new message, a read position or a follow setting for a chat","gives":"the person's unread state updated, and a push when they follow the chat","acts":[{"mode":"mutates","resource":"Unread state"},{"mode":"reacts","resource":"Unread state"}]},{"name":"Manage the owner's blueprints","takes":"a blueprint the workspace published, changed or deleted","gives":"the owner's blueprint records up to date","acts":[{"mode":"mutates","resource":"Blueprint"}]}]}],"evidence":[{"path":"packages/workshop-backend/src/user.ts","shows":"UserDurableObject's methods: getChatContext, getGatekeeperClassFor, createResourceGatekeeper, recordSharedWorkspaceOpen, messageArrived, updateTitle and the rest"},{"path":"packages/workshop-backend/src/overseer.ts","shows":"The workspace calling those methods"},{"path":"docs/user-unread-state.md","shows":"Unread data flows from the workspace to the account object"}]},{"consumer":"User account","provider":"Workspace","interfaces":["workspace RPC"],"areas":[{"name":"List workspace outputs","type":"core","description":"Fill the account's outputs index from a workspace.","capabilities":[{"name":"List workspace outputs","takes":"the owner","gives":"the workspace's outputs","acts":[{"mode":"observes","resource":"Gadget"}]}]}],"evidence":[{"path":"packages/workshop-backend/src/user.ts","shows":"listOutputs backfilling from getOutputsForOwnerBackfill"},{"path":"packages/workshop-backend/src/overseer.ts","shows":"OverseerDurableObject.getOutputsForOwnerBackfill"}]},{"consumer":"Workspace","provider":"User directory","interfaces":["directory RPC"],"areas":[{"name":"List workspace in directory","type":"core","description":"Keep the workspace's directory listing current.","capabilities":[{"name":"List workspace in directory","takes":"the workspace's title, owner, creation and last activity, by revision","gives":"the directory entry updated","acts":[{"mode":"mutates","resource":"Directory entry"}]},{"name":"Remove workspace from directory","takes":"a deleted workspace","gives":"its entry gone","acts":[{"mode":"mutates","resource":"Directory entry"}]}]}],"evidence":[{"path":"packages/workshop-backend/src/user-directory.ts","shows":"syncWorkspace and removeWorkspace"},{"path":"docs/admin-access.md","shows":"The feeds from the Overseer and the deletion path"}]},{"consumer":"User account","provider":"User directory","interfaces":["directory RPC"],"areas":[{"name":"List user in directory","type":"core","description":"Keep the person's directory listing current.","capabilities":[{"name":"List user in directory","takes":"the person's profile, creation and last sign-in, by revision","gives":"the directory entry updated","acts":[{"mode":"mutates","resource":"Directory entry"}]}]}],"evidence":[{"path":"packages/workshop-backend/src/user-directory.ts","shows":"syncUser"},{"path":"packages/workshop-backend/src/user.ts","shows":"The account reporting its profile on each session start"}]},{"consumer":"Admin settings","provider":"User directory","interfaces":["directory RPC"],"areas":[{"name":"List users and workspaces","type":"core","description":"Find users and workspaces for an admin.","capabilities":[{"name":"List users","takes":"a search, a cursor and a limit","gives":"a page of user entries","acts":[{"mode":"observes","resource":"Directory entry"}]},{"name":"List workspaces","takes":"a search, an owner, a cursor and a limit","gives":"a page of workspace entries","acts":[{"mode":"observes","resource":"Directory entry"}]}]}],"evidence":[{"path":"packages/workshop-backend/src/admin-settings.ts","shows":"AdminApiImpl.listUsers and listWorkspaces"},{"path":"packages/workshop-backend/src/user-directory.ts","shows":"listUsers, listWorkspaces and workspaceListing"}]},{"consumer":"Admin settings","provider":"Admin audit log","interfaces":["audit log RPC"],"areas":[{"name":"Keep the admin audit","type":"core","description":"Record every admin setting change before it takes effect, and read the records back.","capabilities":[{"name":"Record admin action","takes":"the admin, the session, the setting and its change","gives":"the record stored, or a refusal that stops the change","acts":[{"mode":"produces","resource":"Audit record"}]},{"name":"List audit records","takes":"filters and a cursor","gives":"a page of records","acts":[{"mode":"observes","resource":"Audit record"}]},{"name":"Get audit statistics","takes":"a number of days and a kind","gives":"counts by day and by admin","acts":[{"mode":"observes","resource":"Audit record"}]}]}],"evidence":[{"path":"packages/workshop-backend/src/admin-audit.ts","shows":"AdminAuditDurableObject.append, list and stats"},{"path":"packages/workshop-backend/src/admin-settings.ts","shows":"Setters recording through #mutateAdminConfig before storing"}]},{"consumer":"Workspace","provider":"Admin audit log","interfaces":["audit log RPC"],"areas":[{"name":"Record admin action","type":"core","description":"Record an admin's inspection call or write before anything it read leaves, or before it takes effect.","capabilities":[{"name":"Record admin action","takes":"the admin, the workspace, the method, its arguments and the reason","gives":"the record stored, or a refusal that stops the call","acts":[{"mode":"produces","resource":"Audit record"}]}]}],"evidence":[{"path":"packages/workshop-backend/src/admin-view.ts","shows":"adminViewCall appending the record before an answer leaves"},{"path":"packages/workshop-backend/src/overseer.ts","shows":"applyAdminWrite appending its record before any effect"}]},{"consumer":"User account","provider":"Admin audit log","interfaces":["audit log RPC"],"areas":[{"name":"Record admin action","type":"core","description":"Record an admin's call on the account view before anything it read leaves.","capabilities":[{"name":"Record admin action","takes":"the admin, the account, the method, its arguments and the reason","gives":"the record stored, or a refusal that stops the call","acts":[{"mode":"produces","resource":"Audit record"}]}]}],"evidence":[{"path":"packages/workshop-backend/src/admin-user-view.ts","shows":"The account view recording each call through the audit log"},{"path":"packages/workshop-backend/src/user.ts","shows":"openForAdmin handing the view the audit namespace"}]},{"consumer":"Admin settings","provider":"Workspace","interfaces":["workspace admin view"],"areas":[{"name":"Inspect and change a workspace","type":"core","description":"Give an admin a bounded view of a workspace, or stop its agent or restart it.","capabilities":[{"name":"Inspect workspace","takes":"an admin, a reason, a lifetime and the access level in force","gives":"an AdminWorkspaceView of the workspace's metadata, never its content","acts":[{"mode":"observes","resource":"Workspace"},{"mode":"observes","resource":"Chat"},{"mode":"observes","resource":"Gadget"},{"mode":"observes","resource":"Connection"},{"mode":"observes","resource":"Action"}]},{"name":"Change workspace for an admin","takes":"an action (stop an agent, restart) with its arguments and a reason","gives":"the agent stopped or the workspace restarted","acts":[{"mode":"mutates","resource":"Workspace"},{"mode":"mutates","resource":"Chat"}]}]}],"evidence":[{"path":"packages/workshop-backend/src/admin-settings.ts","shows":"inspectWorkspace calling openForAdmin, writeWorkspace calling applyAdminWrite"},{"path":"packages/workshop-backend/src/admin-writes.ts","shows":"The arguments each write takes"},{"path":"REVIEW.md","shows":"openForAdmin and applyAdminWrite reachable only over the Durable Object binding"}]},{"consumer":"Admin settings","provider":"User account","interfaces":["account admin view"],"areas":[{"name":"Inspect account","type":"core","description":"Give an admin a bounded view of an account's metadata.","capabilities":[{"name":"Inspect account","takes":"an admin, a reason, a lifetime and the access level in force","gives":"an AdminUserView of the account's workspaces, connected accounts, models, sessions and blueprints, with no secret","acts":[{"mode":"observes","resource":"Account"},{"mode":"observes","resource":"Connected account"},{"mode":"observes","resource":"Workspace entry"}]}]}],"evidence":[{"path":"packages/workshop-backend/src/admin-user-view.ts","shows":"openAdminUserView and AdminUserViewImpl"},{"path":"packages/workshop-backend/src/admin-settings.ts","shows":"inspectUser"}]},{"consumer":"Admin settings","provider":"AI model providers","interfaces":["model provider APIs"],"areas":[{"name":"Test a model","type":"core","description":"Send one real request to check a provider or a model works.","capabilities":[{"name":"Test a model","takes":"a provider or a model's settings","gives":"a pass naming the model that answered, or the error","acts":[{"mode":"produces","resource":"AI model"}]}]}],"evidence":[{"path":"packages/workshop-backend/src/admin-settings.ts","shows":"testGatewayProvider, testGatewayModel, testNewGatewayModel"},{"path":"packages/workshop-backend/src/ai-invoke.ts","shows":"The model call they make"}]},{"consumer":"Admin settings","provider":"Deploy service","interfaces":["update check"],"areas":[{"name":"Check for newer release","type":"core","description":"Ask for the newest release on the admins' schedule or on demand.","capabilities":[{"name":"Check for newer release","takes":"the running release","gives":"the newest release, stored as the update status","acts":[{"mode":"observes","resource":"Release"}]}]}],"evidence":[{"path":"packages/workshop-backend/src/admin-settings.ts","shows":"checkForUpdates calling fetchLatestRelease"},{"path":"packages/workshop-backend/src/deployment-updates.ts","shows":"fetchLatestRelease"}]},{"consumer":"User account","provider":"Notification service","interfaces":["notification service API"],"areas":[{"name":"Push notifications","type":"core","description":"Register the person's devices and push their alerts.","capabilities":[{"name":"Register device","takes":"a push subscription","gives":"a subscription id stored in the account","acts":[{"mode":"produces","resource":"Device subscription"}]},{"name":"Send push notification","takes":"a queued alert for a followed chat","gives":"the notification on the person's devices","acts":[{"mode":"reacts","resource":"Device subscription"}]}]}],"evidence":[{"path":"packages/workshop-backend/src/user.ts","shows":"registerNotificationDevice and publishNotification"},{"path":"packages/workshop-backend/src/notification-service.ts","shows":"The signed client"}]},{"consumer":"Workspace","provider":"AI model providers","interfaces":["model provider APIs"],"areas":[{"name":"Run models","type":"core","description":"Run the agent's turns and gadgets' model calls.","capabilities":[{"name":"Run model request","takes":"a prompt, tools and a resolved model","gives":"the model's streamed answer","acts":[{"mode":"produces","resource":"AI model"}]}]}],"evidence":[{"path":"packages/workshop-backend/src/ai-models.ts","shows":"getModel and the model gatekeepers installed in the workspace"},{"path":"packages/workshop-backend/src/overseer.ts","shows":"The workspace starting turns and installing model bindings"}]},{"consumer":"Workspace","provider":"Public web","interfaces":["public HTTP fetch"],"areas":[{"name":"Fetch web page","type":"core","description":"Let the agent and gadgets read public pages the workspace's policy allows.","capabilities":[{"name":"Fetch web page","takes":"a URL the workspace allowed","gives":"the page or document","acts":[{"mode":"observes","resource":"Web page"}]}]}],"evidence":[{"path":"packages/workshop-backend/src/fetch-loopback.ts","shows":"FetchLoopback asking the workspace before each request"},{"path":"docs/unified-fetch.md","shows":"Asking the workspace"}]},{"consumer":"Workspace","provider":"Browser Rendering","interfaces":["Browser Rendering binding"],"areas":[{"name":"Render gadget as PDF","type":"core","description":"Print a gadget for a PDF export.","capabilities":[{"name":"Render gadget as PDF","takes":"a gadget's export page","gives":"the PDF","acts":[{"mode":"produces","resource":"Browser session"}]}]}],"evidence":[{"path":"packages/workshop-backend/src/browser-export.ts","shows":"The browser export"},{"path":"packages/workshop-backend/src/gadget-export.ts","shows":"Gadget export formats"}]},{"consumer":"Workspace","provider":"Cloudflare API","interfaces":["Cloudflare account API"],"areas":[{"name":"Read credit balance","type":"core","description":"Decide whether a turn is billed to the person's own credits.","capabilities":[{"name":"Read credit balance","takes":"the person's selected Cloudflare account","gives":"its balance, to route the turn","acts":[{"mode":"observes","resource":"Cloudflare account"}]}]}],"evidence":[{"path":"packages/workshop-backend/src/ai-gateway-billing/cloudflare/connection-service.ts","shows":"resolveConnection and the balance read"},{"path":"packages/workshop-backend/src/overseer.ts","shows":"The workspace importing the connection service for a turn"}]},{"consumer":"User account","provider":"Connected account","interfaces":["gatekeeper account contract"],"areas":[{"name":"Keep connected accounts","type":"core","description":"Connect, refresh and drop a person's accounts, and mint a resource gatekeeper for each resource they grant.","capabilities":[{"name":"Connect account","takes":"a connector, the person and a connect callback, or nothing for an auto-provisioned connector","gives":"the connected account, delivered through the callback and redeemed from the person's browser","acts":[{"mode":"produces","resource":"Connected account"}]},{"name":"Reconnect account","takes":"a connected account, and resource types to add","gives":"new credentials staged, then made live by commitReconnect","acts":[{"mode":"mutates","resource":"Connected account"}]},{"name":"Disconnect account","takes":"a connected account","gives":"the account and every gatekeeper made through it broken","acts":[{"mode":"mutates","resource":"Connected account"}]},{"name":"Grant a resource","takes":"a resource URL","gives":"a gatekeeper class for that resource","acts":[{"mode":"produces","resource":"Connection"}]},{"name":"Choose a resource","takes":"a resource type","gives":"a configurator frame that returns the URL the person picked","acts":[{"mode":"observes","resource":"Connected account"}]},{"name":"Get account verifier","takes":"a connected account","gives":"a verifier that represents the person in observer checks","acts":[{"mode":"observes","resource":"Connected account"}]},{"name":"Read sign-in email","takes":"a sign-in connector's account","gives":"its provider-verified email","acts":[{"mode":"observes","resource":"Connected account"}]},{"name":"List connectors","takes":"nothing","gives":"each connector's description and resource types","acts":[{"mode":"observes","resource":"Connector"}]}]},{"name":"Use the account's apps and files","type":"supporting","description":"Open an account's management app, or save a file into the account.","capabilities":[{"name":"Open management app","takes":"a connected account that provides a UI, and whether the person is an admin","gives":"the app's frame","acts":[{"mode":"observes","resource":"Connected account"}]},{"name":"Save file to account","takes":"a destination, a name and a file","gives":"the file created in the outside service","acts":[{"mode":"produces","resource":"Connected account"}]}]}],"evidence":[{"path":"packages/workshop-shared/src/gatekeeper.ts","shows":"GatekeeperVendor, GatekeeperUser and GatekeeperConnectCallback"},{"path":"packages/workshop-backend/src/user.ts","shows":"connectAccount, reconnectAccount, disconnectAccount, getGatekeeperClassFor, startResourceConfigurator, startAccountAppUi and saveFile"},{"path":"docs/connect-handoff.md","shows":"How a finished connect is bound to the browser that started it"},{"path":"packages/gatekeeper-github/src/github.ts","shows":"GatekeeperVendor, UserAccount and GatekeeperUserImpl for GitHub"}]},{"consumer":"Workspace","provider":"Resource gatekeeper","interfaces":["resource gatekeeper contract"],"areas":[{"name":"Use a granted resource","type":"core","description":"Give the agent and gadgets a session on one granted resource, with reads authorized and changes held for approval.","capabilities":[{"name":"Describe resource","takes":"a connection","gives":"its title, binding name and agent-facing types","acts":[{"mode":"observes","resource":"Connection"}]},{"name":"Use a granted resource","takes":"the workspace's approval queue","gives":"a session whose reads are authorized through the queue and whose writes are submitted to it as actions","acts":[{"mode":"observes","resource":"Connection"},{"mode":"produces","resource":"Action"}]},{"name":"Change action status","takes":"an action id, applied, rejected or reverted","gives":"the change made, dropped or undone in the outside service","acts":[{"mode":"mutates","resource":"Action"}]}]},{"name":"Guard shared data","type":"supporting","description":"Keep collaborators from seeing what the connection read unless their own accounts could read it.","capabilities":[{"name":"Admit an observer","takes":"an observer id and a verifier, or an observer to drop","gives":"the observer admitted or refused","acts":[{"mode":"mutates","resource":"Connection"}]},{"name":"List auto-approvable action kinds","takes":"nothing","gives":"the action kinds a person may approve in advance","acts":[{"mode":"observes","resource":"Connection"}]}]}],"evidence":[{"path":"packages/workshop-shared/src/gatekeeper.ts","shows":"Gatekeeper\u003cSession>, ApprovalQueue and ObservationAuthorizer"},{"path":"packages/workshop-backend/src/overseer.ts","shows":"ApprovalQueueImpl and the workspace installing gatekeeper facets"},{"path":"packages/gatekeeper-github/src/types.d.ts","shows":"The agent-facing session types of the GitHub variant"}]},{"consumer":"Workspace","provider":"Event source","interfaces":["hook contract"],"areas":[{"name":"Change hook status","type":"core","description":"Turn a bound hook on or off; while on, its events come back into the workspace.","capabilities":[{"name":"Change hook status","takes":"a hook's controller and, to enable, the initiator the workspace hands back for deliveries","gives":"the hook delivering events through the initiator, or stopped and cleaned up","acts":[{"mode":"mutates","resource":"Hook"}]}]}],"evidence":[{"path":"packages/workshop-shared/src/gatekeeper.ts","shows":"HookController, HookInitiator and ApprovalQueue.bindHook"},{"path":"packages/gatekeeper-github/src/github-hooks.ts","shows":"GitHubHookController and GitHubHookDriver"},{"path":"packages/gatekeeper-scheduler/src/schedule-driver.ts","shows":"ScheduleDriver firing schedules"}]},{"consumer":"Resource gatekeeper","provider":"Connected account","interfaces":["account token methods"],"areas":[{"name":"Act with the account's credentials","type":"core","description":"Get the account's live token and its answers about access, without ever holding the grant.","capabilities":[{"name":"Get access token","takes":"nothing, or the token the service refused","gives":"a live token, refreshed when needed","acts":[{"mode":"observes","resource":"Connected account"}]},{"name":"Check access to a subresource","takes":"subresource ids","gives":"whether the account may read each one","acts":[{"mode":"observes","resource":"Connected account"}]}]}],"evidence":[{"path":"packages/gatekeeper-github/src/github-api.ts","shows":"The client asking the account for getAccessToken and reportTokenRejected"},{"path":"packages/gatekeeper-github/src/github.ts","shows":"UserAccount.checkSubresourceAccess and the facet's userObjectId"},{"path":"packages/mcp-shared/src/account.ts","shows":"McpAccountBase for the MCP variants"}]},{"consumer":"Resource gatekeeper","provider":"Event source","interfaces":["schedule driver methods"],"areas":[{"name":"List scheduled tasks for a workspace","type":"core","description":"Answer the agent's list of the workspace's schedules.","capabilities":[{"name":"List scheduled tasks for a workspace","takes":"the workspace","gives":"its active and finished schedules for enabled hooks","acts":[{"mode":"observes","resource":"Scheduled task"}]}]}],"evidence":[{"path":"packages/gatekeeper-scheduler/src/scheduler.ts","shows":"ScheduleSessionImpl.list calling the driver's listWorkspace"}]},{"consumer":"Connected account","provider":"Event source","interfaces":["schedule driver methods"],"areas":[{"name":"List the account's scheduled tasks","type":"core","description":"Fill the read-only Scheduled app.","capabilities":[{"name":"List the account's scheduled tasks","takes":"the account","gives":"its schedules across workspaces","acts":[{"mode":"observes","resource":"Scheduled task"}]}]}],"evidence":[{"path":"packages/gatekeeper-scheduler/src/scheduler.ts","shows":"ScheduleManagementApi calling the driver's listAccount"},{"path":"packages/gatekeeper-scheduler/src/management.ts","shows":"The management API's records"}]},{"consumer":"Connected account","provider":"Context collections","interfaces":["Context Library management API"],"areas":[{"name":"Manage collections","type":"core","description":"Create, edit, share and delete collections for the Context Library app.","capabilities":[{"name":"Create collection","takes":"a name, a description and a visibility","gives":"a new collection, in the creator's library","acts":[{"mode":"produces","resource":"Context collection"}]},{"name":"List library","takes":"the viewer","gives":"the collections the account may read, with its role in each","acts":[{"mode":"observes","resource":"Context collection"}]},{"name":"Read collection content","takes":"a collection and a path","gives":"its metadata, documents and skills","acts":[{"mode":"observes","resource":"Context collection"}]},{"name":"Edit collection content","takes":"documents and skills to put, move, rename or delete","gives":"the collection with those changes","acts":[{"mode":"mutates","resource":"Context collection"}]},{"name":"Share collection","takes":"accounts and roles, a member to remove, or everyone may view","gives":"the collection's grants changed","acts":[{"mode":"mutates","resource":"Context collection"}]},{"name":"Sync collection from git","takes":"a git source, or a token to mint, list or revoke","gives":"the collection matching the repository, or the token","acts":[{"mode":"mutates","resource":"Context collection"}]},{"name":"Delete collection","takes":"a collection","gives":"the collection and its grants gone","acts":[{"mode":"mutates","resource":"Context collection"}]}]}],"evidence":[{"path":"packages/gatekeeper-context/src/context-types.ts","shows":"The ContextApi interface"},{"path":"packages/gatekeeper-context/src/context-api.ts","shows":"ContextApiImpl over the collection, library and registry objects"}]},{"consumer":"Resource gatekeeper","provider":"Context collections","interfaces":["Context Library agent session"],"areas":[{"name":"Read context","type":"core","description":"Give the agent the collections it may read.","capabilities":[{"name":"Search collections","takes":"a query","gives":"matching documents across enabled collections","acts":[{"mode":"observes","resource":"Context collection"}]},{"name":"List collection documents","takes":"a collection and a folder","gives":"its documents and skills","acts":[{"mode":"observes","resource":"Context collection"}]},{"name":"Read document","takes":"a document path","gives":"its body","acts":[{"mode":"observes","resource":"Context collection"}]}]}],"evidence":[{"path":"packages/gatekeeper-context/src/context-types.ts","shows":"The ContextLibrary session: search, list, read"},{"path":"packages/gatekeeper-context/src/library-read.ts","shows":"LibraryReadSession reading collections and libraries"}]},{"consumer":"Context collections","provider":"Cloudflare Artifacts","interfaces":["Artifacts binding"],"areas":[{"name":"Mirror collection to git repository","type":"core","description":"Keep a collection in step with a git repository.","capabilities":[{"name":"Mirror collection to git repository","takes":"a repository and branch, or a token to mint or revoke","gives":"the repository's documents at a commit, or the token","acts":[{"mode":"observes","resource":"Git repository"},{"mode":"mutates","resource":"Git repository"}]}]}],"evidence":[{"path":"packages/gatekeeper-context/src/artifact-sync.ts","shows":"readArtifactRepoDocuments"},{"path":"packages/gatekeeper-context/src/context-collection.ts","shows":"syncArtifactSource, createGitToken and revokeGitToken"}]},{"consumer":"Connected account","provider":"GitHub","interfaces":["GitHub API"],"areas":[{"name":"Authorize GitHub account","type":"core","description":"Get, refresh and check the person's grant.","capabilities":[{"name":"Authorize GitHub account","takes":"an OAuth code or a refresh token","gives":"an access token with its scopes, and the verified email","acts":[{"mode":"observes","resource":"GitHub account"}]},{"name":"Check repository access","takes":"a repository","gives":"whether this account may read it","acts":[{"mode":"observes","resource":"GitHub repository"}]}]}],"evidence":[{"path":"packages/gatekeeper-github/src/github.ts","shows":"UserAccount: beginOAuthFlow, acceptAuthCode, checkSubresourceAccess"},{"path":"packages/gatekeeper-github/storage-schema.md","shows":"The account's credentials and access cache"}]},{"consumer":"Resource gatekeeper","provider":"GitHub","interfaces":["GitHub API"],"areas":[{"name":"Work on repositories","type":"core","description":"Read and change the granted repository, issue or pull request.","capabilities":[{"name":"Read repository data","takes":"a repository, issue or pull request","gives":"files, comments, reviews and CI runs","acts":[{"mode":"observes","resource":"GitHub repository"}]},{"name":"Change repository data","takes":"an approved action","gives":"the change made on GitHub","acts":[{"mode":"mutates","resource":"GitHub repository"}]}]}],"evidence":[{"path":"packages/gatekeeper-github/src/github-api.ts","shows":"GitHubApi"},{"path":"packages/gatekeeper-github/src/git-commits.ts","shows":"Git reads and pushes"}]},{"consumer":"Event source","provider":"GitHub","interfaces":["GitHub API"],"areas":[{"name":"Receive repository events","type":"core","description":"Register webhooks for enabled hooks and take GitHub's deliveries.","capabilities":[{"name":"Register repository webhook","takes":"a repository and its events","gives":"a webhook whose deliveries GitHub posts to the gatekeeper's webhook route","acts":[{"mode":"produces","resource":"Repository webhook"}]}]}],"evidence":[{"path":"packages/gatekeeper-github/src/github-hooks.ts","shows":"GitHubHookDriver register, ingest, unregister"},{"path":"packages/gatekeeper-github/src/github-webhook-events.ts","shows":"The webhook events it reads"}]},{"consumer":"Connected account","provider":"MCP servers","interfaces":["MCP endpoint"],"areas":[{"name":"Authorize MCP server","type":"core","description":"Run the OAuth discovery chain for a pasted endpoint.","capabilities":[{"name":"Authorize MCP server","takes":"an endpoint URL","gives":"a token for that server","acts":[{"mode":"observes","resource":"MCP server"}]}]}],"evidence":[{"path":"packages/mcp-shared/src/oauth.ts","shows":"The OAuth discovery chain"},{"path":"packages/gatekeeper-mcp/src/mcp.ts","shows":"McpAccount and its connect flow"}]},{"consumer":"Resource gatekeeper","provider":"MCP servers","interfaces":["MCP endpoint"],"areas":[{"name":"Call MCP tools","type":"core","description":"List and call the granted server's tools.","capabilities":[{"name":"List MCP tools","takes":"the endpoint","gives":"its tools","acts":[{"mode":"observes","resource":"MCP server"}]},{"name":"Call MCP tool","takes":"a tool and its arguments","gives":"its result","acts":[{"mode":"mutates","resource":"MCP server"}]}]}],"evidence":[{"path":"packages/mcp-shared/src/client.ts","shows":"McpClient"},{"path":"packages/mcp-shared/src/tools.ts","shows":"Which tools count as reads"}]},{"consumer":"Connected account","provider":"MCP server portal","interfaces":["MCP portal endpoint"],"areas":[{"name":"Authorize portal","type":"core","description":"Sign the person in to the organization's portal.","capabilities":[{"name":"Authorize portal","takes":"the portal URL","gives":"a token for the portal","acts":[{"mode":"observes","resource":"MCP server"}]}]}],"evidence":[{"path":"packages/gatekeeper-mcp-portal/src/portal.ts","shows":"McpAccount for the portal"},{"path":"packages/gatekeeper-mcp-portal/src/config.ts","shows":"The administrator-configured portal URL"}]},{"consumer":"Resource gatekeeper","provider":"MCP server portal","interfaces":["MCP portal endpoint"],"areas":[{"name":"Call portal tools","type":"core","description":"List and call the tools of the granted upstream server.","capabilities":[{"name":"List portal servers and tools","takes":"the portal","gives":"the upstream servers and their tools","acts":[{"mode":"observes","resource":"MCP server"}]},{"name":"Call portal tool","takes":"a tool of the granted server and its arguments","gives":"its result","acts":[{"mode":"mutates","resource":"MCP server"}]}]}],"evidence":[{"path":"packages/gatekeeper-mcp-portal/src/portal.ts","shows":"McpGatekeeperImpl for the portal"},{"path":"packages/mcp-shared/src/portal.ts","shows":"The portal's server recovery"}]},{"consumer":"Workspace host","provider":"Agent","interfaces":["agent hooks"],"areas":[{"name":"Run agent turn","type":"core","description":"Have the agent take a chat's turn, working on the workspace only through the hooks it is given.","capabilities":[{"name":"Run agent turn","takes":"a chat, the model handle, the person prompting and the hooks into the workspace","gives":"the turn's replies, tool calls, code changes and requests written into the chat, retried or compacted as needed","acts":[{"mode":"mutates","resource":"Chat"},{"mode":"mutates","resource":"Gadget"}]}]}],"evidence":[{"path":"packages/workshop-backend/src/agent.ts","shows":"runAgent and the AgentHooks interface"},{"path":"packages/workshop-backend/src/overseer.ts","shows":"OverseerImpl implementing AgentHooks and calling runAgent"}]},{"consumer":"Workspace host","provider":"Sharing","interfaces":["sharing manager"],"areas":[{"name":"Decide access","type":"core","description":"Know what each caller may do in the workspace.","capabilities":[{"name":"Get effective access","takes":"a person","gives":"their access: owner, build, or use of some gadgets, live or view only","acts":[{"mode":"observes","resource":"Collaborator"}]}]},{"name":"Manage collaborators and links","type":"supporting","description":"Change who holds access, and through which links.","capabilities":[{"name":"Add collaborator","takes":"the sharer, a person and a grant","gives":"a permission edge from the sharer","acts":[{"mode":"produces","resource":"Collaborator"}]},{"name":"Remove collaborator","takes":"the remover and a person, after a preview","gives":"their edges severed, with everyone who had access only through them","acts":[{"mode":"mutates","resource":"Collaborator"}]},{"name":"List collaborators","takes":"nothing","gives":"every collaborator with their edges","acts":[{"mode":"observes","resource":"Collaborator"}]},{"name":"Create share link","takes":"the creator, a grant and a name, or another copy of a link","gives":"a link and a new raw key, stored only as its hash","acts":[{"mode":"produces","resource":"Share link"}]},{"name":"Change share link","takes":"a link, renamed or revoked, after a preview","gives":"the link renamed, or revoked with everyone who joined only through it","acts":[{"mode":"mutates","resource":"Share link"}]},{"name":"List share links","takes":"nothing","gives":"every link with its creator and grant","acts":[{"mode":"observes","resource":"Share link"}]},{"name":"Redeem share link","takes":"a raw key and the person opening it","gives":"a share-link edge for that person","acts":[{"mode":"produces","resource":"Collaborator"}]}]}],"evidence":[{"path":"packages/workshop-backend/src/sharing.ts","shows":"SharingManager and its storage"},{"path":"docs/sharing.md","shows":"The permission graph, effective access and lazy revocation"}]},{"consumer":"Agent","provider":"AI model providers","interfaces":["model provider APIs"],"areas":[{"name":"Run model request","type":"core","description":"Ask the model for the turn's next step.","capabilities":[{"name":"Run model request","takes":"the system prompt, the history and the tools","gives":"the model's streamed answer and tool calls","acts":[{"mode":"produces","resource":"AI model"}]}]}],"evidence":[{"path":"packages/workshop-backend/src/agent.ts","shows":"The agent loop over pi-agent-core"},{"path":"packages/workshop-backend/src/ai-invoke.ts","shows":"The model call"}]},{"consumer":"Agent","provider":"Public web","interfaces":["public HTTP fetch"],"areas":[{"name":"Fetch web page","type":"core","description":"Read a public page for the agent's webFetch tool.","capabilities":[{"name":"Fetch web page","takes":"a URL the workspace's policy allows","gives":"the page, converted to Markdown when it is a document","acts":[{"mode":"observes","resource":"Web page"}]}]}],"evidence":[{"path":"packages/workshop-backend/src/agent.ts","shows":"The webFetch tool importing web-fetch.ts"},{"path":"packages/workshop-backend/src/web-fetch.ts","shows":"The fetch and its formatting"}]},{"consumer":"Workspace host","provider":"AI model providers","interfaces":["model provider APIs"],"areas":[{"name":"Run gadget model calls","type":"core","description":"Serve the model bindings the workspace installs for gadgets.","capabilities":[{"name":"Run model request","takes":"a gadget's prompt through its model binding","gives":"the model's answer","acts":[{"mode":"produces","resource":"AI model"}]}]}],"evidence":[{"path":"packages/workshop-backend/src/ai-models.ts","shows":"LanguageModelGatekeeper and DecisionModelGatekeeper"},{"path":"packages/workshop-backend/src/overseer.ts","shows":"newAiModelGatekeeper installing them"}]},{"consumer":"Workspace host","provider":"Public web","interfaces":["public HTTP fetch"],"areas":[{"name":"Fetch web page","type":"core","description":"Let gadget code and the agent's code read public pages the host allowed.","capabilities":[{"name":"Fetch web page","takes":"a URL the host allowed","gives":"the page","acts":[{"mode":"observes","resource":"Web page"}]}]}],"evidence":[{"path":"packages/workshop-backend/src/fetch-loopback.ts","shows":"FetchLoopback"},{"path":"packages/workshop-backend/src/overseer.ts","shows":"authorizeFetch deciding each request"}]},{"consumer":"Workspace host","provider":"Browser Rendering","interfaces":["Browser Rendering binding"],"areas":[{"name":"Render gadget as PDF","type":"core","description":"Print a gadget for a PDF export.","capabilities":[{"name":"Render gadget as PDF","takes":"a gadget's export page","gives":"the PDF","acts":[{"mode":"produces","resource":"Browser session"}]}]}],"evidence":[{"path":"packages/workshop-backend/src/browser-export.ts","shows":"The browser export"}]},{"consumer":"Workspace host","provider":"Cloudflare API","interfaces":["Cloudflare account API"],"areas":[{"name":"Read credit balance","type":"core","description":"Route a turn to the person's own credits when they have enough.","capabilities":[{"name":"Read credit balance","takes":"the person's selected account","gives":"its balance","acts":[{"mode":"observes","resource":"Cloudflare account"}]}]}],"evidence":[{"path":"packages/workshop-backend/src/ai-gateway-billing/cloudflare/connection-service.ts","shows":"resolveConnection"}]},{"consumer":"Collection","provider":"Collection library","interfaces":["collection library methods"],"areas":[{"name":"Keep libraries in step","type":"core","description":"Put a collection in, or take it out of, the libraries of the accounts its grants name.","capabilities":[{"name":"Add collection to a library","takes":"a grantee's account and the collection","gives":"the collection listed in their library","acts":[{"mode":"mutates","resource":"Library entry"}]},{"name":"Remove collection from a library","takes":"an account and the collection, on revocation or deletion","gives":"the entry gone","acts":[{"mode":"mutates","resource":"Library entry"}]}]}],"evidence":[{"path":"packages/gatekeeper-context/src/context-collection.ts","shows":"Grant changes calling addSharedCollection, forgetCollection and removeOwnedCollection"},{"path":"packages/gatekeeper-context/src/user-library.ts","shows":"UserLibraryDurableObject"}]},{"consumer":"Collection","provider":"Public collection registry","interfaces":["public registry methods"],"areas":[{"name":"Keep the public list in step","type":"core","description":"List a public collection for everyone in its domain, or withdraw it.","capabilities":[{"name":"Publish public collection","takes":"a public collection's metadata","gives":"it listed in the domain's snapshot","acts":[{"mode":"mutates","resource":"Public collection entry"}]},{"name":"Withdraw public collection","takes":"a deleted public collection","gives":"it gone from the snapshot","acts":[{"mode":"mutates","resource":"Public collection entry"}]}]}],"evidence":[{"path":"packages/gatekeeper-context/src/context-collection.ts","shows":"Metadata changes of a public collection calling syncPublic and removePublic"},{"path":"packages/gatekeeper-context/src/registry-do.ts","shows":"LibraryRegistryDurableObject"}]},{"consumer":"Collection","provider":"Cloudflare Artifacts","interfaces":["Artifacts binding"],"areas":[{"name":"Mirror collection to git repository","type":"core","description":"Keep the collection in step with its git mirror.","capabilities":[{"name":"Mirror collection to git repository","takes":"a repository and branch, or a token to mint or revoke","gives":"the repository's documents at a commit, or the token","acts":[{"mode":"observes","resource":"Git repository"},{"mode":"mutates","resource":"Git repository"}]}]}],"evidence":[{"path":"packages/gatekeeper-context/src/artifact-sync.ts","shows":"readArtifactRepoDocuments"},{"path":"packages/gatekeeper-context/src/context-collection.ts","shows":"syncArtifactSource"}]}],"questions":[{"question":"Are the Context Library and Scheduled Tasks gatekeepers components of their own beside the connector drivers?","answer":"One component, Gatekeepers, with every package as a variant, rather than three components (Connectors, Context Library, Scheduled Tasks); the kernel registers and calls all of them through one contract (buildGatekeeperVendorMap, gatekeeper.ts) and names none of them, but the Context Library and Scheduled Tasks keep product state of their own and have their own apps, and the variant rule does not say whether a shared registration contract outweighs that."},{"question":"How should a component with variants be opened?","answer":"By the roles every variant implements in the shared contract (Connected account, Resource gatekeeper, Event source), plus the Context Library's collection store, which two roles of that variant reach, rather than by variant, which the variant rule forbids, or leaving Gatekeepers closed although its role objects each keep a store only they change; the method speaks of parts, not of variants' parts."},{"question":"Is the agent a component, although it keeps no state?","answer":"A component rather than a part of the workspace; it passes only on making decisions no other part makes (how a turn runs), and it has a typed seam (AgentHooks) that its comment says was extracted to avoid cyclic dependencies, not to enforce a boundary."},{"question":"Who owns the blueprint catalog in KV and R2?","answer":"A storage part of the Kernel shared by four writers (the workspace publishes, admin settings installs and features, the API front imports, the user account deletes orphans) rather than a component of its own or a merge of the writers; each writes records it creates, except orphan deletion after the owning workspace is gone, and the rule on shared stores speaks of parts that change each other's records."},{"question":"Is auto-approval a component inside the workspace?","answer":"A part of the Workspace host rather than a component; its comment calls it the single authority on applying an action without a person, which passes the decision test, but it marks the same action records the host changes, which the shared-store rule merges."},{"question":"Are the Context Library's per-account library and public registry components, or indexes of the collection?","answer":"Components (Collection library, Public collection registry) rather than storage of the collection, as the kernel's User directory is; both are indexes fed through their own methods by more than one part, and no rule says when an index fed by others becomes a component."},{"question":"Is `cf-os api` an interface of the deployment admin's boundary or engineering tooling?","answer":"An interface (API command line) of the Deployment admin boundary rather than only tooling; on a deployment it lets only admins sign in and its calls are labelled in the audit log, while on a dev server it is the team's test driver, and a tool used both with and on the system fits both sides of the tooling rule."},{"question":"Are collaborators and people holding a blueprint link separate consumers?","answer":"Folded into User with a permission attribute rather than separate consumers; their goals (use a shared gadget, copy a blueprint) are a subset of the user's, and the split rule needs diverging goals."},{"question":"Which Level 3 component relies on Cloudflare Access?","answer":"None: the boundary stays at Level 2 (Kernel) rather than being given to the User account; the token is verified by the API front in server.ts, which is a part that passes requests on, and no rule says where an outside service goes when only a part reaches it."},{"question":"Are gadgets components of the system?","answer":"The Gadget resource rather than components; a running gadget keeps state only it changes and is reached only through its API, but its code is the user's, written at run time, not part of this repository."},{"question":"Are a gadget's hooks and the scheduler's schedules one resource?","answer":"Two resources, Hook (the workspace's record, enabled in Connections) and Scheduled task (the scheduler's record, listed in the Scheduled app), rather than one; users act on them in different places, and the model gives no rule for two records of one thing kept by two providers that are not one name."},{"question":"Are the deployment's model catalog and a user's own models one resource?","answer":"One resource, AI model, seen differently by the user and the admin, rather than two; both are models chats and gadgets run, kept by different components."},{"question":"Where do documentation and plans sit in places?","answer":"Under tooling (Documentation) rather than with the components they describe; places allows no kind for documents, and docs describe several components at once."},{"question":"Where does the router sit?","answer":"Placed on the provider Cloudflare OS as a part that passes requests on, rather than under the Workshop web app interface or the Kernel; it routes to the Kernel, every gatekeeper and the web app's files alike."},{"question":"Is the PDF renderer part of this map?","answer":"A library part of Cloudflare OS rather than a component; it keeps no state, makes no decision for a consumer, and only an excluded driver binds it."},{"question":"Do the helpers that cross component files go around their contracts?","answer":"No, settled as shared helpers rather than leaks: the agent imports pure formatting and validation helpers and types from the workspace host's files, the workspace and the account import admin-access policy helpers, the admin config's published KV mirror (readAdminConfig) and storage key formats, and Context Library roles import collection-access.ts, the one access rule, and read the registry's published snapshot; none writes or reads another component's store, since each Durable Object's storage is private to its class."}],"cleanupCandidates":[{"name":"Context page mock","why":"The /context route is a frosted design mock (ComingSoonPreview) behind a rail entry; the Context Library works through its gatekeeper app instead, so the page is a placeholder waiting to be built or removed (packages/workshop-frontend/src/routes/context.tsx)."},{"name":"Legacy observer protocol","why":"addObserver, removeObserver and excludeObservers are the old admission protocol, kept beside the kernel's subresource checks until every existing gatekeeper migrates (packages/workshop-backend/src/observer-ledger.ts header; REVIEW.md \"Gatekeepers\")."},{"name":"Frozen workspace-wide use grants","why":"Edges and links that granted use of a whole workspace before per-gadget sharing were frozen to the gadgets of their time by a storage migration; links frozen to several gadgets survive as a special case (docs/sharing.md \"Frozen workspace-wide use\")."},{"name":"Grants without a role","why":"Edges and share links made before roles existed have no role and are read as build for backwards compatibility (docs/sharing.md \"Edges\")."},{"name":"Legacy connections without a creation spec","why":"Old connections without creationSpec cannot verify collaborators, so live admission fails closed for them (docs/sharing.md \"Static snapshots\")."},{"name":"Old GitHub token layout","why":"The GitHub account's accessToken and scopes keys are the layout from before expiring grants, migrated on first read and then deleted (packages/gatekeeper-github/storage-schema.md)."},{"name":"Unread library record fields","why":"Context library records written before sharing still carry a title, description, icon and lastUpdated that nothing reads (packages/gatekeeper-context/src/user-library.ts)."},{"name":"Resource types without stable ids","why":"Older gatekeepers without resource type ids are still addressed by their URL pattern, a compatibility path (docs/gatekeeper-resource-types.md; gatekeeper.ts startResourceConfigurator)."},{"name":"WebSocket abort workaround","why":"server.ts detects a lost workspace connection through a disposed callback and closes the WebSocket by hand, marked HACK and TODO until ctx.abort() leaves experimental."},{"name":"Router email handler","why":"The router forwards inbound email to an email gatekeeper binding described as dormant until custom domains and Email Routing exist; the handler ships anyway (packages/router/src/index.ts)."}],"excluded":[{"name":"Excluded gatekeeper drivers","why":"Sixteen packages for individual outside services, variants of the one driver contract, left out of the corpus by the caller; gatekeeper-github represents them, and they are placed as excluded."},{"name":"Deploying and configuring an instance","why":"Engineering tooling: the deploy wizard's inputs and release pipeline (scripts/release), worker configs (cloudflare.config.ts) and the environment variables an operator sets, such as ADMINS, AUTH_GATEKEEPERS, CF_AI_GATEWAY and the ADMIN_WORKSPACE bounds, set the system up."},{"name":"Building, testing and evaluating","why":"Engineering tooling: scripts, CI workflows, the repository's agent skills, the API schema generator, unit and integration tests, and the agent evaluations (scripts, .github, .agents, packages/api-schema, packages/integration-tests, packages/workshop-evals)."},{"name":"Local development","why":"Engineering tooling: pnpm run-local, dev-server and dev-client, and `cf-os api` against a dev server, where anyone may sign in and create password accounts."},{"name":"Diagnostics","why":"Logging, metrics, tracing, product analytics and frontend error reports (packages/observability, packages/error-reporting, analytics.ts, client-errors.ts, agent-tracing.ts) observe the system rather than serve a consumer."},{"name":"Version and router probes","why":"Machinery: the version endpoint and the router tag probe let the web app notice a stale session and the backend report a modified router; nobody uses them for a purpose of their own."},{"name":"Provider behavior","why":"Things the system does on its own, not capabilities: installing bundled blueprints on the first request, directory backfill and revision sync, audit retention pruning, the auto-approval drain, chat cache warming, credential refresh and expiry notices in gatekeepers, retries of hook deliveries and timed update checks."},{"name":"Gatekeeper kit Layer 2","why":"Documented in plans/gatekeeper-kit.md as KitUserAccountBase, KitVendorBase and KitGatekeeperBase but not shipped; no gatekeeper consumes it (packages/gatekeeper-kit/README.md)."},{"name":"Self-hosting on workerd","why":"The README marks deploying to one's own server on workerd as coming soon; there is no tooling for it in the code."},{"name":"Plans","why":"plans/ holds design records and proposals; they were read for vocabulary and history only, and the code decided what exists."}]}</script>
+<script>
+// Draws a boundary map one open box at a time. Each screen shows who uses the open box, its
+// interfaces, its capabilities, the components inside it, and what it uses; every box lists the
+// resources it keeps. A click lights what the clicked thing connects to and explains it in the
+// panel; Open, at the foot of a box, makes it the open box. With ?still in the address the page
+// draws one screen for a still image, with what the panel would say written under the drawing.
+
+// ---------- the map ----------
+
+const RAW = JSON.parse(document.getElementById("map-data").textContent);
+const params = new URLSearchParams(location.search);
+const STILL = params.has("still");
+if (STILL) document.documentElement.classList.add("still");
+const MODE_WORD = { produces: "creates", mutates: "changes", observes: "reads", reacts: "reacts to" };
+const KIND_WORD = {
+  consumer: "Consumer",
+  provider: "Provider",
+  component: "Component",
+  outside: "Outside service",
+};
+
+function el(tag, attrs = {}, ...children) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v === undefined || v === null || v === false) continue;
+    if (k === "class") e.className = v;
+    else if (k === "html") e.innerHTML = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v);
+  }
+  for (const c of children.flat(3)) if (c !== null && c !== undefined && c !== false) e.append(c);
+  return e;
+}
+
+function svgEl(tag, attrs = {}) {
+  const e = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const [k, v] of Object.entries(attrs)) if (v !== undefined && v !== null) e.setAttribute(k, v);
+  return e;
+}
+
+const escapeHtml = (s) =>
+  s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const inline = (s) =>
+  escapeHtml(s)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+const sentence = (s) => s.replace(/^[a-z]/, (c) => c.toUpperCase());
+const text = (tag, s, cls) => el(tag, { class: cls, html: inline(sentence(s)) });
+const unique = (xs) => [...new Set(xs)];
+
+const nodes = new Map();
+for (const c of RAW.consumers) nodes.set(c.name, { ...c, kind: "consumer", children: [], shared: [], also: [] });
+const addComponent = (c, parent) => {
+  const n = {
+    name: c.name,
+    description: c.description,
+    kind: parent ? "component" : "provider",
+    parent: parent ?? null,
+    resources: c.resources,
+    parts: c.parts,
+    serves: [...(c.serves ?? [])],
+    children: (c.components ?? []).map((k) => k.name),
+    shared: [],
+    also: [],
+  };
+  nodes.set(c.name, n);
+  for (const k of c.components ?? []) addComponent(k, c.name);
+};
+for (const p of RAW.providers) addComponent(p, null);
+for (const s of RAW.outsideServices)
+  nodes.set(s.name, { ...s, kind: "outside", children: [], shared: [], also: [], parts: [] });
+// A component can sit inside a second provider or component at any level.
+const defined = (c) => [c, ...(c.components ?? []).flatMap(defined)];
+for (const p of RAW.providers.flatMap(defined))
+  for (const s of p.sharedComponents ?? []) {
+    nodes.get(p.name).shared.push(s.name);
+    nodes.get(s.name).also.push(p.name);
+    nodes.get(s.name).serves.push(...s.serves);
+  }
+
+const boundaries = RAW.boundaries.map((b) => {
+  const boundary = { ...b, id: `${b.consumer} → ${b.provider}` };
+  boundary.areas = b.areas.map((a) => {
+    const area = { ...a, key: `${b.consumer} › ${a.name}`, boundary };
+    area.capabilities = a.capabilities.map((c) => ({
+      ...c,
+      area,
+      id: `${area.key} › ${c.name}`,
+      via: c.interfaces ?? b.interfaces,
+    }));
+    return area;
+  });
+  return boundary;
+});
+const allAreas = boundaries.flatMap((b) => b.areas);
+const allCapabilities = allAreas.flatMap((a) => a.capabilities);
+const capabilityById = new Map(allCapabilities.map((c) => [c.id, c]));
+const resourceByName = new Map(RAW.resources.map((r) => [r.name, r]));
+const interfaceText = new Map(RAW.interfaces.map((i) => [i.name, i.description]));
+
+const node = (name) => nodes.get(name);
+const incoming = (name) => boundaries.filter((b) => b.provider === name);
+const subtree = (name) => [name, ...node(name).children.flatMap(subtree)];
+const ancestors = (name) => {
+  const p = node(name).parent;
+  return p ? [...ancestors(p), p] : [];
+};
+const handlers = (area) => {
+  const serving = [...nodes.values()]
+    .filter((n) => n.serves?.some((s) => `${s.consumer} › ${s.area}` === area.key))
+    .map((n) => n.name);
+  return serving.length ? serving : [area.boundary.provider];
+};
+// A boundary drawn on a whole component that one of its inner components carries in detail.
+const refinedBy = (b) =>
+  boundaries.find((o) => o !== b && o.provider === b.provider && node(b.consumer).children.includes(o.consumer));
+const capabilitiesThrough = (b, iface) => b.areas.flatMap((a) => a.capabilities).filter((c) => c.via.includes(iface));
+
+// ---------- motion ----------
+
+// Moves things to their new place where the browser can, and just redraws where it cannot.
+const NO_MOTION = STILL || matchMedia("(prefers-reduced-motion: reduce)").matches;
+const cssName = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+function transition(fn) {
+  if (!document.startViewTransition || NO_MOTION || document.visibilityState === "hidden") return fn();
+  const t = document.startViewTransition(fn);
+  // A transition that a quicker click cuts short still runs its update; only the motion is lost.
+  t.ready.catch(() => {});
+  t.updateCallbackDone.catch(() => {});
+  t.finished.catch(() => {});
+}
+
+// ---------- screens ----------
+
+// One open box per screen, in fixed columns: who uses it, its interfaces, its capabilities, its
+// components, and what it uses. Blue dots are the interfaces of the open box only; each box lists
+// the resources it keeps. Lines join who uses the box to its interfaces, its interfaces to its
+// capabilities, and each component to what it depends on; they light with whatever is in focus.
+// All providers, above every open box, shows each provider with the consumers that use it.
+const TOP = "";
+// Keep in step with addressOf in render-map.mjs, which refuses a map where two names share an address.
+const slugOf = (s) => s.normalize("NFC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "");
+const bySlug = new Map([...nodes.keys()].map((n) => [slugOf(n), n]));
+// The page opens on the provider named after the system, when there is one, else on All providers.
+const HOME = RAW.providers.some((p) => p.name === RAW.system.name) ? [RAW.system.name] : [];
+
+let openBox = TOP;
+let trail = []; // the boxes opened from All providers down to the open one, as you came
+const visited = []; // earlier trails, most recent last, for Back
+const memory = new Map(); // a screen's address -> its scroll and selection when it was left
+let selected = null; // the data-key of what is selected
+let current = null; // what the selection lights, from lineage
+let screen; // what the open box shows, from screenOf
+let reg; // what the screen drew, by data-key: the first element drawn for each
+let drawn; // every element drawn with a data-key, as [key, element]; a shared resource is drawn twice
+
+const servedBy = (name) =>
+  allAreas.filter((a) => node(name).serves?.some((s) => `${s.consumer} › ${s.area}` === a.key));
+const actedOn = (g) => unique(g.members.flatMap((a) => a.capabilities.flatMap((c) => c.acts.map((x) => x.resource))));
+const actingOn = (r) => allCapabilities.filter((c) => c.acts.some((a) => a.resource === r));
+// A box and everything in it, components it shares with another provider included.
+const within = (name) => [name, ...[...node(name).children, ...node(name).shared].flatMap(within)];
+// A box opens when its screen has something of its own: components inside it, or capabilities it
+// offers across a boundary of its own. Otherwise its screen would repeat the level above.
+const opens = (name) => {
+  const n = node(name);
+  return n.kind !== "consumer" && (n.children.length + n.shared.length > 0 || incoming(name).some((b) => !refinedBy(b)));
+};
+// Who keeps a resource, leaving out a box when one of its inner components keeps it too.
+const keepersOf = (r) => {
+  const keepers = [...nodes.values()].filter((n) => n.resources?.includes(r)).map((n) => n.name);
+  return keepers.filter((k) => !keepers.some((o) => o !== k && subtree(k).includes(o)));
+};
+const kindClass = (name) => `k-${node(name).kind === "provider" ? "component" : node(name).kind}`;
+
+function screenOf(name) {
+  const top = name === TOP;
+  const n = top ? null : node(name);
+  const into = top ? [] : incoming(name).filter((b) => !refinedBy(b));
+  const reached = top ? [] : into.length ? into.flatMap((b) => b.areas) : servedBy(name);
+  const areas = [];
+  for (const a of reached) {
+    const same = areas.find((g) => g.name === a.name);
+    if (same) same.members.push(a);
+    else areas.push({ name: a.name, type: a.type, members: [a] });
+  }
+  for (const g of areas) {
+    g.ports = unique(g.members.flatMap((a) => a.capabilities.flatMap((c) => c.via)));
+    g.consumers = unique(g.members.map((a) => a.boundary.consumer));
+    // Consumers may reach areas of the same name; each capability is listed once.
+    g.capabilities = g.members
+      .flatMap((a) => a.capabilities)
+      .filter((c, i, all) => all.findIndex((o) => o.name === c.name) === i);
+  }
+  const inner = top ? [] : [...n.children, ...n.shared];
+  const consumers = top ? RAW.consumers.map((c) => c.name) : unique(areas.flatMap((g) => g.consumers));
+  const calls = top ? [] : boundaries.filter((b) => !refinedBy(b) && (b.consumer === name || inner.includes(b.consumer)));
+  // An outside service that a component inside calls sits with the components, in the column after
+  // its callers, so its links stay short; what the open box itself calls sits to the right of it.
+  const outside = unique(calls.filter((b) => inner.includes(b.consumer) && node(b.provider).kind === "outside").map((b) => b.provider));
+  const boxes = top ? RAW.providers.map((p) => p.name) : [...inner, ...outside];
+  const uses = unique(calls.filter((b) => !within(name).includes(b.provider) && !outside.includes(b.provider)).map((b) => b.provider));
+  // Each resource kept inside the open box goes in the box on this screen that holds its keeper.
+  const holder = (k) => boxes.find((b) => subtree(b).includes(k)) ?? (!top && subtree(name).includes(k) ? name : null);
+  const kept = new Map();
+  for (const r of RAW.resources)
+    for (const h of unique(keepersOf(r.name).map(holder)).filter(Boolean)) kept.set(h, [...(kept.get(h) ?? []), r.name]);
+  return {
+    top,
+    consumers,
+    ports: unique(areas.flatMap((g) => g.ports)),
+    areas,
+    through: !top && !into.length ? reached[0]?.boundary.provider : null,
+    columns: top ? [boxes] : columnsOf(boxes),
+    boxes,
+    uses,
+    visible: new Set([...consumers, ...boxes, ...uses]),
+    kept,
+    // What each component, or the open box, depends on among the boxes on this screen.
+    links: calls.filter((b) => boxes.includes(b.provider) || uses.includes(b.provider)),
+  };
+}
+
+function columnsOf(ids) {
+  const depth = new Map();
+  const visit = (id, seen) => {
+    if (depth.has(id)) return depth.get(id);
+    const before = boundaries.filter((b) => b.provider === id && ids.includes(b.consumer) && !seen.has(b.consumer));
+    const d = Math.max(-1, ...before.map((b) => visit(b.consumer, new Set([...seen, id])))) + 1;
+    depth.set(id, d);
+    return d;
+  };
+  ids.forEach((id) => visit(id, new Set([id])));
+  const columns = [];
+  for (const id of ids) (columns[depth.get(id)] ??= []).push(id);
+  return columns.filter(Boolean);
+}
+
+// ---------- what a selection lights ----------
+
+// What leads to the selection and what it leads to, on this screen. A component that is not on the
+// screen lights the box that holds it, which then says which components it stands for.
+function lineage(key) {
+  const s = screen;
+  const keys = new Set([key]);
+  const cut = key.indexOf(":");
+  const kind = key.slice(0, cut);
+  const id = key.slice(cut + 1);
+  // Components to light, with what each does; each lights the box on this screen that holds it.
+  const requests = [];
+  const lightBox = (name, role) => name && requests.push([name, role]);
+  const holders = (name) => (s.visible.has(name) ? [name] : [...s.visible].filter((v) => within(v).includes(name)));
+  const upstream = (g) => {
+    keys.add(`a:${g.name}`);
+    g.ports.forEach((p) => keys.add(`p:${p}`));
+    g.consumers.forEach((c) => keys.add(`b:${c}`));
+  };
+  if (kind === "a") {
+    const g = s.areas.find((x) => x.name === id);
+    if (g) {
+      upstream(g);
+      g.members.flatMap(handlers).forEach((h) => lightBox(h, "handles"));
+      actedOn(g).forEach((r) => keys.add(`r:${r}`));
+    }
+  }
+  if (kind === "c") {
+    const c = capabilityById.get(id);
+    const g = s.areas.find((x) => x.members.includes(c.area));
+    if (g) keys.add(`a:${g.name}`);
+    c.via.filter((p) => s.ports.includes(p)).forEach((p) => keys.add(`p:${p}`));
+    lightBox(c.area.boundary.consumer, "asks");
+    handlers(c.area).forEach((h) => lightBox(h, "handles"));
+    c.acts.forEach((a) => keys.add(`r:${a.resource}`));
+  }
+  if (kind === "p")
+    for (const g of s.areas.filter((x) => x.ports.includes(id))) {
+      keys.add(`a:${g.name}`);
+      g.members.filter((a) => a.boundary.interfaces.includes(id)).forEach((a) => keys.add(`b:${a.boundary.consumer}`));
+    }
+  if (kind === "r") {
+    const caps = actingOn(id);
+    for (const g of s.areas) if (g.members.some((a) => caps.some((c) => c.area === a))) keys.add(`a:${g.name}`);
+    keepersOf(id).forEach((o) => lightBox(o, "keeps"));
+    unique(caps.flatMap((c) => handlers(c.area))).forEach((h) => lightBox(h, "acts"));
+  }
+  if (kind === "b") {
+    const inside = within(id);
+    if (s.consumers.includes(id))
+      for (const g of s.areas.filter((x) => x.consumers.includes(id))) {
+        keys.add(`a:${g.name}`);
+        g.members.filter((a) => a.boundary.consumer === id).forEach((a) => a.capabilities.forEach((c) => c.via.forEach((p) => keys.add(`p:${p}`))));
+      }
+    for (const g of s.areas) if (g.members.some((a) => handlers(a).some((h) => inside.includes(h)))) upstream(g);
+    for (const b of boundaries) {
+      if (refinedBy(b)) continue;
+      for (const [near, far, role] of [
+        [b.provider, b.consumer, "calls"],
+        [b.consumer, b.provider, "called"],
+      ]) {
+        if (!inside.includes(near) || inside.includes(far)) continue;
+        // A call to a component that the other box also contains stays inside both.
+        if (holders(far).some((o) => within(o).includes(near))) continue;
+        lightBox(far, role);
+      }
+    }
+    (s.kept.get(id) ?? []).forEach((r) => keys.add(`r:${r}`));
+  }
+  // A shared component sits in more than one box on the screen: it lights the one already lit, else
+  // the one holding the selection, else the one it is defined in.
+  const home = kind === "r" ? [...s.kept].find(([, rs]) => rs.includes(id))?.[0] : kind === "b" ? id : null;
+  const notes = new Map(); // a lit box -> what the components inside it do, by role
+  const assign = (at, name, role) => {
+    keys.add(`b:${at}`);
+    if (at === name || at === id) return;
+    const roles = notes.get(at) ?? notes.set(at, new Map()).get(at);
+    (roles.get(role) ?? roles.set(role, new Set()).get(role)).add(name);
+  };
+  const later = [];
+  for (const [name, role] of requests) {
+    const c = holders(name);
+    if (c.length === 1) assign(c[0], name, role);
+    else if (c.length > 1) later.push([name, role, c]);
+  }
+  for (const [name, role, c] of later)
+    assign(c.find((v) => keys.has(`b:${v}`)) ?? c.find((v) => v === home) ?? c.find((v) => ancestors(name).includes(v)) ?? c[0], name, role);
+  return { keys, notes };
+}
+
+// What the components inside a lit box do with the selection: "Run controller keeps it; Conversations
+// and Execution kits act on it."
+const VERBS = { keeps: ["keeps it", "keep it"], acts: ["acts on it", "act on it"], handles: ["handles it", "handle it"], calls: ["calls it", "call it"], asks: ["asks for it", "ask for it"] };
+function noteOf(roles) {
+  const keepers = roles.get("keeps") ?? new Set();
+  const parts = [...roles].map(([role, names]) => {
+    const list = [...names].filter((n) => role === "keeps" || !keepers.has(n));
+    if (!list.length) return null;
+    const who = list.length > 1 ? `${list.slice(0, -1).join(", ")} and ${list.at(-1)}` : list[0];
+    return role === "called" ? `It calls ${who}` : `${who} ${VERBS[role][list.length > 1 ? 1 : 0]}`;
+  });
+  return `${parts.filter(Boolean).join("; ")}.`;
+}
+
+// ---------- drawing ----------
+
+const pick = (key) => (event) => {
+  event.stopPropagation();
+  selected = key;
+  render();
+};
+
+const register = (key, e) => {
+  e.dataset.key = key;
+  if (!reg.has(key)) reg.set(key, e);
+  drawn.push([key, e]);
+  return e;
+};
+
+const kindLine = (kind, qualifier) =>
+  el("span", { class: "b-top" }, el("span", { class: "b-kind" }, kind), qualifier && el("span", { class: "b-qual" }, qualifier));
+
+function chips(names) {
+  if (!names.length) return null;
+  return el(
+    "span",
+    { class: "b-chips" },
+    names.map((r) => register(`r:${r}`, el("button", { type: "button", class: "b-chip", onclick: pick(`r:${r}`) }, r))),
+  );
+}
+
+function box(name, where) {
+  const n = node(name);
+  const key = `b:${name}`;
+  const inner = n.children.length + n.shared.length;
+  const shared = where === "inside" && n.also.includes(openBox) ? `Shared with ${n.parent}` : null;
+  const canOpen = opens(name);
+  const enter = (e) => (e.stopPropagation(), go(name));
+  const note = current?.notes.get(name);
+  return register(
+    key,
+    el(
+      "section",
+      { class: `b-box ${kindClass(name)}${n.kind === "provider" ? " provider" : ""}${canOpen ? " opens" : ""}`, onclick: pick(key), ondblclick: canOpen ? enter : null },
+      kindLine(shared ?? KIND_WORD[n.kind]),
+      el("button", { type: "button", class: "b-name", onclick: pick(key) }, name),
+      note && el("span", { class: "b-via" }, noteOf(note)),
+      where === "inside" && chips(screen.kept.get(name) ?? []),
+      canOpen && el("button", { type: "button", class: "b-go", onclick: enter }, el("span", {}, inner ? `Open, ${inner} components` : "Open"), el("span", {}, "›")),
+    ),
+  );
+}
+
+function areaBox(g) {
+  return register(
+    `a:${g.name}`,
+    el(
+      "button",
+      { type: "button", class: "b-box k-capability b-area", onclick: pick(`a:${g.name}`) },
+      kindLine("Capabilities", `${g.type}, ${g.capabilities.length}`),
+      el("span", { class: "b-name" }, g.name),
+    ),
+  );
+}
+
+const zone = (cls, title, ...content) => el("div", { class: `b-zone ${cls}` }, el("h3", {}, title), el("div", { class: "b-zone-body" }, content));
+
+function frame(name) {
+  const n = node(name);
+  const s = screen;
+  const keeps = s.kept.get(name) ?? [];
+  const body = [
+    zone("z-interface", "Interfaces", s.ports.map((iface) => register(`p:${iface}`, el("button", { type: "button", class: "b-port edge", onclick: pick(`p:${iface}`) }, iface)))),
+    zone("z-capability", "Capabilities", s.areas.map(areaBox)),
+    s.columns.length > 0 &&
+      zone("z-component", "Components", el("div", { class: "b-cols" }, s.columns.map((c) => el("div", { class: "b-col b-placed" }, c.map((id) => box(id, "inside")))))),
+  ];
+  return el(
+    "section",
+    { class: `b-frame ${kindClass(name)}` },
+    el(
+      "header",
+      { class: "b-frame-head" },
+      el("span", { class: "b-kind" }, KIND_WORD[n.kind] + (n.also.length ? `, shared with ${n.also.join(", ")}` : "")),
+      el("h2", {}, name),
+      text("p", n.description),
+      s.through && el("p", { class: "b-through" }, `Reached through ${s.through}'s interfaces.`),
+      keeps.length > 0 && el("div", { class: "b-keeps" }, el("span", { class: "b-keeps-label" }, "Keeps"), chips(keeps)),
+    ),
+    el("div", { class: "b-body" }, body),
+  );
+}
+
+// Places absolutely positioned items, each as close as it can to the height it wants its centre at.
+// Items that would overlap form a block, kept in order and centred on what its items want on
+// average, so that several boxes linked to one thing sit around it rather than below it. Returns
+// the height used.
+function settle(items, gap) {
+  const blocks = [...items].sort((a, b) => a.want - b.want).map((it) => ({ items: [it] }));
+  const place = (b) => {
+    let off = 0;
+    const tops = b.items.map((it) => {
+      const want = it.want - it.el.offsetHeight / 2 - off;
+      off += it.el.offsetHeight + gap;
+      return want;
+    });
+    b.height = off - gap;
+    b.top = Math.max(0, avg(tops));
+  };
+  blocks.forEach(place);
+  for (let i = 1; i < blocks.length; ) {
+    const [a, b] = [blocks[i - 1], blocks[i]];
+    if (a.top + a.height + gap <= b.top) i++;
+    else {
+      a.items.push(...b.items);
+      blocks.splice(i, 1);
+      place(a);
+      i = 1;
+    }
+  }
+  for (const b of blocks) {
+    let y = b.top;
+    for (const it of b.items) {
+      it.el.style.top = `${y}px`;
+      y += it.el.offsetHeight + gap;
+    }
+  }
+  const last = blocks.at(-1);
+  return last ? last.top + last.height : 0;
+}
+
+function render() {
+  reg = new Map();
+  drawn = [];
+  screen = screenOf(openBox);
+  const s = screen;
+  current = null;
+  if (selected)
+    try {
+      current = lineage(selected);
+    } catch {
+      selected = null;
+    }
+  const stage = el("div", { class: `b-stage${s.top ? " top" : ""}` });
+  const wires = svgEl("svg", { class: "b-wires" });
+  const left = zone("z-consumer b-left", "Used by", s.consumers.map((c) => box(c, "left")));
+  const middle = s.top ? zone("z-component b-mid", "Providers", el("div", { class: "b-col b-placed" }, s.boxes.map((p) => box(p, "inside")))) : frame(openBox);
+  const right = s.uses.length > 0 && zone("z-uses b-right", "Uses", s.uses.map((u) => box(u, "right")));
+  stage.append(wires, left, middle, ...[right].filter(Boolean));
+  document.getElementById("scroll").replaceChildren(stage);
+  drawNav();
+  if (selected && !reg.has(selected) && !selected.startsWith("c:")) {
+    selected = null;
+    return render();
+  }
+
+  const o = stage.getBoundingClientRect();
+  const mid = (e) => {
+    const r = e.getBoundingClientRect();
+    return { l: r.left - o.left, r: r.right - o.left, t: r.top - o.top, b: r.bottom - o.top, y: (r.top + r.bottom) / 2 - o.top };
+  };
+  const bodyOf = (cls) => stage.querySelector(`.${cls} > .b-zone-body`);
+
+  // Capabilities stack in the order of the interfaces that reach them, each interface sits level
+  // with its capabilities, each component level with the capabilities it handles, and each
+  // consumer level with what it uses. A group linked to one thing is centred on it.
+  if (!s.top) {
+    const first = (g) => Math.min(...g.ports.map((p) => s.ports.indexOf(p)));
+    let y = 0;
+    for (const g of [...s.areas].sort((a, b) => first(a) - first(b))) {
+      const e = reg.get(`a:${g.name}`);
+      e.style.top = `${y}px`;
+      g.y = y + e.offsetHeight / 2;
+      y += e.offsetHeight + 12;
+    }
+    const h = settle(s.ports.map((p) => ({ el: reg.get(`p:${p}`), want: avg(s.areas.filter((g) => g.ports.includes(p)).map((g) => g.y)) })), 6);
+    bodyOf("z-capability").style.height = `${Math.max(y, h)}px`;
+    bodyOf("z-interface").style.height = `${Math.max(y, h)}px`;
+    // A component without capabilities on this screen sits level with what calls it. Columns go
+    // left to right, so callers are already placed.
+    const capTop = mid(bodyOf("z-capability")).t;
+    for (const col of stage.querySelectorAll(".b-cols > .b-col")) {
+      const t = mid(col).t;
+      const items = [...col.children].map((e) => {
+        const inside = subtree(e.dataset.key.slice(2));
+        const served = s.areas.filter((g) => g.members.some((a) => handlers(a).some((x) => inside.includes(x))));
+        const callers = s.links.filter((b) => b.provider === inside[0] && s.boxes.includes(b.consumer)).map((b) => mid(reg.get(`b:${b.consumer}`)).y);
+        const want = served.length ? avg(served.map((g) => capTop + g.y)) : callers.length ? avg(callers) : t;
+        return { el: e, want: want - t };
+      });
+      col.style.height = `${settle(items, 14)}px`;
+    }
+  }
+  const targetsOf = (c) =>
+    unique(
+      s.top
+        ? boundaries.filter((b) => b.consumer === c && s.boxes.includes(b.provider)).map((b) => reg.get(`b:${b.provider}`))
+        : boundaries.filter((b) => b.consumer === c).flatMap((b) => b.interfaces).filter((i) => s.ports.includes(i)).map((i) => reg.get(`p:${i}`)),
+    );
+  const leftBody = bodyOf("b-left");
+  if (s.top) {
+    // Each provider and the consumers that use it form a row, centred on each other.
+    const col = stage.querySelector(".b-mid .b-col");
+    const firstUse = (c) => s.boxes.find((p) => boundaries.some((b) => b.consumer === c && b.provider === p));
+    const rows = [...s.boxes.map((p) => [reg.get(`b:${p}`), s.consumers.filter((c) => firstUse(c) === p)]), [null, s.consumers.filter((c) => !firstUse(c))]];
+    let y = 0;
+    for (const [pe, cs] of rows) {
+      const ces = cs.map((c) => reg.get(`b:${c}`));
+      const ph = pe?.offsetHeight ?? 0;
+      const ch = ces.reduce((n, e) => n + e.offsetHeight + 14, -14);
+      const rh = Math.max(ph, ch);
+      if (rh <= 0) continue;
+      if (pe) pe.style.top = `${y + (rh - ph) / 2}px`;
+      let cy = y + (rh - Math.max(ch, 0)) / 2;
+      for (const e of ces) {
+        e.style.top = `${cy}px`;
+        cy += e.offsetHeight + 14;
+      }
+      y += rh + 28;
+    }
+    col.style.height = leftBody.style.height = `${Math.max(0, y - 28)}px`;
+  } else {
+    const lt = mid(leftBody).t;
+    leftBody.style.height = `${settle(
+      s.consumers.map((c) => {
+        const to = targetsOf(c);
+        return { el: reg.get(`b:${c}`), want: (to.length ? avg(to.map((p) => mid(p).y)) : 0) - lt };
+      }),
+      14,
+    )}px`;
+  }
+  // What the open box uses is centred, as a block, on the open box's body.
+  // Each box to the right sits level with what calls it; the open box calls from its body's middle.
+  if (right) {
+    const body = right.querySelector(".b-zone-body");
+    const rt = mid(body).t;
+    const frameMid = mid(stage.querySelector(".b-body")).y;
+    const items = s.uses.map((u) => {
+      const ys = s.links.filter((b) => b.provider === u).map((b) => (b.consumer === openBox ? frameMid : mid(reg.get(`b:${b.consumer}`)).y));
+      return { el: reg.get(`b:${u}`), want: (ys.length ? avg(ys) : frameMid) - rt };
+    });
+    body.style.height = `${settle(items, 14)}px`;
+  }
+
+  wires.setAttribute("width", stage.scrollWidth);
+  wires.setAttribute("height", stage.scrollHeight);
+  const curve = (a, b) => {
+    const dx = Math.max(20, Math.abs(b[0] - a[0]) / 2);
+    return `M${a[0]},${a[1]} C${a[0] + dx},${a[1]} ${b[0] - dx},${b[1]} ${b[0]},${b[1]}`;
+  };
+  const wire = (from, to, a, b) => wires.append(svgEl("path", { d: curve(a, b), "data-from": from, "data-to": to }));
+  for (const c of s.consumers)
+    for (const t of targetsOf(c)) {
+      const from = mid(reg.get(`b:${c}`));
+      const to = mid(t);
+      wire(`b:${c}`, t.dataset.key, [from.r, from.y], [to.l - (s.top ? 0 : 4), to.y]);
+    }
+  for (const g of s.areas) {
+    const at = mid(reg.get(`a:${g.name}`));
+    for (const p of g.ports) {
+      const from = mid(reg.get(`p:${p}`));
+      wire(`p:${p}`, `a:${g.name}`, [from.r, from.y], [at.l, at.y]);
+    }
+  }
+  // Dependencies, from the right edge of a component, or of the open box, to what it depends on. A
+  // line that passes a column in between goes straight through the nearest gap between its boxes,
+  // so that it never seems to leave from a box it only passes behind.
+  const frameEl = stage.querySelector(".b-frame");
+  const cols = [...stage.querySelectorAll(".b-cols > .b-col")].map((c) => ({ ...mid(c), boxes: [...c.children].map(mid).sort((a, b) => a.t - b.t) }));
+  const colOf = (e) => cols.findIndex((c) => e.l >= c.l - 1 && e.r <= c.r + 1);
+  const gapAt = (c, want) => {
+    const gaps = [[-Infinity, c.boxes[0]?.t ?? Infinity], ...c.boxes.map((x, i) => [x.b, c.boxes[i + 1]?.t ?? Infinity])];
+    const ys = gaps.map(([lo, hi]) => (hi - lo < 40 ? (lo + hi) / 2 : Math.min(Math.max(want, lo + 12), hi - 12)));
+    return ys.reduce((best, y) => (Math.abs(y - want) < Math.abs(best - want) ? y : best));
+  };
+  for (const b of s.links) {
+    const own = b.consumer === openBox;
+    const from = mid(own ? frameEl : reg.get(`b:${b.consumer}`));
+    const to = mid(reg.get(`b:${b.provider}`));
+    const y = own ? Math.min(Math.max(to.y, from.t + 40), from.b - 20) : from.y;
+    const start = own ? -1 : colOf(from);
+    const end = colOf(to) === -1 ? cols.length : colOf(to);
+    let d = "";
+    let at = [from.r, y];
+    for (let k = start + 1; k < end && start !== -1; k++) {
+      const gy = gapAt(cols[k], at[1] + ((to.y - at[1]) * (cols[k].l - at[0])) / Math.max(1, to.l - at[0]));
+      d += `${d ? " " : ""}${curve(at, [cols[k].l - 10, gy])} L${cols[k].r + 10},${gy}`;
+      at = [cols[k].r + 10, gy];
+    }
+    wires.append(svgEl("path", { d: `${d}${d ? " " : ""}${curve(at, [to.l, to.y])}`, "data-from": `b:${b.consumer}`, "data-to": `b:${b.provider}` }));
+  }
+  paint(stage);
+  drawPanel();
+  if (selected && reg.has(selected)) reg.get(selected).scrollIntoView({ block: "nearest", inline: "nearest" });
+  if (STILL) drawLegend(stage);
+}
+
+function paint(stage) {
+  const keys = current?.keys;
+  for (const [key, e] of drawn) {
+    const on = Boolean(keys?.has(key));
+    e.classList.toggle("lit", on);
+    e.classList.toggle("chosen", key === selected);
+    e.classList.toggle("dim", Boolean(keys) && !on);
+  }
+  // A resource in a lit box is part of that box, so it does not fade; it is outlined only when it is
+  // linked to the selection. In the box of a selected resource, the other resources still fade.
+  if (keys)
+    for (const chip of stage.querySelectorAll(".b-chip.dim")) {
+      const box = chip.closest(".b-box");
+      if (!box?.classList.contains("lit")) continue;
+      if (selected.startsWith("r:") && box.querySelector(`[data-key="${CSS.escape(selected)}"]`)) continue;
+      chip.classList.remove("dim");
+    }
+  // A line lights when both its ends are; the open box counts as lit.
+  const end = (k) => keys.has(k) || k === `b:${openBox}`;
+  for (const p of stage.querySelectorAll(".b-wires path")) {
+    const on = Boolean(keys) && end(p.dataset.from) && keys.has(p.dataset.to);
+    p.classList.toggle("lit", on);
+    p.classList.toggle("dim", Boolean(keys) && !on);
+  }
+}
+
+// ---------- the panel: only what the map does not already show ----------
+
+function capabilityList(caps) {
+  return el(
+    "ul",
+    { class: "b-caps" },
+    caps.map((c) =>
+      el(
+        "li",
+        { class: selected === `c:${c.id}` ? "on" : "" },
+        el("button", { type: "button", onclick: pick(`c:${c.id}`) }, c.name),
+        el("span", {}, c.acts.map((a) => `${MODE_WORD[a.mode]} ${a.resource}`).join(", ")),
+      ),
+    ),
+  );
+}
+
+function panelOf(key) {
+  const s = screen;
+  const cut = key.indexOf(":");
+  const kind = key.slice(0, cut);
+  const id = key.slice(cut + 1);
+  const head = (k, cls, title) => [el("span", { class: `b-kind ${cls}` }, k), el("h2", {}, title)];
+  if (kind === "a") {
+    const g = s.areas.find((x) => x.name === id);
+    return [head(`Capabilities, ${g.type}`, "k-capability", g.name), text("p", g.members[0].description), capabilityList(g.capabilities)];
+  }
+  if (kind === "p") {
+    const b = incoming(s.through ?? openBox).find((x) => x.interfaces.includes(id));
+    return [head("Interface", "k-interface", id), text("p", interfaceText.get(id)), b && capabilityList(capabilitiesThrough(b, id))];
+  }
+  if (kind === "c") {
+    const c = capabilityById.get(id);
+    const g = s.areas.find((x) => x.members.includes(c.area));
+    return [
+      g && el("button", { type: "button", class: "b-back", onclick: pick(`a:${g.name}`) }, `‹ ${g.name}`),
+      head("Capability", "k-capability", c.name),
+      el("h3", {}, "Takes"),
+      el("p", {}, c.takes),
+      el("h3", {}, "Gives"),
+      el("p", {}, c.gives),
+    ];
+  }
+  if (kind === "r") {
+    const r = resourceByName.get(id);
+    const hidden = keepersOf(id).flatMap((k) => {
+      const at = [...s.kept].find(([b, rs]) => rs.includes(id) && subtree(b).includes(k))?.[0];
+      return at && at !== k ? [`Kept by ${k}, inside ${at}.`] : [];
+    });
+    return [
+      head("Resource", "k-resource", id),
+      text("p", r.description),
+      hidden.map((t) => el("p", { class: "b-note" }, t)),
+      r.properties?.length > 0 && [el("h3", {}, "Properties"), el("ul", { class: "b-props" }, r.properties.map((x) => el("li", {}, x)))],
+      el("h3", {}, "Capabilities that act on it"),
+      // Two consumers may have the same capability, such as Start a run; list it once.
+      capabilityList(actingOn(id).filter((c, i, all) => all.findIndex((o) => o.name === c.name) === i)),
+    ];
+  }
+  const n = node(id);
+  return [
+    head(KIND_WORD[n.kind], kindClass(id), n.name),
+    n.description && [n.kind === "consumer" ? null : el("h3", {}, "Responsibilities"), text("p", n.description)],
+    opens(id) && id !== openBox && el("button", { type: "button", class: "b-go wide", onclick: () => go(id) }, el("span", {}, `Open ${id}`), el("span", {}, "›")),
+  ];
+}
+
+function drawPanel() {
+  const panel = document.getElementById("panel");
+  panel.hidden = !selected;
+  if (!selected) return;
+  panel.replaceChildren(
+    el("button", { type: "button", class: "b-close", "aria-label": "Close", onclick: clear }, "×"),
+    ...[panelOf(selected)].flat(3).filter(Boolean),
+  );
+}
+
+function clear() {
+  if (!selected) return;
+  selected = null;
+  render();
+}
+
+// ---------- where you are ----------
+
+function drawNav() {
+  const crumbs = [["All providers", 0], ...trail.map((n, i) => [n, i + 1])];
+  document.getElementById("nav").replaceChildren(
+    el("button", { type: "button", class: "b-back-nav", disabled: !visited.length && !trail.length ? "" : null, onclick: back }, "‹ Back"),
+    ...crumbs
+      .flatMap(([label, depth], i) => [
+        i > 0 && el("span", { class: "b-sep" }, "›"),
+        i === crumbs.length - 1 ? el("strong", {}, label) : el("button", { type: "button", onclick: () => navigate(trail.slice(0, depth)) }, label),
+      ])
+      .filter(Boolean),
+  );
+}
+
+// The path to a box when nothing says how you came: its parents, or, for an outside service, the
+// screen that shows a component calling it.
+function trailFor(name) {
+  if (name === TOP) return [];
+  const n = node(name);
+  if (n.kind !== "outside") return [...ancestors(name), name];
+  const caller = boundaries.find((b) => b.provider === name && !refinedBy(b) && nodes.has(b.consumer) && node(b.consumer).kind !== "consumer");
+  if (!caller) return [name];
+  const at = node(caller.consumer).parent;
+  return [...trailFor(at ?? caller.consumer), name];
+}
+
+// Opening a box from the screen it is on adds it to the path you came by; a box elsewhere gets the
+// path trailFor gives it.
+function go(name) {
+  if (name === TOP) return navigate([]);
+  const i = trail.indexOf(name);
+  if (i >= 0) return navigate(trail.slice(0, i + 1));
+  navigate(screen.visible.has(name) || screen.boxes.includes(name) ? [...trail, name] : trailFor(name));
+}
+
+// Back returns to the previous screen as it was left: same scroll, same selection.
+function back() {
+  if (visited.length) navigate(visited.pop(), { remember: false, restore: true });
+  else if (trail.length) navigate(trail.slice(0, -1), { remember: false, restore: true });
+}
+
+// Changes screen. Opening a box grows it into the new screen's frame; going back shrinks the frame
+// into the box it came from. Everything else fades.
+const addressOf = (t) => `#${t.length ? t.map(slugOf).join("/") : "all"}`;
+function navigate(next, { remember = true, fromAddress = false, restore = false } = {}) {
+  const before = trail;
+  if (before.length === next.length && before.every((x, i) => x === next[i])) return;
+  if (remember) visited.push(before);
+  const scroller = document.getElementById("scroll");
+  memory.set(addressOf(before), { left: scroller.scrollLeft, top: scroller.scrollTop, selected });
+  const kept = restore ? memory.get(addressOf(next)) : null;
+  const deeper = next.length > before.length && before.every((x, i) => next[i] === x);
+  const shallower = before.length > next.length && next.every((x, i) => before[i] === x);
+  const frameEl = () => document.querySelector(".b-frame");
+  // Only one element may carry the name at a time; the last landing still has it.
+  for (const e of document.querySelectorAll(".b-frame, .b-box")) e.style.viewTransitionName = "";
+  const grow = deeper ? reg.get(`b:${next[before.length]}`) : shallower ? frameEl() : null;
+  if (grow) grow.style.viewTransitionName = "zoom";
+  // A box on both screens travels from its place on this one to its place on the next, such as a
+  // component that moves from Components to Used by when a component it calls opens.
+  const nextOpen = next.at(-1) ?? TOP;
+  const nextVisible = screenOf(nextOpen).visible;
+  const travellers = [...screen.visible].filter((n) => n !== nextOpen && nextVisible.has(n));
+  const travel = () => {
+    for (const n of travellers) {
+      const e = reg.get(`b:${n}`);
+      if (e) e.style.viewTransitionName = `b-${cssName(n)}`;
+    }
+  };
+  travel();
+  if (!fromAddress) {
+    const hash = addressOf(next);
+    // A sandboxed viewer may refuse to change the address; the screen changes all the same.
+    try {
+      if (decodeURIComponent(location.hash) !== hash) history.pushState(null, "", hash);
+    } catch {}
+  }
+  transition(() => {
+    trail = next;
+    openBox = next.at(-1) ?? TOP;
+    selected = kept?.selected ?? null;
+    render();
+    scroller.scrollTo(kept?.left ?? 0, kept?.top ?? 0);
+    const landing = deeper ? frameEl() : shallower ? reg.get(`b:${before[next.length]}`) : null;
+    if (grow && landing) landing.style.viewTransitionName = "zoom";
+    travel();
+  });
+}
+
+function fromHash() {
+  const parts = decodeURIComponent(location.hash.slice(1)).split("/").filter(Boolean);
+  if (parts[0] === "all") return [];
+  const names = parts.map((p) => bySlug.get(p));
+  if (!names.length || names.some((n) => !n)) return HOME;
+  return names.length === 1 ? trailFor(names[0]) : names;
+}
+
+// ---------- still images ----------
+
+// Every screen once: All providers, then each box that opens, in the order the map lists them.
+const screens = () => [[], ...[...nodes.keys()].filter(opens).map(trailFor)];
+
+// A still image cannot be clicked, so it carries under the drawing what the panel would say about
+// what the screen shows.
+function legendOf(s) {
+  const entry = (name, about) => el("li", { html: inline(`**${name}**: ${sentence(about ?? "")}`) });
+  const section = (title, about, items) =>
+    items.length > 0 && el("section", {}, el("h3", {}, title), about && text("p", about), el("ul", {}, items));
+  const acts = (c) => c.acts.map((a) => `${MODE_WORD[a.mode]} ${a.resource}`).join(", ");
+  return el(
+    "div",
+    { class: "b-legend" },
+    section("On this screen", null, [...s.consumers, ...s.boxes, ...s.uses].map((n) => entry(n, node(n).description))),
+    section("Interfaces", null, s.ports.map((p) => entry(p, interfaceText.get(p)))),
+    s.areas.map((g) =>
+      section(
+        `${g.name} (${g.type})`,
+        g.members[0].description,
+        g.capabilities.map((c) => entry(c.name, `takes ${c.takes}; gives ${c.gives}; ${acts(c)}.`)),
+      ),
+    ),
+    section("Resources", null, unique([...s.kept.values()].flat()).map((r) => entry(r, resourceByName.get(r).description))),
+  );
+}
+
+// Writes the size the image needs, and the addresses of every screen, on the page for shoot-map.mjs.
+function drawLegend(stage) {
+  const legend = legendOf(screen);
+  legend.style.width = `${Math.max(stage.offsetWidth, 1200)}px`;
+  document.querySelector(".b-legend")?.remove();
+  document.querySelector("main").after(legend);
+  const right = Math.max(stage.getBoundingClientRect().right, legend.getBoundingClientRect().right) + 16;
+  const bottom = legend.getBoundingClientRect().bottom + window.scrollY;
+  document.documentElement.dataset.stillSize = `${Math.ceil(right)}x${Math.ceil(bottom)}`;
+  document.documentElement.dataset.screens = screens().map(addressOf).join(" ");
+}
+
+const avg = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
+window.addEventListener("popstate", () => navigate(fromHash(), { fromAddress: true, remember: false, restore: true }));
+document.getElementById("scroll").addEventListener("click", clear);
+document.addEventListener("keydown", (e) => e.key === "Escape" && clear());
+window.addEventListener("resize", () => render());
+trail = fromHash();
+openBox = trail.at(-1) ?? TOP;
+render();
+document.fonts?.ready.then(render);
+</script>
+</body>
+</html>
