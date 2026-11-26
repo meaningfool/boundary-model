@@ -83,6 +83,7 @@ main { display: flex; min-height: 0; min-width: 0; }
 .z-component { --k: var(--k-component); }
 .z-resource { --k: var(--k-resource); }
 .z-uses { --k: var(--graphite); }
+.z-outside { --k: var(--k-outside); }
 .b-left > .b-zone-body { position: relative; width: 170px; }
 .b-left > .b-zone-body > .b-box { position: absolute; left: 0; width: 170px; }
 .b-col { display: flex; flex-direction: column; gap: 14px; }
@@ -129,6 +130,9 @@ main { display: flex; min-height: 0; min-width: 0; }
 .b-go { display: flex; justify-content: space-between; align-items: baseline; width: calc(100% + 20px); margin: 7px -10px -7px; padding: 4px 10px; font-size: 12px; font-weight: 600; color: var(--k); border-top: 1px solid color-mix(in srgb, var(--k) 40%, var(--paper)); }
 .b-go span:last-child { font-size: 15px; line-height: 1; }
 .b-go:hover { background: var(--k); color: var(--paper); }
+.b-service { display: flex; align-items: center; gap: 8px; padding-top: 5px; padding-bottom: 5px; }
+.b-service .b-name { flex: 1; }
+.b-service .b-go { width: auto; margin: -5px -10px -5px 0; padding: 5px 10px; align-self: stretch; align-items: center; border-top: 0; border-left: 1px solid color-mix(in srgb, var(--k) 40%, var(--paper)); }
 .b-go.wide { --k: var(--k-component); width: 100%; margin: 18px 0 0; padding: 6px 10px; font-size: 13px; border: 1px solid var(--k); }
 
 /* ---- interfaces: dots on the edge of the open box ---- */
