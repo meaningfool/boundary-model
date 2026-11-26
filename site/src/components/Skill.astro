@@ -1,0 +1,12 @@
+---
+// A skill's name, linked to its SKILL.md at the released version, so the docs point at the rules
+// they explain.
+interface Props {
+  name: string;
+}
+
+const { name } = Astro.props;
+const href = `https://github.com/meaningfool/boundary-model/blob/v${__VERSION__}/skills/${name}/SKILL.md`;
+---
+
+<a class="skill" href={href}><code>{name}</code></a>

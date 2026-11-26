@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.astro/
+.wrangler/
+# Drawn from ../maps/store/ by scripts/draw-maps.mjs before each build.
+public/maps/

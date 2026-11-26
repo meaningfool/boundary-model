@@ -1,6 +1,6 @@
 # Website prototypes
 
-Throwaway prototypes for the boundary model website, issue #7. They answered design questions in conversation. The site itself will be built with Astro and Starlight in `site/`. Remove this folder before the website pull request merges.
+Throwaway prototypes for the boundary model website, issue #7. They answered design questions in conversation. The site itself is in `site/`, built with Astro and Starlight: see `../README.md`. Remove this folder before the website pull request merges.
 
 Open each file in a browser. They need no build.
 
@@ -11,7 +11,14 @@ Open each file in a browser. They need no build.
 - `landing-proposals.html`: three early layouts for a separate home page. Superseded, since page 01 is now the home page, but its sections fed page 01.
 - `map-candidates.html`: open-source projects checked as candidates for maps, with a compare view.
 - `boundary-maps.html`: the interactive maps of the real projects in `../maps/`, embedded from `maps/`. It prefigures page 06, In the wild.
-- `walkthrough/`: three invented systems designed for page 05, A walkthrough, each with its map and its design notes (the walkthrough sequence, which concepts it shows, the change, and its weak spots). `review.md` compares them and recommends A, the Store, which was chosen and then revised. `a-store/design.md` holds the final draft text of each walkthrough step, the change with its shape, slices, refinement and issues; `a-store/steps/` holds a cut-down map for the early steps, and `a-store/change/` the map after the change. `b-helpdesk/change/` holds Helpdesk's change test: the map after its correction change, and a drawing that compares it with the map before. Draw still images with `shoot-map.mjs`. `walkthrough-examples.html` shows all three designs with the review.
+- `walkthrough/`: three invented systems designed for page 05, A walkthrough, each with its map and its design notes (the walkthrough sequence, which concepts it shows, the change, and its weak spots). `review.md` compares them and recommends A, the Store, which was chosen and then revised. `a-store/design.md` holds the final draft text of each walkthrough step, the change with its shape, slices, refinement and issues. The Store's map and the map after the change moved to `../maps/store/`, and `../scripts/draw-maps.mjs` cuts the maps for the early steps on every build; `a-store/steps/` and `a-store/change/` keep the drawings made during the design. `b-helpdesk/change/` holds Helpdesk's change test: the map after its correction change, and a drawing that compares it with the map before. Draw still images with `shoot-map.mjs`. `walkthrough-examples.html` shows all three designs with the review.
+
+## The site so far
+
+- `site/` holds the Astro and Starlight site: the six pages in the numbered sidebar, the look and the navigation decided below, and a Worker configuration for Cloudflare.
+- Page 05, A walkthrough, is built from `walkthrough/a-store/design.md`, with a live map frame for each step. Its lede and its map captions are new text, written from the design's "On the map" notes.
+- Pages 01 to 04 and 06 are stubs that keep their sections and point at their drafts in `site-draft.html`.
+- No deploy workflow yet: it needs the Cloudflare secrets that issue #7 lists under Before Starting.
 
 ## Decisions so far
 
@@ -26,6 +33,8 @@ Open each file in a browser. They need no build.
 
 ## Open questions
 
+- Step 11 of the walkthrough says the card network "shows up once Payments opens". The 0.2.0 renderer also draws it on the Store screen, in the column of outside services, so the sentence may need rewording.
+- A Level 2 screen of the full map is about 1,500 pixels wide. In the walkthrough's text column it shows at 70% and scrolls sideways inside its frame. Steps 10 and 11 open on Catalog and on Shipping partner instead, which fit.
 - The value proposition, and the line under the headline, are still to be written.
 - Whether the walkthrough's material is written by hand, like the README's Store map, or comes from running the skills on a small invented Store codebase. A real run makes every artifact on the page genuine output.
 - Which real maps page 06 shows, and which ones are reviewed first.

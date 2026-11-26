@@ -1,0 +1,14 @@
+---
+// Follow the device's light or dark setting, and keep following it when it changes. Starlight's own
+// provider would prefer a stored choice, which this site never offers.
+---
+
+{/* Inlined to avoid a flash of the wrong theme. */}
+<script is:inline>
+  (() => {
+    const light = matchMedia("(prefers-color-scheme: light)");
+    const apply = () => (document.documentElement.dataset.theme = light.matches ? "light" : "dark");
+    apply();
+    light.addEventListener("change", apply);
+  })();
+</script>

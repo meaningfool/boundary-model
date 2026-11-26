@@ -1,10 +1,10 @@
 # Walkthrough example A: the Store
 
-All paths below are in `/tmp/claude-0/-home-user/cdf782aa-10b7-528c-9e97-39ba0972e579/scratchpad/walkthrough/a-store/`.
+Page 05 of the site, `site/src/content/docs/walkthrough.mdx`, is built from this design. The maps it draws moved out of this folder, so they outlive the prototypes:
 
-- `map.json` and `map.html`: the map of the Store today, with still images of every screen in `stills/`.
-- `steps/`: the Level 1 maps for steps 2 to 8, made from `map.json` by `steps/make-steps.mjs`, each drawn and shot. Run the script again whenever `map.json` changes.
-- `change/`: the map after the gift-card change, drawn against today's map with `render-map.mjs --against`, with its stills. It exists only to draw the change: a planned change does not belong in the map itself.
+- `site/maps/store/map.json`: the map of the Store today.
+- `site/maps/store/after-gift-cards.json`: the map after the gift-card change, drawn against today's map with `render-map.mjs --against`. It exists only to draw the change: a planned change does not belong in the map itself.
+- `site/scripts/draw-maps.mjs` cuts the Level 1 maps for steps 2 to 8 from `map.json` on every build, as `steps/make-steps.mjs` did, and draws every map. `steps/` and `change/` here keep the drawings made during the design.
 
 ## The system
 

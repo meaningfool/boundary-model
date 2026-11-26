@@ -1,0 +1,28 @@
+{
+  "name": "boundary-model-site",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.23.4"
+  },
+  "scripts": {
+    "maps": "node scripts/draw-maps.mjs",
+    "dev": "npm run maps && astro dev",
+    "build": "npm run maps && astro build",
+    "preview": "astro preview",
+    "deploy": "npm run build && wrangler deploy",
+    "check": "astro check"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "0.43.1",
+    "@fontsource-variable/geist": "5.3.0",
+    "@fontsource-variable/geist-mono": "5.3.0",
+    "astro": "7.4.12",
+    "sharp": "0.35.5"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.12",
+    "typescript": "6.0.3",
+    "wrangler": "4.168.0"
+  }
+}

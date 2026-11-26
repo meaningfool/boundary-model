@@ -1,6 +1,8 @@
-# Draft boundary maps
+# Boundary maps for the website
 
-Maps of open-source projects, extracted with the boundary model skills v0.1.0 for the website's examples. No person has reviewed them yet, so each one is a draft. Each map lists, in `questions`, the choices its extraction could not settle.
+`store/` holds the Store, an invented system written by hand for page 05, A walkthrough: `map.json` is the map of the Store today, and `after-gift-cards.json` the map after the walkthrough's change, drawn only to compare with today's. `../scripts/draw-maps.mjs` draws both, and cuts the smaller maps for the walkthrough's early steps from `map.json`.
+
+The other folders hold maps of open-source projects, extracted with the boundary model skills v0.1.0 for the website's examples. No person has reviewed them yet, so each one is a draft. Each map lists, in `questions`, the choices its extraction could not settle.
 
 | Project | Repository | Revision | Levels | Components | Boundaries |
 | --- | --- | --- | --- | --- | --- |
