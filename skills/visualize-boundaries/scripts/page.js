@@ -194,11 +194,16 @@ function screenOf(name) {
   const inner = top ? [] : [...n.children, ...n.shared];
   const consumers = top ? RAW.consumers.map((c) => c.name) : unique(areas.flatMap((g) => g.consumers));
   const calls = top ? [] : boundaries.filter((b) => !refinedBy(b) && (b.consumer === name || inner.includes(b.consumer)));
-  // An outside service that a component inside calls sits with the components, in the column after
-  // its callers, so its links stay short; what the open box itself calls sits to the right of it.
-  const outside = unique(calls.filter((b) => inner.includes(b.consumer) && node(b.provider).kind === "outside").map((b) => b.provider));
-  const boxes = top ? RAW.providers.map((p) => p.name) : [...inner, ...outside];
-  const uses = unique(calls.filter((b) => !within(name).includes(b.provider) && !outside.includes(b.provider)).map((b) => b.provider));
+  // An outside service calls nothing on the screen, so every service that the open box or anything
+  // inside it uses sits once in a last column, without lines: a selection lights who uses what.
+  const isService = (b) => node(b.provider).kind === "outside";
+  const services = top
+    ? []
+    : RAW.outsideServices.map((o) => o.name).filter((o) => boundaries.some((b) => b.provider === o && within(name).includes(b.consumer)));
+  // The boxes on this screen that use each service, through anything inside them.
+  const usersOf = new Map(services.map((o) => [o, inner.filter((i) => boundaries.some((b) => b.provider === o && within(i).includes(b.consumer)))]));
+  const boxes = top ? RAW.providers.map((p) => p.name) : inner;
+  const uses = unique(calls.filter((b) => !within(name).includes(b.provider) && !isService(b)).map((b) => b.provider));
   // Each resource kept inside the open box goes in the box on this screen that holds its keeper.
   const holder = (k) => boxes.find((b) => subtree(b).includes(k)) ?? (!top && subtree(name).includes(k) ? name : null);
   const kept = new Map();
@@ -213,10 +218,14 @@ function screenOf(name) {
     columns: top ? [boxes] : columnsOf(boxes),
     boxes,
     uses,
-    visible: new Set([...consumers, ...boxes, ...uses]),
+    services,
+    usersOf,
+    visible: new Set([...consumers, ...boxes, ...uses, ...services]),
     kept,
     // What each component, or the open box, depends on among the boxes on this screen.
     links: calls.filter((b) => boxes.includes(b.provider) || uses.includes(b.provider)),
+    // The boundaries with the services on this screen, which have no line.
+    serviceLinks: calls.filter(isService),
   };
 }
 
@@ -380,12 +389,17 @@ function box(name, where) {
     key,
     el(
       "section",
-      { class: `b-box ${kindClass(name)}${n.kind === "provider" ? " provider" : ""}${canOpen ? " opens" : ""}`, onclick: pick(key), ondblclick: canOpen ? enter : null },
-      kindLine(shared ?? KIND_WORD[n.kind]),
+      { class: `b-box ${kindClass(name)}${n.kind === "provider" ? " provider" : ""}${canOpen ? " opens" : ""}${where === "service" ? " b-service" : ""}`, onclick: pick(key), ondblclick: canOpen ? enter : null },
+      // In the column of outside services, the column's heading says what each box is.
+      where !== "service" && kindLine(shared ?? KIND_WORD[n.kind]),
       el("button", { type: "button", class: "b-name", onclick: pick(key) }, name),
       note && el("span", { class: "b-via" }, noteOf(note)),
       where === "inside" && chips(screen.kept.get(name) ?? []),
-      canOpen && el("button", { type: "button", class: "b-go", onclick: enter }, el("span", {}, inner ? `Open, ${inner} components` : "Open"), el("span", {}, "›")),
+      // A service in the column of outside services takes one line: its name and the way in.
+      canOpen &&
+        (where === "service"
+          ? el("button", { type: "button", class: "b-go", title: `Open ${name}`, "aria-label": `Open ${name}`, onclick: enter }, el("span", {}, "›"))
+          : el("button", { type: "button", class: "b-go", onclick: enter }, el("span", {}, inner ? `Open, ${inner} components` : "Open"), el("span", {}, "›"))),
     ),
   );
 }
@@ -485,7 +499,8 @@ function render() {
   const left = zone("z-consumer b-left", "Used by", s.consumers.map((c) => box(c, "left")));
   const middle = s.top ? zone("z-component b-mid", "Providers", el("div", { class: "b-col b-placed" }, s.boxes.map((p) => box(p, "inside")))) : frame(openBox);
   const right = s.uses.length > 0 && zone("z-uses b-right", "Uses", s.uses.map((u) => box(u, "right")));
-  stage.append(wires, left, middle, ...[right].filter(Boolean));
+  const far = s.services.length > 0 && zone("z-outside b-right", "Outside services", s.services.map((o) => box(o, "service")));
+  stage.append(wires, left, middle, ...[right, far].filter(Boolean));
   document.getElementById("scroll").replaceChildren(stage);
   drawNav();
   if (selected && !reg.has(selected) && !selected.startsWith("c:")) {
@@ -579,6 +594,18 @@ function render() {
       return { el: reg.get(`b:${u}`), want: (ys.length ? avg(ys) : frameMid) - rt };
     });
     body.style.height = `${settle(items, 14)}px`;
+  }
+  // Each outside service sits level with the boxes that use it, or with the open box's body when
+  // only the open box itself does.
+  if (far) {
+    const body = far.querySelector(".b-zone-body");
+    const ft = mid(body).t;
+    const frameMid = mid(stage.querySelector(".b-body")).y;
+    const items = s.services.map((o) => {
+      const ys = s.usersOf.get(o).map((u) => mid(reg.get(`b:${u}`)).y);
+      return { el: reg.get(`b:${o}`), want: (ys.length ? avg(ys) : frameMid) - ft };
+    });
+    body.style.height = `${settle(items, 8)}px`;
   }
 
   wires.setAttribute("width", stage.scrollWidth);
@@ -723,6 +750,8 @@ function panelOf(key) {
   return [
     head(KIND_WORD[n.kind], kindClass(id), n.name),
     n.description && [n.kind === "consumer" ? null : el("h3", {}, "Responsibilities"), text("p", n.description)],
+    // A box in the column of outside services shows no resources, so the panel lists them.
+    s.services.includes(id) && n.resources.length > 0 && [el("h3", {}, "Keeps"), el("ul", { class: "b-props" }, n.resources.map((r) => el("li", {}, r)))],
     opens(id) && id !== openBox && el("button", { type: "button", class: "b-go wide", onclick: () => go(id) }, el("span", {}, `Open ${id}`), el("span", {}, "›")),
   ];
 }
@@ -856,7 +885,7 @@ function legendOf(s) {
   return el(
     "div",
     { class: "b-legend" },
-    section("On this screen", null, [...s.consumers, ...s.boxes, ...s.uses].map((n) => entry(n, node(n).description))),
+    section("On this screen", null, [...s.consumers, ...s.boxes, ...s.uses, ...s.services].map((n) => entry(n, node(n).description))),
     section("Interfaces", null, s.ports.map((p) => entry(p, interfaceText.get(p)))),
     s.areas.map((g) =>
       section(

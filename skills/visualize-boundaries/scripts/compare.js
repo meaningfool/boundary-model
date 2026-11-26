@@ -195,7 +195,7 @@
     const lines = [];
     const add = (state, html) => lines.push({ state, html });
     if (!s.top && ownState(openBox) === "changed") add("changed", `**${openBox}** changed: ${fields(openBox).join("; ")}.`);
-    for (const n of [...s.consumers, ...s.boxes, ...s.uses]) {
+    for (const n of [...s.consumers, ...s.boxes, ...s.uses, ...s.services]) {
       const st = ownState(n);
       if (st === "new") add("new", `**${n}** is new.`);
       else if (st === "changed") add("changed", `**${n}** changed: ${fields(n).join("; ")}.`);
@@ -221,7 +221,8 @@
       const st = ifaceState(p);
       if (st) add(st, `Interface **${p}** ${st === "new" ? "is new" : "changed its description"}.`);
     }
-    for (const b of s.links) {
+    // A boundary with an outside service has no line, so only these words say it changed.
+    for (const b of [...s.links, ...s.serviceLinks]) {
       const st = boundaryState(b.id);
       if (st === "new") add("new", `**${b.consumer} → ${b.provider}** is new: ${b.areas.flatMap((a) => a.capabilities.map((c) => c.name)).join(", ")}.`);
       else if (st === "changed")
@@ -271,7 +272,7 @@
     const legend = baseLegendOf(s);
     const lines = changesHere(s);
     const states = new Map();
-    for (const n of [...s.consumers, ...s.boxes, ...s.uses]) if (boxState(n)) states.set(n, boxState(n));
+    for (const n of [...s.consumers, ...s.boxes, ...s.uses, ...s.services]) if (boxState(n)) states.set(n, boxState(n));
     for (const p of s.ports) if (ifaceState(p)) states.set(p, ifaceState(p));
     for (const li of legend.querySelectorAll("li")) {
       const name = li.querySelector("strong")?.textContent;
