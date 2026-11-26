@@ -195,7 +195,8 @@ function screenOf(name) {
   const consumers = top ? RAW.consumers.map((c) => c.name) : unique(areas.flatMap((g) => g.consumers));
   const calls = top ? [] : boundaries.filter((b) => !refinedBy(b) && (b.consumer === name || inner.includes(b.consumer)));
   // An outside service calls nothing on the screen, so every service that the open box or anything
-  // inside it uses sits once in a last column, without lines: a selection lights who uses what.
+  // inside it uses sits once in the open box's last column, without lines: a selection lights who
+  // uses what.
   const isService = (b) => node(b.provider).kind === "outside";
   const services = top
     ? []
@@ -427,6 +428,7 @@ function frame(name) {
     zone("z-capability", "Capabilities", s.areas.map(areaBox)),
     s.columns.length > 0 &&
       zone("z-component", "Components", el("div", { class: "b-cols" }, s.columns.map((c) => el("div", { class: "b-col b-placed" }, c.map((id) => box(id, "inside")))))),
+    s.services.length > 0 && zone("z-outside", "Outside services", el("div", { class: "b-col b-placed" }, s.services.map((o) => box(o, "service")))),
   ];
   return el(
     "section",
@@ -499,8 +501,7 @@ function render() {
   const left = zone("z-consumer b-left", "Used by", s.consumers.map((c) => box(c, "left")));
   const middle = s.top ? zone("z-component b-mid", "Providers", el("div", { class: "b-col b-placed" }, s.boxes.map((p) => box(p, "inside")))) : frame(openBox);
   const right = s.uses.length > 0 && zone("z-uses b-right", "Uses", s.uses.map((u) => box(u, "right")));
-  const far = s.services.length > 0 && zone("z-outside b-right", "Outside services", s.services.map((o) => box(o, "service")));
-  stage.append(wires, left, middle, ...[right, far].filter(Boolean));
+  stage.append(wires, left, middle, ...[right].filter(Boolean));
   document.getElementById("scroll").replaceChildren(stage);
   drawNav();
   if (selected && !reg.has(selected) && !selected.startsWith("c:")) {
@@ -597,15 +598,15 @@ function render() {
   }
   // Each outside service sits level with the boxes that use it, or with the open box's body when
   // only the open box itself does.
-  if (far) {
-    const body = far.querySelector(".b-zone-body");
-    const ft = mid(body).t;
+  const serviceCol = stage.querySelector(".z-outside .b-col");
+  if (serviceCol) {
+    const ct = mid(serviceCol).t;
     const frameMid = mid(stage.querySelector(".b-body")).y;
     const items = s.services.map((o) => {
       const ys = s.usersOf.get(o).map((u) => mid(reg.get(`b:${u}`)).y);
-      return { el: reg.get(`b:${o}`), want: (ys.length ? avg(ys) : frameMid) - ft };
+      return { el: reg.get(`b:${o}`), want: (ys.length ? avg(ys) : frameMid) - ct };
     });
-    body.style.height = `${settle(items, 8)}px`;
+    serviceCol.style.height = `${settle(items, 8)}px`;
   }
 
   wires.setAttribute("width", stage.scrollWidth);
