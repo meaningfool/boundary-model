@@ -16,7 +16,9 @@ Open each file in a browser. They need no build.
 
 - **Stack, hosting and look:** as in issue #7. Astro with Starlight, the static build served by Cloudflare Workers, and executor.sh's quiet monochrome style with Geist and Geist Mono.
 - **Navigation:** one numbered list of pages in the left sidebar, with no Docs link. The right column lists the current page's sections, on every page. GitHub, the version and the licence sit at the foot of the sidebar. There is no search box and no theme switch: the site follows the device's light or dark setting.
-- **Pages:** 01 What it is and why, which is the home page; 02 The boundary model; 03 How the skills work together; 04 Install; 05 An example.
+- **Pages:** 01 What it is and why, which is the home page; 02 The boundary model; 03 How the skills work together; 04 Install; 05 A walkthrough; 06 In the wild. `site-draft.html` still shows the earlier single page 05, An example.
+- **05 A walkthrough:** a simple invented example, the Store, followed from its map to the issues. It carries on page 01's gift-card story.
+- **06 In the wild:** maps of real open-source projects, embedded as interactive pages, like `five-boundary-maps.html`.
 - **Page 01:** the headline "A shared map of your system, for you and your agent." Then four problems shown one at a time, each with a sketch; one vertical flow from behavior changes to implementation details; and boundaries level by level, as a drill-down diagram. Page 01 names no skill.
 - **The skills own the rules.** The docs explain them, link to them, and never state a rule a skill does not.
 - **Writing:** plain words, short sentences, active voice, sentence-case headings, no em dashes, no promotional words, and no hard-wrapped prose.
@@ -24,6 +26,6 @@ Open each file in a browser. They need no build.
 ## Open questions
 
 - The value proposition, and the line under the headline, are still to be written.
-- Page 05: a tutorial on a simple invented example, and a separate page of maps of real projects, are proposed.
-- Which real maps the site shows, and which ones are reviewed first.
+- Whether the walkthrough's material is written by hand, like the README's Store map, or comes from running the skills on a small invented Store codebase. A real run makes every artifact on the page genuine output.
+- Which real maps page 06 shows, and which ones are reviewed first.
 - Issue #7 still asks for a separate landing page, a search and one real map. It needs updating once these are settled.
