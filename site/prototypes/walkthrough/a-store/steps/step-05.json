@@ -1,0 +1,522 @@
+{
+  "system": {
+    "name": "Store",
+    "description": "Steps 5 to 8: a third consumer, capabilities, resources and areas, at Level 1 only. Cut from the walkthrough's full map of the Store. An online store that sells home goods to shoppers through a web shop and a mobile app, with internal tools for its fraud analysts and store managers.",
+    "corpus": {
+      "included": "Nothing real: the Store is an invented example, written by hand to teach the boundary model. No repository exists. The places and evidence name invented folders and files.",
+      "excluded": "Shopper sign-in and accounts, saved cards and delivery addresses, which a real store would have. They are left out to keep the example small."
+    },
+    "revision": "unknown"
+  },
+  "consumers": [
+    {
+      "name": "Shopper",
+      "description": "A person who buys home goods from the Store, on the web or in the mobile app."
+    },
+    {
+      "name": "Fraud analyst",
+      "description": "A Store employee who reviews the orders the fraud check flagged, and lets each one go ahead or cancels it."
+    },
+    {
+      "name": "Store manager",
+      "description": "A Store employee who keeps the catalog right: the products, their prices and their stock."
+    }
+  ],
+  "providers": [
+    {
+      "name": "Store",
+      "description": "The online store as its shoppers and staff know it: the web shop, the mobile app and the staff tools.",
+      "resources": [
+        "Product",
+        "Order",
+        "Loyalty balance",
+        "Fraud review"
+      ],
+      "parts": [
+        {
+          "name": "Web shop and mobile app clients",
+          "why": "They present the Store's capabilities to shoppers and keep nothing of their own, so they are parts of the web shop and mobile app interfaces."
+        },
+        {
+          "name": "Mobile gateway",
+          "why": "It passes the mobile app's calls on to the components and trims the answers for small screens. It keeps nothing and decides nothing, so it is part of the mobile app interface."
+        },
+        {
+          "name": "Dashboard, review console and store CLI",
+          "why": "Clients for staff, parts of their interfaces. The store CLI's database commands work on the system, so they are listed in excluded."
+        },
+        {
+          "name": "Money library",
+          "why": "Rounds amounts and formats prices for every component. A library, not a component."
+        }
+      ]
+    }
+  ],
+  "outsideServices": [],
+  "resources": [
+    {
+      "name": "Product",
+      "description": "Something the Store sells, with its price and its stock. A product can be on many orders.",
+      "properties": [
+        "name",
+        "description",
+        "price",
+        "size",
+        "stock",
+        "low-stock threshold",
+        "on sale or hidden"
+      ]
+    },
+    {
+      "name": "Order",
+      "description": "A shopper's purchase of one or more products. Each order belongs to one shopper.",
+      "properties": [
+        "lines",
+        "total",
+        "status: placed, on hold, confirmed, shipped, delivered or canceled",
+        "tracking number",
+        "placed at"
+      ]
+    },
+    {
+      "name": "Loyalty balance",
+      "description": "The points a shopper has earned from orders. Each shopper has one.",
+      "properties": [
+        "points",
+        "points that expire next, and when"
+      ]
+    },
+    {
+      "name": "Fraud review",
+      "description": "An analyst's case for one flagged order: why the fraud check held it, and what the analyst decided.",
+      "properties": [
+        "score",
+        "reasons",
+        "status: open, let through or canceled",
+        "decided by",
+        "decided at"
+      ]
+    }
+  ],
+  "interfaces": [
+    {
+      "name": "web shop",
+      "description": "The Store's website, where shoppers browse, order, and follow and cancel their orders."
+    },
+    {
+      "name": "mobile app",
+      "description": "The Store's phone app. It offers what the web shop offers, and uses the phone's camera to show a product in the shopper's room."
+    },
+    {
+      "name": "review console",
+      "description": "The internal website where fraud analysts work through flagged orders."
+    },
+    {
+      "name": "dashboard",
+      "description": "The internal website where store managers edit products and get low-stock notices."
+    },
+    {
+      "name": "store CLI",
+      "description": "The `store` command that store managers run to list products and import a catalog file."
+    }
+  ],
+  "places": [
+    {
+      "place": "Tests",
+      "kind": "tooling",
+      "paths": [
+        "**/*.test.*"
+      ]
+    },
+    {
+      "place": "Store",
+      "kind": "component",
+      "paths": [
+        "README.md",
+        "docs/**"
+      ]
+    },
+    {
+      "place": "web shop",
+      "kind": "interface",
+      "paths": [
+        "apps/web-shop/**"
+      ]
+    },
+    {
+      "place": "Old checkout",
+      "kind": "cleanup",
+      "paths": [
+        "apps/web-shop/src/legacy-checkout/**"
+      ]
+    },
+    {
+      "place": "mobile app",
+      "kind": "interface",
+      "paths": [
+        "apps/mobile/**",
+        "services/mobile-gateway/**"
+      ]
+    },
+    {
+      "place": "review console",
+      "kind": "interface",
+      "paths": [
+        "apps/review-console/**"
+      ]
+    },
+    {
+      "place": "dashboard",
+      "kind": "interface",
+      "paths": [
+        "apps/dashboard/**"
+      ]
+    },
+    {
+      "place": "store CLI",
+      "kind": "interface",
+      "paths": [
+        "cli/**"
+      ]
+    },
+    {
+      "place": "Database tooling",
+      "kind": "tooling",
+      "paths": [
+        "cli/commands/migrate.ts",
+        "cli/commands/seed.ts"
+      ]
+    },
+    {
+      "place": "Money library",
+      "kind": "library",
+      "paths": [
+        "packages/money/**"
+      ]
+    },
+    {
+      "place": "Fraud model training",
+      "kind": "tooling",
+      "paths": [
+        "ml/fraud-model/**"
+      ]
+    },
+    {
+      "place": "Deploy and infrastructure",
+      "kind": "tooling",
+      "paths": [
+        "infra/**",
+        ".github/**"
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "consumer": "Shopper",
+      "provider": "Store",
+      "interfaces": [
+        "web shop",
+        "mobile app"
+      ],
+      "areas": [
+        {
+          "name": "Shop",
+          "type": "core",
+          "description": "Find products, buy them, and follow or cancel what was bought.",
+          "capabilities": [
+            {
+              "name": "Browse products",
+              "takes": "a search or a category",
+              "gives": "the matching products, with their prices and whether they are in stock",
+              "acts": [
+                {
+                  "mode": "observes",
+                  "resource": "Product"
+                }
+              ]
+            },
+            {
+              "name": "Place order",
+              "takes": "a cart, a delivery address and a card",
+              "gives": "the order, confirmed or on hold for review, with the points it earned; or a declined card to try again",
+              "acts": [
+                {
+                  "mode": "produces",
+                  "resource": "Order"
+                },
+                {
+                  "mode": "mutates",
+                  "resource": "Loyalty balance"
+                }
+              ]
+            },
+            {
+              "name": "List past orders",
+              "takes": "the shopper's account",
+              "gives": "the shopper's orders, with their status, total and tracking number",
+              "acts": [
+                {
+                  "mode": "observes",
+                  "resource": "Order"
+                }
+              ]
+            },
+            {
+              "name": "Cancel order",
+              "takes": "an order that has not shipped yet",
+              "gives": "the order canceled, its money refunded to the card, and its points taken back",
+              "acts": [
+                {
+                  "mode": "mutates",
+                  "resource": "Order"
+                },
+                {
+                  "mode": "mutates",
+                  "resource": "Loyalty balance"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "See product in your room",
+          "type": "supporting",
+          "description": "See how a product would look, at its real size, in a room at home.",
+          "capabilities": [
+            {
+              "name": "See product in your room",
+              "takes": "a product, and the phone's camera pointed at a room",
+              "gives": "the product drawn at its real size in the camera's view of the room",
+              "acts": [
+                {
+                  "mode": "observes",
+                  "resource": "Product"
+                }
+              ],
+              "interfaces": [
+                "mobile app"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "See loyalty balance",
+          "type": "supporting",
+          "description": "See the points earned from past orders.",
+          "capabilities": [
+            {
+              "name": "See loyalty balance",
+              "takes": "the shopper's account",
+              "gives": "the points balance, and the points that expire next",
+              "acts": [
+                {
+                  "mode": "observes",
+                  "resource": "Loyalty balance"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "path": "apps/web-shop/src/routes/checkout.tsx",
+          "shows": "the checkout, where a shopper places an order and tries another card after a decline"
+        },
+        {
+          "path": "apps/web-shop/src/routes/orders.tsx",
+          "shows": "past orders, with a cancel button on orders that have not shipped"
+        },
+        {
+          "path": "apps/web-shop/src/routes/loyalty.tsx",
+          "shows": "the loyalty balance page"
+        },
+        {
+          "path": "apps/mobile/src/screens/RoomView.tsx",
+          "shows": "the camera view that draws a product in a room, which the web shop does not have"
+        }
+      ]
+    },
+    {
+      "consumer": "Fraud analyst",
+      "provider": "Store",
+      "interfaces": [
+        "review console"
+      ],
+      "areas": [
+        {
+          "name": "Review flagged orders",
+          "type": "core",
+          "description": "Decide on each order the fraud check held, before it ships.",
+          "capabilities": [
+            {
+              "name": "List fraud reviews",
+              "takes": "open reviews, or a search by order or shopper",
+              "gives": "the flagged orders, each with its lines, its shopper, its score and the reasons for it",
+              "acts": [
+                {
+                  "mode": "observes",
+                  "resource": "Fraud review"
+                },
+                {
+                  "mode": "observes",
+                  "resource": "Order"
+                }
+              ]
+            },
+            {
+              "name": "Decide fraud review",
+              "takes": "a review, and a decision: let the order through or cancel it",
+              "gives": "the review closed with its decision; the order goes ahead, or is canceled without charging the shopper",
+              "acts": [
+                {
+                  "mode": "mutates",
+                  "resource": "Fraud review"
+                },
+                {
+                  "mode": "mutates",
+                  "resource": "Order"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "path": "apps/review-console/src/routes/reviews.tsx",
+          "shows": "the list of open fraud reviews, and the buttons that let an order through or cancel it"
+        }
+      ]
+    },
+    {
+      "consumer": "Store manager",
+      "provider": "Store",
+      "interfaces": [
+        "dashboard",
+        "store CLI"
+      ],
+      "areas": [
+        {
+          "name": "Keep the catalog right",
+          "type": "core",
+          "description": "Keep the products, their prices and their stock right.",
+          "capabilities": [
+            {
+              "name": "List products",
+              "takes": "a search, or a filter such as low stock or hidden",
+              "gives": "the products, with their prices, their stock and whether shoppers can see them",
+              "acts": [
+                {
+                  "mode": "observes",
+                  "resource": "Product"
+                }
+              ]
+            },
+            {
+              "name": "Edit product",
+              "takes": "a product and what to change: its name, description, price, stock or low-stock threshold, or whether shoppers see it",
+              "gives": "the product as shoppers will now see it",
+              "acts": [
+                {
+                  "mode": "mutates",
+                  "resource": "Product"
+                }
+              ],
+              "interfaces": [
+                "dashboard"
+              ]
+            },
+            {
+              "name": "Import catalog",
+              "takes": "a catalog file, with one row per product",
+              "gives": "the products added or changed, and the rows that could not be read",
+              "acts": [
+                {
+                  "mode": "produces",
+                  "resource": "Product"
+                },
+                {
+                  "mode": "mutates",
+                  "resource": "Product"
+                }
+              ],
+              "interfaces": [
+                "store CLI"
+              ]
+            },
+            {
+              "name": "Alert on low stock",
+              "takes": "the low-stock thresholds set on products",
+              "gives": "a notice in the dashboard whenever a product's stock falls below its threshold",
+              "acts": [
+                {
+                  "mode": "reacts",
+                  "resource": "Product"
+                }
+              ],
+              "interfaces": [
+                "dashboard"
+              ]
+            }
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "path": "apps/dashboard/src/routes/products.tsx",
+          "shows": "the product list and the product editor"
+        },
+        {
+          "path": "apps/dashboard/src/routes/stock-notices.tsx",
+          "shows": "the notices raised when a product's stock falls below its threshold"
+        },
+        {
+          "path": "cli/commands/import.ts",
+          "shows": "the import command, which reads a catalog file and reports the rows it could not read"
+        },
+        {
+          "path": "cli/commands/products.ts",
+          "shows": "the products command, which lists products"
+        }
+      ]
+    }
+  ],
+  "questions": [],
+  "cleanupCandidates": [
+    {
+      "name": "Old checkout",
+      "why": "apps/web-shop/src/legacy-checkout is the checkout the web shop used before the current one. A flag still turns it on, but no shopper reaches it."
+    }
+  ],
+  "excluded": [
+    {
+      "name": "Database commands of the store CLI",
+      "why": "`store migrate` and `store seed` change the database schema and load test data. They work on the system, not with it."
+    },
+    {
+      "name": "Fraud model training",
+      "why": "ml/fraud-model trains the model Fraud check scores with. It changes how the system decides, so it works on the system."
+    },
+    {
+      "name": "Deploy and infrastructure",
+      "why": "infra/ and the CI workflows build and ship the Store."
+    },
+    {
+      "name": "Tests",
+      "why": "They check the system."
+    },
+    {
+      "name": "Flagging risky payments",
+      "why": "Fraud check flags payments on its own, as part of scoring them. No consumer asks for it: analysts review what it flagged."
+    },
+    {
+      "name": "Points expiry",
+      "why": "Storefront expires points a year after they are earned, on its own. Shoppers see the points that expire next on their balance."
+    },
+    {
+      "name": "Search index rebuild and health checks",
+      "why": "Machinery that keeps browsing fast and the services up. Nobody uses it for a purpose of their own."
+    }
+  ]
+}
