@@ -12,6 +12,7 @@ Maps of open-source projects, extracted with the boundary model skills v0.1.0 fo
 | Cloudflare OS | [cloudflare/cloudflare-os](https://github.com/cloudflare/cloudflare-os) | `7391957` | 4 | 17 | 58 |
 | Astro | [withastro/astro](https://github.com/withastro/astro) | `4c72ca5` | 4 | 25 | 48 |
 | Joplin | [laurent22/joplin](https://github.com/laurent22/joplin), branch dev | `981e5a3` | 3 | 29 | 74 |
+| celld | [denoland/celld](https://github.com/denoland/celld), v0.6.3 | `8702f6d` | 4 | 16 | 43 |
 
 Each folder holds `draft-map.json` and `run-log.md`. The run log says what the extraction read, what each round decided, and how long each step took. Pi has a second log, `run-log-deepening.md`, for a pass that looked one level further.
 
