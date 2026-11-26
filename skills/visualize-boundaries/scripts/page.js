@@ -193,7 +193,9 @@ function screenOf(name) {
   }
   const inner = top ? [] : [...n.children, ...n.shared];
   const consumers = top ? RAW.consumers.map((c) => c.name) : unique(areas.flatMap((g) => g.consumers));
-  const calls = top ? [] : boundaries.filter((b) => !refinedBy(b) && (b.consumer === name || inner.includes(b.consumer)));
+  // The open box's own boundary gives way to the one an inner component carries in detail, since
+  // that component is on the screen. A box inside it keeps its own: its components are not.
+  const calls = top ? [] : boundaries.filter((b) => (b.consumer === name ? !refinedBy(b) : inner.includes(b.consumer)));
   // An outside service calls nothing on the screen, so every service that the open box or anything
   // inside it uses sits once in the open box's last column, without lines: a selection lights who
   // uses what.
