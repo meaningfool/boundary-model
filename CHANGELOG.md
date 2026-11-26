@@ -2,7 +2,7 @@
 
 Each release gets a `vX.Y.Z` tag in this repository.
 
-## 0.2.0 - Unreleased
+## 0.2.0 - 2026-11-26
 
 A new check in `use-boundary-model`, and outside services drawn in full by `visualize-boundaries`.
 
