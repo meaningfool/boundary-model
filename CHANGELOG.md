@@ -2,6 +2,14 @@
 
 Each release gets a `vX.Y.Z` tag in this repository.
 
+## 0.2.0 - Unreleased
+
+A new check in `use-boundary-model`, and outside services drawn in full by `visualize-boundaries`.
+
+- The map checker now tests a rule the map format already stated: a component that holds a component calling an outside service, through `components` or `sharedComponents`, has its own boundary with that service. A map without one now fails, with a problem such as "Payments relies on Card network through Charge service but has no boundary with it". A Level 1 provider needs none. Add the missing boundaries to a map that passed before.
+- A screen now shows every outside service that the open box or anything inside it uses, once each, in the box's last column after Components. Before, a service called from inside a component with components of its own did not show until that component was opened. Each service is a one-line box with no line to it: select a component to light the services it uses, or a service to light the components that use it. The panel lists a service's resources.
+- A closed box keeps its line to another box when a component inside it has its own boundary with that box. The line used to be dropped.
+
 ## 0.1.1 - 2026-11-26
 
 Two fixes to `visualize-boundaries`.
