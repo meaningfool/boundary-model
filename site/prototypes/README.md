@@ -29,4 +29,5 @@ Open each file in a browser. They need no build.
 - The value proposition, and the line under the headline, are still to be written.
 - Whether the walkthrough's material is written by hand, like the README's Store map, or comes from running the skills on a small invented Store codebase. A real run makes every artifact on the page genuine output.
 - Which real maps page 06 shows, and which ones are reviewed first.
+- Pi's review was started at the top level, then paused on three questions. Are Pi's seven libraries separate Level 1 providers? The draft says yes, since each is its own npm product. Is Settings a resource, given that `use-boundary-model` asks to check that a resource is not a setting? And is Model response a resource, or the output of the capabilities that produce it?
 - Issue #7 still asks for a separate landing page, a search and one real map. It needs updating once these are settled.

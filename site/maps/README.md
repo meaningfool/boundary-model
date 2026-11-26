@@ -14,7 +14,13 @@ Maps of open-source projects, extracted with the boundary model skills v0.1.0 fo
 | Joplin | [laurent22/joplin](https://github.com/laurent22/joplin), branch dev | `981e5a3` | 3 | 29 | 74 |
 | celld | [denoland/celld](https://github.com/denoland/celld), v0.6.3 | `8702f6d` | 4 | 16 | 43 |
 
-Each folder holds `draft-map.json` and `run-log.md`. The run log says what the extraction read, what each round decided, and how long each step took. Pi has a second log, `run-log-deepening.md`, for a pass that looked one level further.
+Each folder holds `draft-map.json` and the extraction's records:
+
+- `run-log.md`: what the extraction read, what each round decided, and how long each step took.
+- `open-list.md`: each provider's and component's parts, tested against the component guideline, with the files behind each verdict.
+- `boundaries.md`: the contract behind each boundary below Level 1, with its operations.
+
+Pi also has `run-log-deepening.md` and `boundaries-deepening.md`, from a second pass that looked one level further.
 
 ## How they were made
 
