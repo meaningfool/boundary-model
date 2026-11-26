@@ -152,7 +152,7 @@ The skills keep the map at `docs/boundary-map.json` by default. Ask the agent in
 - `extract-boundaries`: maps an existing system's boundaries from its repository, then offers a review.
 - `review-boundaries`: walks a person through a map, level by level, with still images and short questions, then writes the reviewed map.
 - `update-boundaries`: brings a map up to date with what changed since its revision, then reviews it.
-- `visualize-boundaries`: checks a map and draws it as a page or as still images, optionally marking what changed since an earlier map.
+- `visualize-boundaries`: checks a map and draws it as a page or as still images, at every level or at Level 1 alone, optionally marking what changed since an earlier map.
 - `shape-boundaries`: expresses a change as the boundary changes it leads to.
 - `slice`: compares ways to divide a change into pieces of work.
 - `refine`: settles a change's expected behavior and design decisions.

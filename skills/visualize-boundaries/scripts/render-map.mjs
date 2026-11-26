@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Check a boundary map, then write one self-contained HTML page that draws it.
-// With --against, it marks what changed since an earlier map, such as the reviewed one.
-// Usage: node render-map.mjs <map.json> [<page.html>] [--against <earlier.json>]
+// With --against, it marks what changed since an earlier map, such as the reviewed one. With
+// --level 1, the page opens on Level 1 alone: each provider's consumers, interfaces and capabilities.
+// Usage: node render-map.mjs <map.json> [<page.html>] [--against <earlier.json>] [--level 1]
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -11,12 +12,22 @@ const here = dirname(realpathSync(fileURLToPath(import.meta.url)));
 const args = process.argv.slice(2);
 const option = (name) => {
   const at = args.indexOf(name);
-  return at === -1 ? undefined : args.splice(at, 2)[1];
+  return at === -1 ? undefined : (args.splice(at, 2)[1] ?? "");
 };
+const usage = "Usage: node render-map.mjs <map.json> [<page.html>] [--against <earlier.json>] [--level 1]";
 const againstPath = option("--against");
+const level = option("--level");
 const [mapPath, outArg] = args;
 if (!mapPath) {
-  console.error("Usage: node render-map.mjs <map.json> [<page.html>] [--against <earlier.json>]");
+  console.error(usage);
+  process.exit(1);
+}
+if (againstPath === "") {
+  console.error(`--against takes the earlier map's path.\n${usage}`);
+  process.exit(1);
+}
+if (level !== undefined && level !== "1") {
+  console.error(`--level takes 1, for Level 1 alone; the page shows every level without it.\n${usage}`);
   process.exit(1);
 }
 const outPath = outArg ?? `${mapPath.replace(/\.json$/, "")}.html`;
@@ -90,7 +101,7 @@ if (againstPath) {
 }
 
 const page = `<!doctype html>
-<html lang="en">
+<html lang="en"${level ? ` data-level="${level}"` : ""}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">

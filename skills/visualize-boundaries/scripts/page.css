@@ -66,6 +66,8 @@ code { font-family: var(--mono); font-size: 0.92em; }
 #nav .b-back-nav:hover { border-color: var(--ink); }
 #nav .b-back-nav:disabled { color: var(--pencil); border-color: var(--panel-line); cursor: default; }
 #nav button:hover { color: var(--ink); }
+#nav .b-level { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: var(--graphite); cursor: pointer; }
+#nav .b-level input { margin: 0; accent-color: var(--ink); }
 .b-sep { color: var(--pencil); }
 main { display: flex; min-height: 0; min-width: 0; }
 #scroll { flex: 1 1 auto; min-width: 0; overflow: auto; }
@@ -75,6 +77,8 @@ main { display: flex; min-height: 0; min-width: 0; }
 .b-wires { position: absolute; top: 0; left: 0; z-index: 1; overflow: visible; pointer-events: none; }
 .b-wires path { fill: none; stroke: var(--pencil); stroke-width: 1.25; }
 .b-wires path.lit { stroke: var(--ink); stroke-width: 1.75; opacity: 1; }
+/* An interface that offers only some of a group's capabilities. */
+.b-wires path.part { stroke-dasharray: 6 4; }
 .b-wires path.dim { opacity: 0.18; }
 .b-zone h3 { margin: 0 0 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--k); }
 .z-consumer { --k: var(--k-consumer); }
@@ -124,6 +128,13 @@ main { display: flex; min-height: 0; min-width: 0; }
 .b-sub { display: block; font-size: 11.5px; color: var(--graphite); }
 .b-via { display: block; margin-top: 2px; font-size: 11.5px; font-style: italic; color: var(--ink); }
 .b-area { position: absolute; left: 0; width: 100%; }
+.b-only { display: block; margin-top: 3px; font-size: 11.5px; line-height: 1.3; color: var(--graphite); }
+/* A way in through a box around the open one: its consumers, interfaces and capabilities fade. */
+.b-box.outer { background: var(--paper); border-color: color-mix(in srgb, var(--k) 25%, var(--paper)); color: var(--graphite); }
+.b-box.outer .b-kind { color: color-mix(in srgb, var(--k) 60%, var(--paper)); }
+.b-box.outer.lit { border-color: var(--k); color: var(--ink); }
+.b-port.outer { color: var(--graphite); }
+.b-port.outer::before { border-color: color-mix(in srgb, var(--k-interface) 45%, var(--paper)); }
 
 /* ---- the way in: a bar at the foot of the box ---- */
 .b-go { display: flex; justify-content: space-between; align-items: baseline; width: calc(100% + 20px); margin: 7px -10px -7px; padding: 4px 10px; font-size: 12px; font-weight: 600; color: var(--k); border-top: 1px solid color-mix(in srgb, var(--k) 40%, var(--paper)); }
@@ -188,7 +199,7 @@ main { display: flex; min-height: 0; min-width: 0; }
 html.still, html.still body { height: auto; }
 html.still body, html.still main { display: block; }
 html.still #scroll { overflow: visible; }
-html.still #panel, html.still .b-back-nav, html.still .top p { display: none; }
+html.still #panel, html.still .b-back-nav, html.still #nav .b-level, html.still .top p { display: none; }
 .b-legend { columns: 3; column-gap: 32px; padding: 16px 4px; border-top: 1px solid var(--panel-line); }
 .b-legend section { break-inside: avoid; margin-bottom: 16px; }
 .b-legend h3 { margin: 0 0 6px; font-size: 13px; }

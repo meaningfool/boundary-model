@@ -2,9 +2,10 @@
 // With an earlier map in the page (render-map.mjs --against), each screen marks what is new or
 // changed since it, and the text under a still image starts with what changed on that screen. A box
 // or capability group is new, or changed when anything about it, or on the screens inside it,
-// changed; what did not change fades. A box, capability group or capability that one name replaced
-// in the same place, with something in common, was renamed; a capability found in another group of
-// the same boundary moved. Both count as changed rather than as one thing gone and one new.
+// changed; what did not change fades. A box or capability group that one name replaced in the same
+// place, with something in common, was renamed; so was a capability that one name replaced on the
+// same boundary, doing what it did. A capability found in another group of the same boundary moved.
+// Both count as changed rather than as one thing gone and one new.
 
 (() => {
   const baseData = document.getElementById("base-data");
@@ -114,11 +115,13 @@
     const nc = caps(n, false);
     const gone = [...oc.keys()].filter((k) => !nc.has(k));
     const added = [...nc.keys()].filter((k) => !oc.has(k));
-    const resources = (c) => c.acts.map((x) => x.resource);
+    // A rename only when the evidence is strong: the new capability does what the one gone did, with
+    // the same modes on the same resources, or takes and gives the same. Otherwise one was removed
+    // and another added, as shape-boundaries reports it.
+    const acts = (c) => JSON.stringify(sorted(c.acts.map((x) => `${x.mode} ${x.resource}`)));
+    const same = (a, b) => acts(a) === acts(b) || (a.takes === b.takes && a.gives === b.gives);
     const renamed =
-      gone.length === 1 && added.length === 1 && overlaps(resources(oc.get(gone[0]).c), resources(nc.get(added[0]).c))
-        ? { from: gone[0], to: added[0] }
-        : null;
+      gone.length === 1 && added.length === 1 && same(oc.get(gone[0]).c, nc.get(added[0]).c) ? { from: gone[0], to: added[0] } : null;
     const out = [];
     for (const k of added) {
       const { c, area } = nc.get(k);
@@ -162,19 +165,21 @@
   const boundaryState = (id) => (!wasB.has(id) ? "new" : boundarySig(wasB.get(id)) !== boundarySig(nowB.get(id)) ? "changed" : null);
   const ownState = (name) => (!was.has(name) ? "new" : fields(name).length ? "changed" : null);
   // What opening the box shows: the boundaries into it, on its own screen, and everything inside it.
+  // On Level 1 alone, only the boundaries into it whose consumer is not a component.
   const insideCount = (name) => {
     const n = now.get(name);
     if (!n || n.kind === "consumer" || n.kind === "outside" || !was.has(name)) return 0;
-    const nowIn = new Set(under(now, name));
-    const wasIn = new Set(under(was, name));
+    const nowIn = new Set(levelOne ? [] : under(now, name));
+    const wasIn = new Set(levelOne ? [] : under(was, name));
     const consumerOf = (id) => id.split(" → ")[0];
     const providerOf = (id) => id.split(" → ")[1];
-    const reached = (id, inside) => inside.has(consumerOf(id)) || providerOf(id) === name;
+    const reached = (id, inside, tree) =>
+      inside.has(consumerOf(id)) || (providerOf(id) === name && (!levelOne || tree.get(consumerOf(id))?.kind !== "component"));
     let count = 0;
     for (const k of nowIn) if (ownState(k)) count++;
     for (const k of wasIn) if (!now.has(k)) count++;
-    for (const id of nowB.keys()) if (reached(id, nowIn) && boundaryState(id)) count++;
-    for (const id of wasB.keys()) if (reached(id, wasIn) && !nowB.has(id)) count++;
+    for (const id of nowB.keys()) if (reached(id, nowIn, now) && boundaryState(id)) count++;
+    for (const id of wasB.keys()) if (reached(id, wasIn, was) && !nowB.has(id)) count++;
     return count;
   };
   const boxState = (name) => ownState(name) ?? (insideCount(name) ? "changed" : null);

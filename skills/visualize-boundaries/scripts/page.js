@@ -46,6 +46,12 @@ const inline = (s) =>
 const sentence = (s) => s.replace(/^[a-z]/, (c) => c.toUpperCase());
 const text = (tag, s, cls) => el(tag, { class: cls, html: inline(sentence(s)) });
 const unique = (xs) => [...new Set(xs)];
+const list = (xs) => (xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}` : (xs[0] ?? ""));
+const whose = (name) => (name.endsWith("s") ? `${name}'` : `${name}'s`);
+// Level 1 alone shows each provider as its consumers see it: who uses it, its interfaces and its
+// capabilities, without the components inside it or what it uses. render-map.mjs --level 1 opens
+// the page this way; the switch above the map turns it on and off.
+let levelOne = document.documentElement.dataset.level === "1";
 
 const nodes = new Map();
 for (const c of RAW.consumers) nodes.set(c.name, { ...c, kind: "consumer", children: [], shared: [], also: [] });
@@ -98,7 +104,9 @@ const resourceByName = new Map(RAW.resources.map((r) => [r.name, r]));
 const interfaceText = new Map(RAW.interfaces.map((i) => [i.name, i.description]));
 
 const node = (name) => nodes.get(name);
-const incoming = (name) => boundaries.filter((b) => b.provider === name);
+// On Level 1 alone, only boundaries whose consumer is not a component count.
+const inView = (b) => !levelOne || node(b.consumer).kind !== "component";
+const incoming = (name) => boundaries.filter((b) => b.provider === name && inView(b));
 const subtree = (name) => [name, ...node(name).children.flatMap(subtree)];
 const ancestors = (name) => {
   const p = node(name).parent;
@@ -113,7 +121,6 @@ const handlers = (area) => {
 // A boundary drawn on a whole component that one of its inner components carries in detail.
 const refinedBy = (b) =>
   boundaries.find((o) => o !== b && o.provider === b.provider && node(b.consumer).children.includes(o.consumer));
-const capabilitiesThrough = (b, iface) => b.areas.flatMap((a) => a.capabilities).filter((c) => c.via.includes(iface));
 
 // ---------- motion ----------
 
@@ -160,9 +167,11 @@ const actingOn = (r) => allCapabilities.filter((c) => c.acts.some((a) => a.resou
 // A box and everything in it, components it shares with another provider included.
 const within = (name) => [name, ...[...node(name).children, ...node(name).shared].flatMap(within)];
 // A box opens when its screen has something of its own: components inside it, or capabilities it
-// offers across a boundary of its own. Otherwise its screen would repeat the level above.
+// offers across a boundary of its own. Otherwise its screen would repeat the level above. On Level 1
+// alone, only a provider with consumers opens.
 const opens = (name) => {
   const n = node(name);
+  if (levelOne) return n.kind === "provider" && incoming(name).length > 0;
   return n.kind !== "consumer" && (n.children.length + n.shared.length > 0 || incoming(name).some((b) => !refinedBy(b)));
 };
 // Who keeps a resource, leaving out a box when one of its inner components keeps it too.
@@ -172,28 +181,78 @@ const keepersOf = (r) => {
 };
 const kindClass = (name) => `k-${node(name).kind === "provider" ? "component" : node(name).kind}`;
 
+// The interfaces that offer any of an area's capabilities.
+const portsOf = (a) => unique(a.capabilities.flatMap((c) => c.via));
+// The interfaces of its boundary that offer a capability, when not all of them do.
+const onlyOn = (c) => (c.via.length < c.area.boundary.interfaces.length ? c.via : null);
+// "Select model and Set thinking level", or "8 capabilities" when there are more than two.
+const someOf = (names) => (names.length > 2 ? `${names.length} capabilities` : list(names));
+
 function screenOf(name) {
   const top = name === TOP;
   const n = top ? null : node(name);
-  const into = top ? [] : incoming(name).filter((b) => !refinedBy(b));
-  const reached = top ? [] : into.length ? into.flatMap((b) => b.areas) : servedBy(name);
+  const into = top ? [] : incoming(name).filter((b) => levelOne || !refinedBy(b));
+  const own = into.flatMap((b) => b.areas);
+  // Areas of a box around this one, such as the provider it sits in, that this box or a box inside
+  // it handles: their consumers reach it through that box's interfaces. Beside boundaries of its own
+  // they are a second way in, and fade.
+  const encloses = (p) => p !== name && within(p).includes(name);
+  const around = top || levelOne ? [] : unique(within(name).flatMap(servedBy)).filter((a) => !own.includes(a) && encloses(a.boundary.provider));
+  const faded = new Set(own.length ? around : []);
   const areas = [];
-  for (const a of reached) {
+  for (const a of [...own, ...around]) {
     const same = areas.find((g) => g.name === a.name);
     if (same) same.members.push(a);
     else areas.push({ name: a.name, type: a.type, members: [a] });
   }
   for (const g of areas) {
-    g.ports = unique(g.members.flatMap((a) => a.capabilities.flatMap((c) => c.via)));
+    g.ports = unique(g.members.flatMap(portsOf));
     g.consumers = unique(g.members.map((a) => a.boundary.consumer));
     // Consumers may reach areas of the same name; each capability is listed once.
     g.capabilities = g.members
       .flatMap((a) => a.capabilities)
       .filter((c, i, all) => all.findIndex((o) => o.name === c.name) === i);
+    g.faded = g.members.every((a) => faded.has(a));
+    // The interfaces that offer only some of the group's capabilities, whose lines are dashed, and
+    // the capabilities that only some of its interfaces offer, by the interfaces that do.
+    g.partial = g.ports.filter((p) => g.members.some((a) => portsOf(a).includes(p) && a.capabilities.some((c) => !c.via.includes(p))));
+    const only = new Map();
+    for (const a of g.members)
+      for (const c of a.capabilities.filter((c) => c.via.length < portsOf(a).length)) {
+        const via = g.ports.filter((p) => c.via.includes(p));
+        const key = via.join("\n");
+        only.set(key, { via, names: unique([...(only.get(key)?.names ?? []), c.name]) });
+      }
+    g.only = [...only.values()];
   }
-  const inner = top ? [] : [...n.children, ...n.shared];
+  const inner = top || levelOne ? [] : [...n.children, ...n.shared];
   const consumers = top ? RAW.consumers.map((c) => c.name) : unique(areas.flatMap((g) => g.consumers));
-  const calls = top ? [] : boundaries.filter((b) => !refinedBy(b) && (b.consumer === name || inner.includes(b.consumer)));
+  // The boxes around this one through which each consumer that fades reaches it.
+  const fadedConsumers = new Map();
+  for (const c of consumers) {
+    const theirs = areas.flatMap((g) => g.members).filter((a) => a.boundary.consumer === c);
+    if (theirs.length && theirs.every((a) => faded.has(a))) fadedConsumers.set(c, unique(theirs.map((a) => a.boundary.provider)));
+  }
+  const ports = unique(areas.flatMap((g) => g.ports));
+  const fadedPorts = new Set(own.length ? ports.filter((p) => !own.some((a) => portsOf(a).includes(p))) : []);
+  // What the frame head says about the ways in through a box around this one.
+  const ways = new Map();
+  for (const a of around) ways.set(a.boundary.provider, unique([...(ways.get(a.boundary.provider) ?? []), a.boundary.consumer]));
+  const notes = !own.length
+    ? ways.size
+      ? [`Reached through ${list([...ways.keys()].map(whose))} interfaces.`]
+      : []
+    : [...ways].map(([p, cs]) => `${list(cs)} also reach${cs.length > 1 ? "" : "es"} ${name} through ${whose(p)} interfaces.`);
+  // What the open box and the boxes on the screen depend on. A boundary of a box on the screen is
+  // drawn from that box, whichever box inside it carries it in detail. A boundary of the open box
+  // itself is drawn from the box inside that carries it in detail, when there is one.
+  const calls = top
+    ? []
+    : boundaries.filter(
+        (b) =>
+          inner.includes(b.consumer) ||
+          (!levelOne && b.consumer === name && !boundaries.some((o) => o.provider === b.provider && inner.includes(o.consumer))),
+      );
   // An outside service that a component inside calls sits with the components, in the column after
   // its callers, so its links stay short; what the open box itself calls sits to the right of it.
   const outside = unique(calls.filter((b) => inner.includes(b.consumer) && node(b.provider).kind === "outside").map((b) => b.provider));
@@ -207,9 +266,11 @@ function screenOf(name) {
   return {
     top,
     consumers,
-    ports: unique(areas.flatMap((g) => g.ports)),
+    fadedConsumers,
+    ports,
+    fadedPorts,
     areas,
-    through: !top && !into.length ? reached[0]?.boundary.provider : null,
+    notes,
     columns: top ? [boxes] : columnsOf(boxes),
     boxes,
     uses,
@@ -249,6 +310,9 @@ function lineage(key) {
   const requests = [];
   const lightBox = (name, role) => name && requests.push([name, role]);
   const holders = (name) => (s.visible.has(name) ? [name] : [...s.visible].filter((v) => within(v).includes(name)));
+  // Who handles an area on this screen: the boxes inside the open box that handle it. A component
+  // that uses the open box may also handle an area around it, but not here.
+  const handling = (area) => (s.top ? handlers(area) : handlers(area).filter((h) => within(openBox).includes(h)));
   const upstream = (g) => {
     keys.add(`a:${g.name}`);
     g.ports.forEach((p) => keys.add(`p:${p}`));
@@ -258,7 +322,7 @@ function lineage(key) {
     const g = s.areas.find((x) => x.name === id);
     if (g) {
       upstream(g);
-      g.members.flatMap(handlers).forEach((h) => lightBox(h, "handles"));
+      g.members.flatMap(handling).forEach((h) => lightBox(h, "handles"));
       actedOn(g).forEach((r) => keys.add(`r:${r}`));
     }
   }
@@ -268,7 +332,7 @@ function lineage(key) {
     if (g) keys.add(`a:${g.name}`);
     c.via.filter((p) => s.ports.includes(p)).forEach((p) => keys.add(`p:${p}`));
     lightBox(c.area.boundary.consumer, "asks");
-    handlers(c.area).forEach((h) => lightBox(h, "handles"));
+    handling(c.area).forEach((h) => lightBox(h, "handles"));
     c.acts.forEach((a) => keys.add(`r:${a.resource}`));
   }
   if (kind === "p")
@@ -280,7 +344,7 @@ function lineage(key) {
     const caps = actingOn(id);
     for (const g of s.areas) if (g.members.some((a) => caps.some((c) => c.area === a))) keys.add(`a:${g.name}`);
     keepersOf(id).forEach((o) => lightBox(o, "keeps"));
-    unique(caps.flatMap((c) => handlers(c.area))).forEach((h) => lightBox(h, "acts"));
+    unique(caps.flatMap((c) => handling(c.area))).forEach((h) => lightBox(h, "acts"));
   }
   if (kind === "b") {
     const inside = within(id);
@@ -289,7 +353,7 @@ function lineage(key) {
         keys.add(`a:${g.name}`);
         g.members.filter((a) => a.boundary.consumer === id).forEach((a) => a.capabilities.forEach((c) => c.via.forEach((p) => keys.add(`p:${p}`))));
       }
-    for (const g of s.areas) if (g.members.some((a) => handlers(a).some((h) => inside.includes(h)))) upstream(g);
+    for (const g of s.areas) if (g.members.some((a) => handling(a).some((h) => inside.includes(h)))) upstream(g);
     for (const b of boundaries) {
       if (refinedBy(b)) continue;
       for (const [near, far, role] of [
@@ -376,28 +440,37 @@ function box(name, where) {
   const canOpen = opens(name);
   const enter = (e) => (e.stopPropagation(), go(name));
   const note = current?.notes.get(name);
+  // A consumer that reaches the open box only through a box around it fades, and says which.
+  const around = where === "left" ? screen.fadedConsumers.get(name) : null;
   return register(
     key,
     el(
       "section",
-      { class: `b-box ${kindClass(name)}${n.kind === "provider" ? " provider" : ""}${canOpen ? " opens" : ""}`, onclick: pick(key), ondblclick: canOpen ? enter : null },
-      kindLine(shared ?? KIND_WORD[n.kind]),
+      {
+        class: `b-box ${kindClass(name)}${n.kind === "provider" ? " provider" : ""}${canOpen ? " opens" : ""}${around ? " outer" : ""}`,
+        onclick: pick(key),
+        ondblclick: canOpen ? enter : null,
+      },
+      kindLine(shared ?? KIND_WORD[n.kind], around && `via ${list(around)}`),
       el("button", { type: "button", class: "b-name", onclick: pick(key) }, name),
       note && el("span", { class: "b-via" }, noteOf(note)),
       where === "inside" && chips(screen.kept.get(name) ?? []),
-      canOpen && el("button", { type: "button", class: "b-go", onclick: enter }, el("span", {}, inner ? `Open, ${inner} components` : "Open"), el("span", {}, "›")),
+      canOpen &&
+        el("button", { type: "button", class: "b-go", onclick: enter }, el("span", {}, inner && !levelOne ? `Open, ${inner} components` : "Open"), el("span", {}, "›")),
     ),
   );
 }
 
+// A group of capabilities, with the capabilities that only some of its interfaces offer.
 function areaBox(g) {
   return register(
     `a:${g.name}`,
     el(
       "button",
-      { type: "button", class: "b-box k-capability b-area", onclick: pick(`a:${g.name}`) },
+      { type: "button", class: `b-box k-capability b-area${g.faded ? " outer" : ""}`, onclick: pick(`a:${g.name}`) },
       kindLine("Capabilities", `${g.type}, ${g.capabilities.length}`),
       el("span", { class: "b-name" }, g.name),
+      g.only.map((o) => el("span", { class: "b-only" }, `Only on ${list(o.via)}: ${someOf(o.names)}`)),
     ),
   );
 }
@@ -409,7 +482,13 @@ function frame(name) {
   const s = screen;
   const keeps = s.kept.get(name) ?? [];
   const body = [
-    zone("z-interface", "Interfaces", s.ports.map((iface) => register(`p:${iface}`, el("button", { type: "button", class: "b-port edge", onclick: pick(`p:${iface}`) }, iface)))),
+    zone(
+      "z-interface",
+      "Interfaces",
+      s.ports.map((iface) =>
+        register(`p:${iface}`, el("button", { type: "button", class: `b-port edge${s.fadedPorts.has(iface) ? " outer" : ""}`, onclick: pick(`p:${iface}`) }, iface)),
+      ),
+    ),
     zone("z-capability", "Capabilities", s.areas.map(areaBox)),
     s.columns.length > 0 &&
       zone("z-component", "Components", el("div", { class: "b-cols" }, s.columns.map((c) => el("div", { class: "b-col b-placed" }, c.map((id) => box(id, "inside")))))),
@@ -423,7 +502,7 @@ function frame(name) {
       el("span", { class: "b-kind" }, KIND_WORD[n.kind] + (n.also.length ? `, shared with ${n.also.join(", ")}` : "")),
       el("h2", {}, name),
       text("p", n.description),
-      s.through && el("p", { class: "b-through" }, `Reached through ${s.through}'s interfaces.`),
+      s.notes.map((t) => el("p", { class: "b-through" }, t)),
       keeps.length > 0 && el("div", { class: "b-keeps" }, el("span", { class: "b-keeps-label" }, "Keeps"), chips(keeps)),
     ),
     el("div", { class: "b-body" }, body),
@@ -568,6 +647,9 @@ function render() {
       14,
     )}px`;
   }
+  // A box that both uses the open box and is used by it is drawn on both sides; what it is used for
+  // starts from, and places, the one on the right.
+  const usedBox = (u) => right?.querySelector(`.b-zone-body > [data-key="${CSS.escape(`b:${u}`)}"]`) ?? reg.get(`b:${u}`);
   // What the open box uses is centred, as a block, on the open box's body.
   // Each box to the right sits level with what calls it; the open box calls from its body's middle.
   if (right) {
@@ -576,7 +658,7 @@ function render() {
     const frameMid = mid(stage.querySelector(".b-body")).y;
     const items = s.uses.map((u) => {
       const ys = s.links.filter((b) => b.provider === u).map((b) => (b.consumer === openBox ? frameMid : mid(reg.get(`b:${b.consumer}`)).y));
-      return { el: reg.get(`b:${u}`), want: (ys.length ? avg(ys) : frameMid) - rt };
+      return { el: usedBox(u), want: (ys.length ? avg(ys) : frameMid) - rt };
     });
     body.style.height = `${settle(items, 14)}px`;
   }
@@ -587,18 +669,19 @@ function render() {
     const dx = Math.max(20, Math.abs(b[0] - a[0]) / 2);
     return `M${a[0]},${a[1]} C${a[0] + dx},${a[1]} ${b[0] - dx},${b[1]} ${b[0]},${b[1]}`;
   };
-  const wire = (from, to, a, b) => wires.append(svgEl("path", { d: curve(a, b), "data-from": from, "data-to": to }));
+  const wire = (from, to, a, b, cls) => wires.append(svgEl("path", { d: curve(a, b), "data-from": from, "data-to": to, class: cls }));
   for (const c of s.consumers)
     for (const t of targetsOf(c)) {
       const from = mid(reg.get(`b:${c}`));
       const to = mid(t);
       wire(`b:${c}`, t.dataset.key, [from.r, from.y], [to.l - (s.top ? 0 : 4), to.y]);
     }
+  // An interface that offers only some of a group's capabilities joins it with a dashed line.
   for (const g of s.areas) {
     const at = mid(reg.get(`a:${g.name}`));
     for (const p of g.ports) {
       const from = mid(reg.get(`p:${p}`));
-      wire(`p:${p}`, `a:${g.name}`, [from.r, from.y], [at.l, at.y]);
+      wire(`p:${p}`, `a:${g.name}`, [from.r, from.y], [at.l, at.y], g.partial.includes(p) ? "part" : null);
     }
   }
   // Dependencies, from the right edge of a component, or of the open box, to what it depends on. A
@@ -615,7 +698,7 @@ function render() {
   for (const b of s.links) {
     const own = b.consumer === openBox;
     const from = mid(own ? frameEl : reg.get(`b:${b.consumer}`));
-    const to = mid(reg.get(`b:${b.provider}`));
+    const to = mid(s.uses.includes(b.provider) ? usedBox(b.provider) : reg.get(`b:${b.provider}`));
     const y = own ? Math.min(Math.max(to.y, from.t + 40), from.b - 20) : from.y;
     const start = own ? -1 : colOf(from);
     const end = colOf(to) === -1 ? cols.length : colOf(to);
@@ -671,7 +754,7 @@ function capabilityList(caps) {
         "li",
         { class: selected === `c:${c.id}` ? "on" : "" },
         el("button", { type: "button", onclick: pick(`c:${c.id}`) }, c.name),
-        el("span", {}, c.acts.map((a) => `${MODE_WORD[a.mode]} ${a.resource}`).join(", ")),
+        el("span", {}, [onlyOn(c) && `Only on ${list(onlyOn(c))}; `, c.acts.map((a) => `${MODE_WORD[a.mode]} ${a.resource}`).join(", ")].filter(Boolean).join("")),
       ),
     ),
   );
@@ -688,8 +771,11 @@ function panelOf(key) {
     return [head(`Capabilities, ${g.type}`, "k-capability", g.name), text("p", g.members[0].description), capabilityList(g.capabilities)];
   }
   if (kind === "p") {
-    const b = incoming(s.through ?? openBox).find((x) => x.interfaces.includes(id));
-    return [head("Interface", "k-interface", id), text("p", interfaceText.get(id)), b && capabilityList(capabilitiesThrough(b, id))];
+    // The capabilities on this screen that the interface offers, each once.
+    const caps = s.areas
+      .flatMap((g) => g.members.flatMap((a) => a.capabilities))
+      .filter((c, i, all) => c.via.includes(id) && all.findIndex((o) => o.name === c.name && o.via.includes(id)) === i);
+    return [head("Interface", "k-interface", id), text("p", interfaceText.get(id)), caps.length > 0 && capabilityList(caps)];
   }
   if (kind === "c") {
     const c = capabilityById.get(id);
@@ -755,20 +841,40 @@ function drawNav() {
         i === crumbs.length - 1 ? el("strong", {}, label) : el("button", { type: "button", onclick: () => navigate(trail.slice(0, depth)) }, label),
       ])
       .filter(Boolean),
+    el(
+      "label",
+      { class: "b-level" },
+      el("input", { type: "checkbox", checked: levelOne ? "" : null, onchange: (e) => setLevel(e.target.checked) }),
+      "Level 1 only",
+    ),
   );
 }
 
+// Turns Level 1 alone on or off. Turned on inside a provider, it shows that provider.
+function setLevel(on) {
+  levelOne = on;
+  const next = fit(trail);
+  if (sameTrail(next, trail)) render();
+  else navigate(next, { remember: false });
+}
+
 // The path to a box when nothing says how you came: its parents, or, for an outside service, the
-// screen that shows a component calling it.
+// shallowest screen that shows a component calling it.
 function trailFor(name) {
   if (name === TOP) return [];
   const n = node(name);
   if (n.kind !== "outside") return [...ancestors(name), name];
-  const caller = boundaries.find((b) => b.provider === name && !refinedBy(b) && nodes.has(b.consumer) && node(b.consumer).kind !== "consumer");
-  if (!caller) return [name];
-  const at = node(caller.consumer).parent;
-  return [...trailFor(at ?? caller.consumer), name];
+  const callers = boundaries
+    .filter((b) => b.provider === name && nodes.has(b.consumer) && node(b.consumer).kind !== "consumer")
+    .map((b) => b.consumer)
+    .sort((a, b) => ancestors(a).length - ancestors(b).length);
+  if (!callers.length) return [name];
+  const at = node(callers[0]).parent;
+  return [...trailFor(at ?? callers[0]), name];
 }
+
+// On Level 1 alone, a path ends at the last provider on it that opens, or at All providers.
+const fit = (t) => (levelOne ? t.filter((x) => node(x).kind === "provider" && opens(x)).slice(-1) : t);
 
 // Opening a box from the screen it is on adds it to the path you came by; a box elsewhere gets the
 // path trailFor gives it.
@@ -779,18 +885,24 @@ function go(name) {
   navigate(screen.visible.has(name) || screen.boxes.includes(name) ? [...trail, name] : trailFor(name));
 }
 
-// Back returns to the previous screen as it was left: same scroll, same selection.
+// Back returns to the previous screen as it was left: same scroll, same selection. On Level 1
+// alone, it skips the screens that Level 1 shows as this one.
 function back() {
-  if (visited.length) navigate(visited.pop(), { remember: false, restore: true });
-  else if (trail.length) navigate(trail.slice(0, -1), { remember: false, restore: true });
+  while (visited.length) {
+    const earlier = visited.pop();
+    if (!sameTrail(fit(earlier), trail)) return navigate(earlier, { remember: false, restore: true });
+  }
+  if (trail.length) navigate(trail.slice(0, -1), { remember: false, restore: true });
 }
 
 // Changes screen. Opening a box grows it into the new screen's frame; going back shrinks the frame
 // into the box it came from. Everything else fades.
 const addressOf = (t) => `#${t.length ? t.map(slugOf).join("/") : "all"}`;
-function navigate(next, { remember = true, fromAddress = false, restore = false } = {}) {
+const sameTrail = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+function navigate(to, { remember = true, fromAddress = false, restore = false } = {}) {
+  const next = fit(to);
   const before = trail;
-  if (before.length === next.length && before.every((x, i) => x === next[i])) return;
+  if (sameTrail(before, next)) return;
   if (remember) visited.push(before);
   const scroller = document.getElementById("scroll");
   memory.set(addressOf(before), { left: scroller.scrollLeft, top: scroller.scrollTop, selected });
@@ -862,7 +974,7 @@ function legendOf(s) {
       section(
         `${g.name} (${g.type})`,
         g.members[0].description,
-        g.capabilities.map((c) => entry(c.name, `takes ${c.takes}; gives ${c.gives}; ${acts(c)}.`)),
+        g.capabilities.map((c) => entry(c.name, `${onlyOn(c) ? `only on ${list(onlyOn(c))}; ` : ""}takes ${c.takes}; gives ${c.gives}; ${acts(c)}.`)),
       ),
     ),
     section("Resources", null, unique([...s.kept.values()].flat()).map((r) => entry(r, resourceByName.get(r).description))),
@@ -886,7 +998,7 @@ window.addEventListener("popstate", () => navigate(fromHash(), { fromAddress: tr
 document.getElementById("scroll").addEventListener("click", clear);
 document.addEventListener("keydown", (e) => e.key === "Escape" && clear());
 window.addEventListener("resize", () => render());
-trail = fromHash();
+trail = fit(fromHash());
 openBox = trail.at(-1) ?? TOP;
 render();
 document.fonts?.ready.then(render);
