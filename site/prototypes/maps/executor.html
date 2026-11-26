@@ -1,0 +1,1111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Executor boundary map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono&family=Public+Sans:wght@400;600&display=swap">
+<style>
+/* Thin ink lines on paper, with one colour per kind of thing: consumers grey, components green,
+   outside services stone, interfaces blue, capabilities violet, resources amber. Layout: a
+   breadcrumb, then one open box whose columns are headed by what they hold, and a panel docked
+   beside it when something is selected, so the map stays scrollable. */
+:root {
+  --paper: #ffffff;
+  --ink: #1a1a1a;
+  --graphite: #6b6b6b;
+  --pencil: #c9c9c9;
+  --panel: #f5f5f4;
+  --panel-line: #e3e3e1;
+  --k-consumer: #6b7280;
+  --k-component: #2e8b57;
+  --k-outside: #8a7f72;
+  --k-interface: #2f6fdb;
+  --k-capability: #7a4fd1;
+  --k-resource: #b7791f;
+  --sans: "Public Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #17181a; --ink: #ececea; --graphite: #a0a09c; --pencil: #55565a; --panel: #212225; --panel-line: #33343a;
+    --k-consumer: #9aa1ad; --k-component: #5cc18a; --k-outside: #b0a596; --k-interface: #6f9cf0; --k-capability: #a585ef; --k-resource: #e0a64a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #17181a; --ink: #ececea; --graphite: #a0a09c; --pencil: #55565a; --panel: #212225; --panel-line: #33343a;
+  --k-consumer: #9aa1ad; --k-component: #5cc18a; --k-outside: #b0a596; --k-interface: #6f9cf0; --k-capability: #a585ef; --k-resource: #e0a64a;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  --k: var(--graphite);
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  margin: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: var(--paper);
+  color: var(--ink);
+  font: 14px/1.4 var(--sans);
+}
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+code { font-family: var(--mono); font-size: 0.92em; }
+
+.k-consumer { --k: var(--k-consumer); }
+.k-component { --k: var(--k-component); }
+.k-outside { --k: var(--k-outside); }
+.k-interface { --k: var(--k-interface); }
+.k-capability { --k: var(--k-capability); }
+.k-resource { --k: var(--k-resource); }
+
+.top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; padding-block: 12px 10px; border-bottom: 1px solid var(--panel-line); }
+.top h1 { margin: 0; font-size: 15px; font-weight: 600; }
+.top .rev { font-family: var(--mono); font-size: 12px; color: var(--graphite); }
+.top p { margin: 0; font-size: 13px; color: var(--graphite); }
+#nav { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; padding-block: 10px 0; font-size: 13px; }
+#nav button { color: var(--graphite); border-bottom: 1px dotted var(--pencil); }
+#nav .b-back-nav { margin-right: 8px; padding: 1px 8px; color: var(--ink); border: 1px solid var(--panel-line); border-radius: 3px; }
+#nav .b-back-nav:hover { border-color: var(--ink); }
+#nav .b-back-nav:disabled { color: var(--pencil); border-color: var(--panel-line); cursor: default; }
+#nav button:hover { color: var(--ink); }
+.b-sep { color: var(--pencil); }
+main { display: flex; min-height: 0; min-width: 0; }
+#scroll { flex: 1 1 auto; min-width: 0; overflow: auto; }
+
+/* ---- stage and zones ---- */
+.b-stage { position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: max-content; gap: 0 64px; align-items: start; width: max-content; min-width: 100%; padding: 14px 4px 48px; }
+.b-wires { position: absolute; top: 0; left: 0; z-index: 1; overflow: visible; pointer-events: none; }
+.b-wires path { fill: none; stroke: var(--pencil); stroke-width: 1.25; }
+.b-wires path.lit { stroke: var(--ink); stroke-width: 1.75; opacity: 1; }
+.b-wires path.dim { opacity: 0.18; }
+.b-zone h3 { margin: 0 0 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--k); }
+.z-consumer { --k: var(--k-consumer); }
+.z-interface { --k: var(--k-interface); }
+.z-capability { --k: var(--k-capability); }
+.z-component { --k: var(--k-component); }
+.z-resource { --k: var(--k-resource); }
+.z-uses { --k: var(--graphite); }
+.b-left > .b-zone-body { position: relative; width: 170px; }
+.b-left > .b-zone-body > .b-box { position: absolute; left: 0; width: 170px; }
+.b-col { display: flex; flex-direction: column; gap: 14px; }
+.b-right > .b-zone-body { position: relative; width: 210px; }
+.b-right > .b-zone-body > .b-box { position: absolute; left: 0; }
+.b-col.b-placed { position: relative; display: block; width: 210px; }
+.b-placed > .b-box { position: absolute; left: 0; }
+.b-cols { display: flex; align-items: flex-start; gap: 48px; }
+.dim { opacity: 0.22; }
+
+/* ---- the open box ---- */
+.b-frame { position: relative; border: 1.5px solid var(--ink); }
+.b-frame-head { position: relative; z-index: 2; padding: 10px 14px 12px; border-bottom: 1px solid var(--panel-line); background: var(--paper); }
+.b-frame-head h2 { margin: 0 0 4px; font-size: 20px; font-weight: 600; }
+.b-frame-head p { margin: 0; max-width: 70ch; color: var(--graphite); font-size: 13px; }
+.b-frame-head .b-through { margin-top: 4px; color: var(--ink); }
+.b-body { display: grid; grid-auto-flow: column; grid-auto-columns: max-content; gap: 0 44px; padding: 14px 20px 20px 0; }
+.z-interface { width: 184px; }
+.z-interface > h3 { padding-left: 13px; }
+.z-interface > .b-zone-body, .z-capability > .b-zone-body, .z-resource > .b-zone-body { position: relative; }
+.z-capability > .b-zone-body { width: 196px; }
+.z-resource > .b-zone-body { width: 180px; }
+.b-keeps { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin-top: 8px; }
+.b-keeps-label { font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--k-resource); }
+.b-keeps .b-chips { margin-top: 0; }
+
+/* ---- boxes: one shape for every kind ---- */
+.b-box { position: relative; z-index: 2; display: block; width: 210px; padding: 6px 10px 7px; text-align: left; background: color-mix(in srgb, var(--k) 6%, var(--paper)); border: 1px solid color-mix(in srgb, var(--k) 45%, var(--paper)); cursor: pointer; }
+.b-box:hover { border-color: var(--k); }
+.b-box.provider { border-width: 1.5px; }
+.b-box.k-outside { border-style: dashed; }
+.b-box.opens:hover { background: color-mix(in srgb, var(--k) 13%, var(--paper)); border-color: var(--k); }
+.b-box.lit { border-color: var(--k); box-shadow: 0 0 0 1.5px var(--k); }
+.b-box.chosen { box-shadow: 0 0 0 1.5px var(--k), 0 0 0 4px color-mix(in srgb, var(--ink) 25%, transparent); }
+.b-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.b-kind { font-size: 10.5px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--k); }
+.b-qual { font-size: 11px; color: var(--graphite); white-space: nowrap; }
+.b-name { display: block; width: 100%; font-weight: 600; font-size: 13.5px; text-align: left; }
+.b-sub { display: block; font-size: 11.5px; color: var(--graphite); }
+.b-via { display: block; margin-top: 2px; font-size: 11.5px; font-style: italic; color: var(--ink); }
+.b-area { position: absolute; left: 0; width: 100%; }
+
+/* ---- the way in: a bar at the foot of the box ---- */
+.b-go { display: flex; justify-content: space-between; align-items: baseline; width: calc(100% + 20px); margin: 7px -10px -7px; padding: 4px 10px; font-size: 12px; font-weight: 600; color: var(--k); border-top: 1px solid color-mix(in srgb, var(--k) 40%, var(--paper)); }
+.b-go span:last-child { font-size: 15px; line-height: 1; }
+.b-go:hover { background: var(--k); color: var(--paper); }
+.b-go.wide { --k: var(--k-component); width: 100%; margin: 18px 0 0; padding: 6px 10px; font-size: 13px; border: 1px solid var(--k); }
+
+/* ---- interfaces: dots on the edge of the open box ---- */
+.b-port { position: relative; display: block; width: calc(100% + 10px); margin-left: -10px; padding: 2px 0 2px 13px; font-size: 12px; line-height: 1.3; color: var(--ink); text-align: left; }
+.b-port::before { content: ""; position: absolute; left: -5px; top: 50%; width: 8px; height: 8px; margin-top: -4px; border-radius: 50%; border: 1.5px solid var(--k-interface); background: var(--paper); }
+.b-port:hover, .b-port.lit { color: var(--k-interface); }
+.b-port.lit { font-weight: 600; }
+.b-port.lit::before { background: var(--k-interface); }
+.b-port.edge { position: absolute; left: 0; width: 184px; margin-left: 0; padding-right: 0; font-size: 12.5px; background: var(--paper); }
+
+/* ---- resources as chips ---- */
+.b-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.b-chip { --k: var(--k-resource); padding: 1px 7px; font-size: 11.5px; border: 1px solid color-mix(in srgb, var(--k) 50%, var(--paper)); background: color-mix(in srgb, var(--k) 8%, var(--paper)); border-radius: 999px; }
+.b-chip:hover, .b-chip.lit { border-color: var(--k); }
+.b-chip.lit { box-shadow: 0 0 0 1px var(--k); }
+
+/* ---- panel ---- */
+#panel { position: relative; flex: none; width: 340px; overflow: auto; padding: 16px 18px 24px; background: var(--panel); border-left: 1px solid var(--panel-line); }
+#panel[hidden] { display: none; }
+@media (max-width: 760px) {
+  main { flex-direction: column; }
+  #scroll { flex: 1 1 0; min-height: 0; }
+  #panel { width: auto; max-height: 50%; border-left: 0; border-top: 1px solid var(--panel-line); }
+}
+#panel h2 { margin: 2px 0 6px; font-size: 18px; font-weight: 600; padding-right: 24px; }
+#panel h3 { margin: 18px 0 6px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--graphite); }
+#panel p { margin: 0 0 6px; }
+.b-note { font-size: 12.5px; color: var(--graphite); }
+.b-back { margin-bottom: 10px; font-size: 12.5px; color: var(--graphite); }
+.b-back:hover { color: var(--k-capability); }
+.b-props { margin: 0; padding-left: 18px; }
+.b-props li + li { margin-top: 2px; }
+.b-close { position: absolute; top: 10px; right: 12px; font-size: 20px; line-height: 1; color: var(--graphite); }
+.b-caps { margin: 12px 0 0; padding: 0; list-style: none; }
+.b-caps li { padding: 4px 0 4px 10px; border-left: 2px solid color-mix(in srgb, var(--k-capability) 30%, var(--panel)); }
+.b-caps li + li { margin-top: 4px; }
+.b-caps button { display: block; font-size: 13.5px; }
+.b-caps button:hover, .b-caps li.on button { color: var(--k-capability); }
+.b-caps li.on { border-left-color: var(--k-capability); }
+.b-caps span { display: block; font-size: 12px; color: var(--graphite); }
+/* What leaves fades first, what arrives fades in after, while the boxes on both screens travel. */
+::view-transition-group(*) { animation-duration: 560ms; animation-timing-function: cubic-bezier(0.45, 0, 0.2, 1); }
+::view-transition-old(root) { animation: 200ms ease-out both b-fade-out; }
+/* New content, such as a consumer that was not on the last screen, is fully there when the
+   travelling boxes land, at 560ms. */
+::view-transition-new(root) { animation: 280ms ease-in 280ms both b-fade-in; }
+/* Opening a box grows it into the frame of the next screen; going back shrinks the frame into it. */
+/* The rectangle grows or shrinks; what is inside it is shown at its real size, never stretched. */
+::view-transition-group(zoom) { overflow: hidden; }
+::view-transition-old(zoom), ::view-transition-new(zoom) { width: 100%; height: 100%; object-fit: none; object-position: left top; mix-blend-mode: normal; }
+::view-transition-old(zoom) { animation: 220ms ease-out both b-fade-out; }
+::view-transition-new(zoom) { animation: 400ms ease-in 160ms both b-fade-in; }
+@keyframes b-fade-out { to { opacity: 0; } }
+@keyframes b-fade-in { from { opacity: 0; } }
+
+/* ---- still images: the whole screen, then what the panel would say about it ---- */
+html.still, html.still body { height: auto; }
+html.still body, html.still main { display: block; }
+html.still #scroll { overflow: visible; }
+html.still #panel, html.still .b-back-nav, html.still .top p { display: none; }
+.b-legend { columns: 3; column-gap: 32px; padding: 16px 4px; border-top: 1px solid var(--panel-line); }
+.b-legend section { break-inside: avoid; margin-bottom: 16px; }
+.b-legend h3 { margin: 0 0 6px; font-size: 13px; }
+.b-legend p { margin: 0 0 6px; font-size: 13px; color: var(--graphite); }
+.b-legend ul { margin: 0; padding-left: 16px; }
+.b-legend li { margin-bottom: 4px; font-size: 13px; }
+</style>
+</head>
+<body>
+<header class="top">
+<h1>Executor boundary map</h1><span class="rev">c8bb046</span>
+<p>Click anything to light what it connects to. Open, at the foot of a box, goes inside.</p>
+</header>
+<nav id="nav" aria-label="Where you are"></nav>
+<main><div id="scroll"></div><aside id="panel" hidden></aside></main>
+<script type="application/json" id="map-data">{"system":{"name":"Executor","description":"Executor holds people's saved accounts for the services they use, connects them to apps (small TypeScript programs) that turn them into tools, and serves those tools to people in a dashboard and to AI agents through one MCP endpoint, without the agent seeing a credential. It runs hosted (Cloud), self-hosted in Docker, or on one person's machine.","corpus":{"included":"The executor repository on branch v2 (Executor 2), with its version-control history since 2026-05-25: product code, documentation, plans, scripts and tests.","excluded":"Dependencies (node_modules, bun.lock, dependency patches), generated output (route trees, generated protocol records and skill digests), secrets (ignored .env files), and the private notes/ folder, which the public export leaves out."},"revision":"c8bb0468810bcdf2a909f67c9598420f498ccc35"},"consumers":[{"name":"Person","description":"Someone who uses Executor's apps and tools for themselves: a member of an organization on hosted or self-hosted Executor, or the one owner of a local Executor; they connect accounts, approve calls and connect their agents."},{"name":"Organization admin","description":"An admin or owner of an organization on hosted or self-hosted Executor, who runs the organization: its members, invitations, groups, OAuth clients and, on Cloud, its billing."},{"name":"Agent","description":"An AI agent's MCP client, such as Claude Code, ChatGPT, Codex or Cursor, acting for a person: it finds and calls app tools, runs short programs over them and follows app events."},{"name":"App author","description":"A person, or an agent working for one, who writes apps with the apps package and manages their source, versions and public listings."},{"name":"Visitor","description":"Someone on Executor's public website and documentation who is not signed in, finding out what Executor is and which public apps exist."}],"providers":[{"name":"Executor","description":"The product consumers use, in three forms that run the same apps and serve the same MCP endpoint: Cloud (hosted), self-host (one Docker container) and local (the executor command's background server and the desktop app).","resources":["App","App source","Version","Account","Account link","Connection request","Tool","Tool call","Approval request","Program run","Skill","Schedule","Webhook","Workflow run","Event subscription","App data","Installed app","Organization","Member","Invitation","Group","Connected agent","Scoped connection","Access token","OAuth client","Subscription","Publication","Catalog app","Guide","Framework release","Session","Profile","Feedback"],"parts":[{"name":"Dashboards","why":"Clients that present the Product server's HTTP API in the browser (apps/local/web, apps/hosted/web, apps/hosted/cloud/web, apps/hosted/self-host/web, packages/ui, packages/dashboard-start); part of the dashboard interfaces."},{"name":"executor CLI client","why":"Relays MCP tool calls and app management requests to a host (packages/app-management/src/cli.ts, tools-cli.ts); what it keeps are sign-in tokens and a paused call's session ID, credentials used only to reach the provider; part of the executor CLI interface."},{"name":"Executor app","why":"An ordinary app whose tools are generated from the host's own management API and call it through a linked account (packages/app-templates/executor); it presents the Product server's capabilities as tools, so it is the Executor app tools interface."},{"name":"App templates","why":"Source generators for MCP, OpenAPI and GraphQL imports (packages/app-templates/src); a library the Product server uses."},{"name":"Catalog","why":"Reads the official app feed, which another repository writes, and checks how a remote MCP server connects, to prepare an app's source (packages/catalog); it installs nothing and applies no permission rule, so it is how the Product server reaches those outside services."},{"name":"Agent sign-in library","why":"packages/mcp-auth configures the Product server's sign-in library for agent grants and narrows the MCP backend to a grant; its records live in the Product server's sign-in database, so it is part of the Product server's Access."},{"name":"Authorization policy","why":"Pure schemas and functions with no state (packages/authorization), used in-process by Access."},{"name":"App source adapters","why":"Git backends the Engine keeps app source through (packages/app-source); adapters."},{"name":"Libraries","why":"Live queries (packages/reactivity), the schema and query layer (packages/fumadb-effect) and shared utilities (packages/utils) keep nothing and decide nothing of their own."},{"name":"Telemetry","why":"A span and log library (packages/telemetry/src) and the trace collector and viewer (packages/telemetry/collector, viewer), engineering diagnostics."},{"name":"Marketing site and documentation site","why":"Public pages (apps/marketing, apps/docs); interfaces of the Visitor's boundary."},{"name":"Cloud deploy infrastructure","why":"Alchemy stacks, test stages, PR previews and agent mail inboxes that build, deploy and test Cloud (apps/hosted/cloud/alchemy.*.ts, scripts, infrastructure/stage.ts); engineering tooling."},{"name":"Executor 1 compatibility","why":"Forwarding and sign-in paths kept for Executor 1 (apps/hosted/cloud/src/implementation/v1-*.ts); listed as cleanup candidates."}],"components":[{"name":"Product server","description":"The server consumers talk to: it serves the dashboards, HTTP APIs, app pages and the MCP endpoint, signs people and agents in and decides what each may use; a local variant (the executor command's server) and a hosted variant shared by Cloud and self-host.","resources":["Organization","Member","Invitation","Group","Session","Profile","Connected agent","Scoped connection","Access token","Account link","App","OAuth client","Tool call","Subscription","Catalog app","Framework release","Feedback","External identity","Email message","Company profile","Service description"],"serves":[{"consumer":"Person","area":"Use apps"},{"consumer":"Person","area":"Connect accounts"},{"consumer":"Person","area":"Run apps in the background"},{"consumer":"Person","area":"Connect agents"},{"consumer":"Person","area":"Sign in"},{"consumer":"Organization admin","area":"Run the organization"},{"consumer":"Organization admin","area":"Pay for Executor"},{"consumer":"Agent","area":"Use tools"},{"consumer":"Agent","area":"Request an account connection"},{"consumer":"Agent","area":"Follow app events"},{"consumer":"Agent","area":"Check what a connection reaches"},{"consumer":"Agent","area":"Send feedback"},{"consumer":"App author","area":"Build apps"},{"consumer":"App author","area":"Publish apps"}],"parts":[{"name":"Request handlers","why":"HTTP handlers for apps, accounts, tools, schedules, webhooks, workflows, skills, app data, app pages and app management check access through Access and pass each request on to the Engine (apps/hosted/server/src/implementation/apps.ts, tools.ts; packages/app-management/src/http.ts takes an executor and an access check)."},{"name":"MCP adapters","why":"Implement the McpBackend contract by passing calls on to the Engine after Access narrows them (apps/hosted/server/src/implementation/mcp.ts, apps/local/server/src/implementation/mcp.ts)."},{"name":"Catalog and app templates","why":"An adapter to the official app feed and to remote MCP servers, and source generators (packages/catalog, packages/app-templates/src)."},{"name":"Billing","why":"An adapter to the billing service that keeps no subscription state of its own (apps/hosted/cloud/src/implementation/billing.ts, autumn-client.ts)."},{"name":"Onboarding","why":"A Cloud set-up flow whose company profile only pre-fills a new organization's name and icon (apps/hosted/cloud/src/implementation/onboarding-store.ts, company-profile.ts)."},{"name":"Email","why":"An adapter to email delivery (apps/hosted/cloud/src/infrastructure/email.ts, implementation/welcome-emails.ts)."},{"name":"App page addresses","why":"Routing and certificates for the hosts app pages are served on, a hosting arrangement (apps/hosted/cloud/src/implementation/app-domain-*.ts, apps/hosted/server/src/implementation/app-addresses.ts)."},{"name":"Organization and user removal, provisioning","why":"Orchestrations that change the records of Access and the Engine through them (apps/hosted/server/src/implementation/organization-removal.ts, user-removal.ts, provisioning.ts)."},{"name":"Local service control","why":"Starts, stops and upgrades the local server (apps/local/server/src/implementation/service-*.ts, upgrade.ts); set-up, excluded."},{"name":"Cloud edge and site serving","why":"Routes requests by host and serves the marketing pages (apps/hosted/cloud/src/implementation/host-roles.ts, entry.ts, marketing.ts)."}],"components":[{"name":"Access","description":"Decides who the caller is and what they may use: it signs people and agents in and keeps organizations, members, invitations, groups, API keys, agent grants, scoped connections, app and account sharing, and which accounts are linked to each app.","resources":["Session","Profile","Organization","Member","Invitation","Group","Connected agent","Scoped connection","Access token","Account link","App","OAuth client","External identity","Email message"],"serves":[{"consumer":"Person","area":"Connect accounts"},{"consumer":"Person","area":"Connect agents"},{"consumer":"Person","area":"Sign in"},{"consumer":"Organization admin","area":"Run the organization"},{"consumer":"Agent","area":"Check what a connection reaches"},{"consumer":"Desktop app","area":"Open signed-in windows"}],"parts":[{"name":"Sign-in","why":"The sign-in library's core (users, sessions, organizations, members, invitations, passkeys, email codes, SSO; apps/hosted/server/src/implementation/auth.ts) shares one store with agent grants, which end its sessions on revocation (packages/mcp-auth/src/implementation/oauth.ts)."},{"name":"Agent grants and scoped connections","why":"Grant and connection records sit in the same sign-in database and bind to sessions (packages/mcp-auth); user removal deletes them with the user (apps/hosted/server/src/implementation/user-records.ts)."},{"name":"API keys","why":"A plugin of the same sign-in library whose membership rules join members (apps/hosted/server/src/implementation/api-keys.ts, api-key-membership-schema.ts)."},{"name":"Groups","why":"Group membership is deleted with the member and deleting a group deletes its sharing rows (apps/hosted/server/src/implementation/group-schema.ts, resource-schema.ts)."},{"name":"Sharing and account links","why":"App, account and OAuth client sharing and account links are written together by the same lifecycle hooks (apps/hosted/server/src/implementation/resource-lifecycle.ts, resource-access.ts, app-accounts.ts)."},{"name":"Access policy","why":"Decides from the records above, reading members directly (apps/hosted/server/src/implementation/resource-policy.ts, proofs/), and keeps nothing of its own."}]},{"name":"Activity log","description":"Keeps the history of tool calls on hosted Executor, with who called which tool of which app, from where, how its approval was decided and how it ended.","resources":["Tool call"],"serves":[{"consumer":"Person","area":"Use apps"}],"parts":[{"name":"Recording and reading","why":"One table written when a call starts and ends and read by the activity API (apps/hosted/server/src/implementation/tool-call-log.ts, tool-call-log-reads.ts); one part."}]}]},{"name":"Engine","description":"Keeps and runs everything about accounts and apps: saved accounts and their encrypted credentials, provider sign-in, apps, their source and versions, tools and paused approvals, schedules, webhooks, workflows, app events and publishing.","resources":["Account","Connection request","OAuth client","App","App source","Version","Tool","Approval request","Skill","Schedule","Webhook","Workflow run","Event subscription","App data","Publication","Build","Service authorization"],"serves":[{"consumer":"Person","area":"Use apps"},{"consumer":"Person","area":"Connect accounts"},{"consumer":"Person","area":"Run apps in the background"},{"consumer":"Agent","area":"Use tools"},{"consumer":"Agent","area":"Request an account connection"},{"consumer":"Agent","area":"Follow app events"},{"consumer":"App author","area":"Build apps"},{"consumer":"App author","area":"Publish apps"},{"consumer":"App author","area":"Write app code"}],"parts":[{"name":"Accounts and connections","why":"Shares one store with the other parts: executor_accounts is written by accounts.ts, connection-target.ts, oauth.ts, owners.ts, webhooks.ts and workflows.ts (packages/sdk/src/implementation)."},{"name":"Provider sign-in","why":"OAuth attempts and grants are written by oauth.ts and accounts.ts alike (packages/sdk/src/implementation/oauth.ts)."},{"name":"Apps, versions and source","why":"executor_apps is written by apps.ts, initial-source.ts, owners.ts, webhooks.ts and workflows.ts."},{"name":"Tools and approvals","why":"Tool listings and pending approvals change with deploys and schedules (tools.ts, tool-approvals.ts, schedules.ts)."},{"name":"Tool search","why":"Keeps its listing rows alone (tool-search-store.ts), but they are a derived index of the listings the Engine evaluates, rebuilt from them."},{"name":"Schedules","why":"Schedules and their runs are written by apps.ts and schedules.ts."},{"name":"Webhooks","why":"Webhook sources are written by accounts.ts, apps.ts and webhook-sources.ts."},{"name":"App events","why":"Events, subscriptions and deliveries are written by apps.ts and events.ts."},{"name":"Workflows","why":"Workflow runs are written by apps.ts, owners.ts and workflows.ts."},{"name":"Skills","why":"Read from app versions through the runtime; keep nothing of their own (skills.ts, skill-source.ts)."},{"name":"Storage","why":"The schema, migrations and query layer the parts above share (storage.ts, storage-schema.ts, storage-migrations.ts)."}]},{"name":"App runtime","description":"Builds each app's source and runs its code in isolated Workers, with the app's own data, its outbound requests and its workflows; workerd on local and self-host, Cloudflare Dynamic Workers on Cloud.","resources":["Build","App data","Tool","Skill","Account","Workflow run","Service data","Service description","Package"],"serves":[{"consumer":"Person","area":"Use apps"},{"consumer":"Agent","area":"Use tools"},{"consumer":"App author","area":"Build apps"},{"consumer":"App author","area":"Write app code"}],"parts":[{"name":"App data store","why":"The Durable Object facets that hold each app's SQLite database (packages/app-data); app code changes it through ctx.sql and the Apps framework applies its migrations (packages/apps/src/implementation/host.ts), so it is storage."},{"name":"Protocol adapters","why":"Convert messages for bundles built with earlier host protocols (packages/sdk/src/implementation/app-protocols.ts); adapters."}],"components":[{"name":"Builder","description":"Compiles an app's source, with the exact apps release it declares and its dependencies, into server and browser bundles, and retains each build.","resources":["Build","Package"],"serves":[{"consumer":"Engine","area":"Build apps"}],"parts":[{"name":"Server compile","why":"A step of the build (packages/sdk/src/implementation/worker-build.ts)."},{"name":"Browser build","why":"A step of the build for app pages, with Tailwind (worker-browser-build.ts, ui-build.ts)."},{"name":"Dependency install","why":"An adapter to the npm registry (worker-dependencies.ts)."},{"name":"Build storage","why":"Storage for retained builds (worker-build-storage.ts)."},{"name":"Build admission","why":"Cloud's limit on concurrent builds, a step (apps/hosted/cloud/src/implementation/build-admission.ts)."}]},{"name":"App sandbox","description":"Runs each app's retained build in its own Worker for each set of accounts it is called with, keeps apps with a database in data Workers, unloads idle Workers, and speaks each build's host protocol.","resources":["Build","Tool","Skill","App data","Account"],"serves":[{"consumer":"Engine","area":"Run app code"},{"consumer":"Engine","area":"Build apps"}],"parts":[{"name":"Runner","why":"Loads a build and dispatches each call (packages/sdk/src/implementation/app-runner.ts); the mechanics of the sandbox."},{"name":"Residency","why":"Keeps only which Workers are loaded (app-worker-residency.ts); machinery."},{"name":"Data facet supervisor","why":"Loads bundles into storage-backed facets (packages/app-data/src/cloudflare.ts); hosting mechanics."},{"name":"Host process transport","why":"Carries calls between the host process and workerd (workerd-client.ts, remote-app-runner.ts, runtime-hop.ts); transport."},{"name":"Elicitation relay","why":"Passes a running tool's questions to the caller (worker-elicitation.ts)."},{"name":"Cloud runtime actor","why":"Cloud's form of the runner on Dynamic Workers (apps/hosted/cloud/src/implementation/runtime-actor.ts, infrastructure/runtime.ts); the same mechanics."}]},{"name":"Outbound gateway","description":"Decides which addresses app code may reach and attaches account credentials only to requests for the hosts a provider declares, so app code never needs the secret itself.","resources":["Service data","Service description"],"serves":[{"consumer":"Engine","area":"Run app code"}],"parts":[{"name":"Credential placement","why":"One decision path (packages/sdk/src/implementation/credential-handles.ts)."},{"name":"Address policy","why":"The same path's address checks (app-network.ts, packages/utils/src/url-policy.ts)."},{"name":"Cloud relay","why":"Cloud's form of the same path (apps/hosted/cloud/src/implementation/app-outbound-relay.ts)."}]},{"name":"Workflow engine","description":"Runs app workflows as durable steps that survive restarts, retrying and sleeping as each workflow declares, on the platform's workflow service.","resources":["Workflow run"],"serves":[{"consumer":"Engine","area":"Run app code"}],"parts":[{"name":"Step runner","why":"One part (packages/sdk/src/implementation/worker-workflow-rpc.ts, workflow-engine-calls.ts)."}]},{"name":"Apps framework","description":"The apps package as it runs inside each app's Worker: it validates tool input, enforces each tool's approval decision, keeps the app's own data and gives app code its accounts, fetch, cache, events and workflows.","resources":["App data","Tool","Skill","Account","Service data","Service description"],"serves":[{"consumer":"Engine","area":"Run app code"},{"consumer":"Engine","area":"Build apps"}],"parts":[{"name":"Host handler","why":"The framework's core, which answers the host protocol (packages/apps/src/implementation/host.ts)."},{"name":"Authoring API","why":"Declarations and schema helpers app code imports (packages/apps/src/index.ts, contracts)."},{"name":"Importers","why":"Libraries that turn remote MCP servers, OpenAPI and GraphQL APIs into routers (packages/apps/src/implementation/mcp.ts, openapi-source.ts, graphql.ts)."},{"name":"Cache","why":"A library app code keeps remote metadata in (packages/app-cache)."},{"name":"Storage","why":"ctx.sql and migrations over the app's database (packages/apps/src/implementation/sql.ts); how the framework keeps app data."},{"name":"Browser client","why":"Presents the app's queries, mutations and the desktop to app pages (packages/apps/src/browser, ui-client.ts, desktop.ts); a client."}]}]},{"name":"Code mode","description":"Serves the agent tools behind the MCP endpoint (skills, search, describe, call, execute, resume): it runs agents' programs in a sandboxed interpreter and pauses and resumes calls that need an approval or input.","resources":["Program run","Approval request","Tool","Skill"],"serves":[{"consumer":"Agent","area":"Use tools"}],"parts":[{"name":"Tool server","why":"Declares the MCP tools and passes them to executions (packages/mcp/src/implementation/server.ts)."},{"name":"Executions","why":"Keeps running programs and paused calls (executions.ts); the one part with state."},{"name":"Program runner","why":"Runs a program within an execution and shares its state (execute.ts)."},{"name":"Skills and events passthrough","why":"Pass reads and subscriptions on to the product's backend (skills.ts, events.ts)."},{"name":"Diagnostics","why":"Turn failures into fixed error tags and spans (diagnostics.ts, telemetry.ts); engineering."}]},{"name":"Public app registry","description":"Keeps the public listings of published apps under each organization's publisher scope, hosted with Cloud and read by every Executor and the marketing site.","resources":["Publication"],"serves":[{"consumer":"Visitor","area":"Explore Executor"},{"consumer":"App author","area":"Publish apps"},{"consumer":"Person","area":"Use apps"}],"parts":[{"name":"Listing storage","why":"One store (packages/app-registry/src/implementation/storage.ts)."},{"name":"Registry client and routes","why":"Reach the same store over HTTP (packages/sdk/src/implementation/remote-registry.ts)."},{"name":"Publisher scopes","why":"The one decision, each organization's scope (apps/hosted/cloud/src/implementation/publishers.ts)."}]},{"name":"Desktop app","description":"The Executor desktop app: windows on the local or a hosted Executor, and app pages installed as desktop apps with their own windows, menu bar icons, shortcuts and permissions.","resources":["Installed app"],"serves":[{"consumer":"Person","area":"Use apps"},{"consumer":"Person","area":"Sign in"},{"consumer":"App author","area":"Write app code"}],"parts":[{"name":"Installed apps","why":"Keeps installed apps and their permissions (apps/local/desktop/src/implementation/installed-apps.ts); the one part that passes."},{"name":"Hosted server sign-ins","why":"Credentials used only to reach product servers (hosted-servers.ts)."},{"name":"Background service control and updates","why":"Starts, recovers and updates the local server and the desktop app (runtime.ts, recovery.ts, updates.ts); set-up."},{"name":"Windows and pages","why":"Present the dashboards and app pages (pages.ts, preload-host.ts)."}]}]}],"outsideServices":[{"name":"Connected services","description":"The services people connect accounts for and apps call, such as GitHub, Vercel, Gmail or a remote MCP server, with their APIs and their OAuth sign-in.","resources":["Service data","Service description","Service authorization"]},{"name":"npm registry","description":"The npm package registry (or a private one set by EXECUTOR_NPM_REGISTRY) that app builds download declared dependencies from.","resources":["Package"]},{"name":"Identity providers","description":"The sign-in services people use to sign in to hosted Executor: Google, GitHub and ChatGPT on Cloud, and an OIDC provider for single sign-on.","resources":["External identity"]},{"name":"Official app feed","description":"The static feed of vetted official apps at catalog.executor.sh, written by a separate integrations repository, that Add app lists.","resources":["Catalog app"]},{"name":"Billing service","description":"The subscription billing service Cloud uses for plans, checkout and seats (Autumn).","resources":["Subscription"]},{"name":"Email delivery","description":"The email sending service Cloud uses for sign-in codes, invitations and welcome emails.","resources":["Email message"]},{"name":"Company profile lookup","description":"A brand lookup service Cloud's onboarding uses to suggest an organization's name and logo from its domain.","resources":["Company profile"]}],"resources":[{"name":"App","description":"A named app with its source, account requirements, versions and stored data, which agents reach as tools.\u003cslug>.","properties":["slug","account requirements","active version","audience (only me, groups, everyone)","origin it was copied from","page address","icon"]},{"name":"App source","description":"An app's editable source files and their Git history.","properties":["revision","files"]},{"name":"Version","description":"An immutable, deployed snapshot of an app's code that can be activated again for a rollback.","properties":["commit","build status","active"]},{"name":"Account","description":"One saved set of credentials for one provider's sign-in method, reusable by every app that needs that provider.","properties":["label","description for agents","provider","needs sign-in"]},{"name":"Account link","description":"The record that an account fills one requirement of an app, for one person or for everyone who uses the app.","properties":["requirement","scope (user or app)"]},{"name":"Connection request","description":"A pending request to connect an account for one app requirement, finished by a person in the browser.","properties":["state","link","expiry"]},{"name":"Tool","description":"One operation an app exposes, a query or a mutation, reached by its path.","properties":["path","description","input type","output type","query or mutation","approval rule"]},{"name":"Tool call","description":"One call of a tool kept in the activity history.","properties":["app","tool","caller","where it came from","approval decision","outcome","accounts used"]},{"name":"Approval request","description":"A paused tool call, program or scheduled run waiting for a person's approval or requested input.","properties":["request ID","requested form","approval page address","expiry"]},{"name":"Program run","description":"A program an agent runs with execute, or a batch of direct calls, which can pause for approvals and be resumed.","properties":["status","result","tool calls"]},{"name":"Skill","description":"Instructions an app ships for agents, such as the Executor app's executor, code-mode and app-authoring skills.","properties":["name","description","version"]},{"name":"Schedule","description":"An app's timer that runs one of its mutations, either once for the app or as one copy per member.","properties":["enabled","next run","past runs"]},{"name":"Webhook","description":"An app's subscription to events from a service for one account, which may need setting up in the browser.","properties":["status","setup link"]},{"name":"Workflow run","description":"One durable, multi-step run of an app's workflow.","properties":["status","steps","result"]},{"name":"Event subscription","description":"An agent's subscription to some or all events of the apps its connection can use, delivered into its chat.","properties":["app","event","filters"]},{"name":"App data","description":"The data an app keeps in its own database."},{"name":"Installed app","description":"An app page installed as a desktop app in the Executor desktop app.","properties":["desktop permissions","window","launcher"]},{"name":"Organization","description":"The group of people on hosted or self-hosted Executor that owns accounts, apps and versions.","properties":["name","slug","icon","defaults"]},{"name":"Member","description":"A person's membership of an organization.","properties":["role (member, admin, owner)"]},{"name":"Invitation","description":"An invitation for someone to join an organization.","properties":["email","role","status"]},{"name":"Group","description":"A named set of an organization's members that apps and OAuth clients are shared with.","properties":["members","shared apps"]},{"name":"Connected agent","description":"An agent's approved connection to Executor, bound to one organization, with what it reaches and how its approvals are answered.","properties":["organization","apps it reaches","approval mode"]},{"name":"Scoped connection","description":"A named MCP address that reaches only the apps, accounts and tools a person turned on.","properties":["address","apps","accounts","tool scope"]},{"name":"Access token","description":"A personal access token for a script or agent, acting with its owner's current permissions.","properties":["name","organization scope","expiry"]},{"name":"OAuth client","description":"A client ID and secret registered at a service's sign-in server, used when people connect accounts with OAuth.","properties":["issuer","audience"]},{"name":"Subscription","description":"An organization's Cloud plan.","properties":["plan","seats","status"]},{"name":"Publication","description":"A public listing of one selected commit of an app, under its organization's publisher scope.","properties":["package name","commit","publisher scope"]},{"name":"Catalog app","description":"An official app in the catalog feed that people can add.","properties":["title","sign-in methods","category"]},{"name":"Guide","description":"A page of Executor's public documentation or website, such as a how-to, the pricing or a blog post."},{"name":"Framework release","description":"The release of the apps package a host builds apps with, and its reference of declarations.","properties":["version"]},{"name":"Session","description":"A signed-in session of a person in a browser or desktop window.","properties":["device","expiry"]},{"name":"Profile","description":"A person's own Executor user: their name and email.","properties":["name","email"]},{"name":"Feedback","description":"A message an agent or person sends to the Executor team."},{"name":"Service data","description":"The records a connected service holds, such as a repository's issues or a mailbox's messages."},{"name":"Service description","description":"What a service advertises about itself: its MCP tools, API document or schema, and how to sign in."},{"name":"Service authorization","description":"An OAuth authorization, or a client registration, that a service holds for a connected account."},{"name":"Package","description":"An npm package an app declares as a dependency."},{"name":"External identity","description":"A person's identity at an identity provider."},{"name":"Email message","description":"An email sent to a person, such as a sign-in code or an invitation."},{"name":"Company profile","description":"A company's public name and logo, found from its domain."},{"name":"Build","description":"The compiled, retained code of an app version, with its public files."}],"interfaces":[{"name":"hosted dashboard","description":"The web dashboard of Cloud (app.executor.sh) and self-host, with its sign-in, approval, device and account connection pages."},{"name":"local dashboard","description":"The web dashboard of a local Executor, opened from the executor command with a one-use connection link."},{"name":"Executor desktop app","description":"The desktop app's windows on the local or a hosted Executor."},{"name":"app pages","description":"An app's own web pages, served on the app's address and signed in through Executor."},{"name":"executor CLI","description":"The executor command: sign-in, tool commands, an MCP relay over stdio, and executor apps."},{"name":"hosted API","description":"The hosted HTTP API under /api/organizations/\u003corganization>, used by scripts with a personal access token."},{"name":"Executor app tools","description":"The bundled Executor app's tools, generated from the host's API and called through the MCP endpoint, such as appManagement.deploy or appAccounts.userConnect."},{"name":"MCP endpoint","description":"The one streamable HTTP MCP endpoint at /mcp (mcp.executor.sh/mcp on Cloud, 127.0.0.1:4312/mcp locally), with browser sign-in."},{"name":"apps package","description":"The apps npm package app code imports: defineApp, providers, queries, mutations, approvals, schedules, webhooks, workflows, events, storage, UI and desktop helpers."},{"name":"app management API","description":"The HTTP operations for creating, committing, deploying, copying and publishing apps, and reading the framework release."},{"name":"app Git repository","description":"Each app's Git repository, cloned and pushed over Git's smart HTTP protocol."},{"name":"marketing site","description":"executor.sh: the home page, pricing, blog and public apps directory."},{"name":"documentation site","description":"executor.sh/docs: the guides for using, running and building on Executor."},{"name":"engine SDK","description":"The Engine's Effect operations (createExecutor and the Executor type), projected from its HTTP contract, with the product's lifecycle hooks."},{"name":"MCP tools handler","description":"Code mode's MCP protocol handler and browser approval accessors, built over the product's McpBackend."},{"name":"app runtime contract","description":"The Runtime and WorkflowRuntime operations the Engine builds and runs apps through."},{"name":"registry contract","description":"The Registry and RegistryStorage operations, in process on Cloud and over HTTP elsewhere."},{"name":"desktop sign-in API","description":"The endpoints the desktop app signs its windows in with and reads its account and app pages from."},{"name":"service OAuth endpoints","description":"A service's OAuth discovery, client registration, token and revocation endpoints."},{"name":"service APIs","description":"A service's HTTP API or MCP server."},{"name":"npm registry API","description":"The npm registry's package metadata and tarball downloads."},{"name":"identity provider sign-in","description":"The OAuth or OIDC sign-in of an identity provider."},{"name":"official app feed","description":"The feed's index.json and per-app source files."},{"name":"billing API","description":"The billing service's API for plans, checkout, the billing portal and seats."},{"name":"email sending","description":"The email delivery service's sending API."},{"name":"company lookup API","description":"The brand lookup service's API."},{"name":"host protocol","description":"The recorded, versioned messages between the sandbox and an app bundle built with the apps package."},{"name":"retained builds","description":"The Builder's store of compiled builds, which the sandbox loads builds from."},{"name":"outbound fetch","description":"The network module inside each app Worker through which app code's requests leave the sandbox."}],"places":[{"place":"Generated files","kind":"excluded","paths":["**/*.gen.ts","**/*.gen.json","packages/apps/protocols/**"]},{"place":"Dependencies","kind":"excluded","paths":["bun.lock","patches/**"]},{"place":"Repository configuration and contributor documents","kind":"tooling","paths":[".dockerignore",".gitattributes",".gitignore",".oxfmtrc.json",".oxlintrc.jsonc","AGENTS.md","CONTEXT.md","DEVELOPMENT.md","LICENSE","README.md","RELEASING.md","SECURITY.md","bunfig.toml","package.json","tsconfig.json","plans/**",".agents/**"]},{"place":"Release notes and release tooling","kind":"tooling","paths":[".changeset/**","scripts/releases/**"]},{"place":"Repository scripts and checks","kind":"tooling","paths":["scripts/**","packages/sdk/scripts/**","packages/apps/scripts/**","packages/app-templates/scripts/**","packages/telemetry/scripts/**"]},{"place":"End-to-end tests","kind":"tooling","paths":["e2e/**"]},{"place":"Examples and playgrounds","kind":"tooling","paths":["playground/**"]},{"place":"Developer tools","kind":"tooling","paths":["packages/devtools/**"]},{"place":"Diagnostics and analytics","kind":"tooling","paths":["packages/telemetry/**","apps/hosted/cloud/src/invocation-telemetry.ts","apps/hosted/cloud/src/contracts/invocation-telemetry.ts","apps/hosted/cloud/src/infrastructure/posthog*.ts","apps/hosted/cloud/src/infrastructure/sentry*.ts","apps/hosted/cloud/src/infrastructure/telemetry.ts","apps/hosted/cloud/src/infrastructure/site-telemetry.ts","apps/hosted/cloud/src/infrastructure/invocation-telemetry.ts","apps/hosted/cloud/src/infrastructure/usage-reports.ts","apps/hosted/cloud/src/implementation/error-reporting.ts","apps/hosted/cloud/src/implementation/error-tunnel.ts","apps/hosted/cloud/src/implementation/product-analytics.ts","apps/hosted/cloud/src/implementation/invocation-summary.ts","apps/hosted/cloud/src/implementation/invocation-surface.ts","apps/hosted/cloud/src/implementation/sql-tracing.ts","apps/hosted/cloud/src/implementation/auth-analytics.ts","apps/hosted/cloud/src/implementation/auth-observability.ts","apps/hosted/cloud/src/implementation/feature-flags.ts","apps/hosted/server/src/implementation/product-analytics.ts","apps/hosted/server/src/implementation/telemetry.ts","apps/hosted/server/src/implementation/auth-telemetry.ts","apps/hosted/server/src/implementation/security-audit.ts","apps/hosted/server/src/contracts/security-audit.ts","apps/hosted/server/src/contracts/product-analytics.ts","apps/hosted/self-host/src/implementation/product-analytics.ts","apps/local/server/src/implementation/product-analytics.ts","apps/local/server/src/implementation/telemetry.ts","apps/local/server/src/implementation/startup-diagnostics.ts"]},{"place":"Cloud deploy and test infrastructure","kind":"tooling","paths":["apps/hosted/cloud/alchemy.*","apps/hosted/cloud/scripts/**","apps/hosted/cloud/certificates/**","apps/hosted/testing/**","apps/hosted/cloud/src/agent-mail.ts","apps/hosted/cloud/src/migrate.ts","apps/hosted/cloud/src/contracts/agent-mail.ts","apps/hosted/cloud/src/contracts/development.ts","apps/hosted/cloud/src/contracts/emulators.ts","apps/hosted/cloud/src/contracts/pr-preview*.ts","apps/hosted/cloud/src/contracts/release-guard.ts","apps/hosted/cloud/src/contracts/stage-account-state.ts","apps/hosted/cloud/src/contracts/test-stage-lifetime.ts","apps/hosted/cloud/src/implementation/test-stage-*.ts","apps/hosted/cloud/src/implementation/pr-preview-*.ts","apps/hosted/cloud/src/implementation/development-web.ts","apps/hosted/cloud/src/implementation/emulated-auth.ts","apps/hosted/cloud/src/infrastructure/agent-mail.ts","apps/hosted/cloud/src/infrastructure/app-catalog.ts","apps/hosted/cloud/src/infrastructure/autumn-provider.ts","apps/hosted/cloud/src/infrastructure/billing-catalog-seed.ts","apps/hosted/cloud/src/infrastructure/deploy-*.ts","apps/hosted/cloud/src/infrastructure/development.ts","apps/hosted/cloud/src/infrastructure/emulators.ts","apps/hosted/cloud/src/infrastructure/github-deploy-key.ts","apps/hosted/cloud/src/infrastructure/mcp-interaction-faults*.ts","apps/hosted/cloud/src/infrastructure/preview-*.ts","apps/hosted/cloud/src/infrastructure/previous-test-database-cleanup.ts","apps/hosted/cloud/src/infrastructure/product-zone.ts","apps/hosted/cloud/src/infrastructure/release-notes.ts","apps/hosted/cloud/src/infrastructure/stage.ts","apps/hosted/cloud/src/infrastructure/state.ts","apps/hosted/cloud/src/infrastructure/test-stage-*.ts","apps/hosted/cloud/src/infrastructure/worker-build.ts","apps/hosted/cloud/src/infrastructure/worker-upload.ts"]},{"place":"Self-host packaging","kind":"tooling","paths":["apps/hosted/self-host/native/**","apps/hosted/self-host/scripts/**","apps/hosted/self-host/Dockerfile","apps/hosted/self-host/compose.yaml","apps/hosted/self-host/compose.release.yaml","apps/hosted/self-host/entrypoint.sh","apps/hosted/self-host/workerd.json","apps/hosted/self-host/README.md","apps/hosted/self-host/src/implementation/update-check.ts"]},{"place":"Installers","kind":"tooling","paths":["apps/docs/public/install.sh","apps/docs/public/install.ps1"]},{"place":"Local service control and upgrades","kind":"tooling","paths":["apps/local/server/src/dev.ts","apps/local/server/src/contracts/service.ts","apps/local/server/src/implementation/service-*.ts","apps/local/server/src/implementation/launcher.ts","apps/local/server/src/implementation/standalone-install.ts","apps/local/server/src/implementation/upgrade.ts","apps/local/server/src/implementation/update-notice.ts","apps/local/server/src/implementation/e2e-process.ts","apps/local/server/src/implementation/development.ts","apps/local/server/src/implementation/devtools.ts","apps/local/desktop/scripts/**"]},{"place":"Shared utilities","kind":"library","paths":["packages/utils/**"]},{"place":"Schema and query layer","kind":"library","paths":["packages/fumadb-effect/**"]},{"place":"Live queries","kind":"library","paths":["packages/reactivity/**"]},{"place":"Dashboard UI kit","kind":"library","paths":["packages/ui/**"]},{"place":"Dashboard framework","kind":"library","paths":["packages/dashboard-start/**"]},{"place":"Telemetry library","kind":"library","paths":["packages/telemetry/src/**"]},{"place":"App templates","kind":"library","paths":["packages/app-templates/**"]},{"place":"hosted dashboard","kind":"interface","paths":["apps/hosted/web/**","apps/hosted/cloud/web/**","apps/hosted/self-host/web/**"]},{"place":"local dashboard","kind":"interface","paths":["apps/local/web/**"]},{"place":"executor CLI","kind":"interface","paths":["apps/cli/**","apps/local/server/src/bin.ts","packages/app-management/src/cli.ts","packages/app-management/src/tools-cli.ts","packages/app-management/src/client-error.ts","packages/app-management/src/implementation/hosts.ts","packages/app-management/src/implementation/node-auth.ts","packages/app-management/src/implementation/tools-client.ts","packages/app-management/src/implementation/paused-calls.ts","packages/app-management/src/implementation/tool-files.ts","packages/app-management/src/implementation/cli-source.ts"]},{"place":"Executor app tools","kind":"interface","paths":["packages/app-templates/executor/**","packages/app-templates/src/executor.ts","packages/app-templates/src/implementation/executor-skills.ts","packages/app-templates/src/implementation/skill-publishing.ts","packages/app-templates/src/implementation/skill-telemetry.ts","apps/local/server/src/implementation/executor-app-source.ts"]},{"place":"marketing site","kind":"interface","paths":["apps/marketing/**","apps/hosted/cloud/src/marketing.ts","apps/hosted/cloud/src/implementation/marketing.ts","apps/hosted/cloud/src/infrastructure/marketing-worker.ts","apps/hosted/cloud/src/infrastructure/site.ts","apps/hosted/cloud/src/infrastructure/site-assets.ts"]},{"place":"documentation site","kind":"interface","paths":["apps/docs/**"]},{"place":"app pages","kind":"interface","paths":["packages/apps/src/browser/**","packages/apps/src/implementation/ui-client.ts","packages/apps/src/implementation/live.ts","packages/apps/src/implementation/optimistic.ts","packages/apps/src/implementation/desktop.ts","packages/apps/src/react.ts","packages/apps/src/client.ts"]},{"place":"Product server","kind":"component","paths":["apps/hosted/server/**","apps/hosted/self-host/**","apps/hosted/cloud/**","apps/local/server/**","packages/app-management/**","packages/catalog/**"]},{"place":"Access","kind":"component","paths":["packages/mcp-auth/**","packages/authorization/**","apps/hosted/server/src/implementation/proofs/**","apps/hosted/server/src/implementation/auth.ts","apps/hosted/server/src/implementation/organization-auth.ts","apps/hosted/server/src/implementation/organization-records.ts","apps/hosted/server/src/implementation/groups.ts","apps/hosted/server/src/implementation/group-schema.ts","apps/hosted/server/src/implementation/group-sharing.ts","apps/hosted/server/src/implementation/resource-access.ts","apps/hosted/server/src/implementation/resource-policy.ts","apps/hosted/server/src/implementation/resource-schema.ts","apps/hosted/server/src/implementation/resource-lifecycle.ts","apps/hosted/server/src/implementation/access.ts","apps/hosted/server/src/implementation/app-account-links.ts","apps/hosted/server/src/implementation/app-account-schema.ts","apps/hosted/server/src/implementation/app-accounts.ts","apps/hosted/server/src/implementation/personal-account-schema.ts","apps/hosted/server/src/implementation/api-keys.ts","apps/hosted/server/src/implementation/api-key-membership-schema.ts","apps/hosted/server/src/implementation/bearer-access.ts","apps/hosted/server/src/implementation/batch-authentication.ts","apps/hosted/server/src/implementation/connection-policy.ts","apps/hosted/server/src/implementation/oauth-clients.ts","apps/hosted/server/src/implementation/oauth-client-schema.ts","apps/hosted/server/src/implementation/mcp-oauth.ts","apps/hosted/server/src/implementation/mcp-connections.ts","apps/hosted/server/src/implementation/desktop-sessions.ts","apps/hosted/server/src/implementation/app-sessions.ts","apps/hosted/server/src/implementation/user-records.ts","apps/hosted/server/src/implementation/managed-executor-key.ts","apps/hosted/server/src/implementation/managed-key-eligibility.ts","apps/hosted/server/src/implementation/first-party-oauth.ts","apps/hosted/server/src/implementation/api-oauth.ts","apps/hosted/server/src/implementation/middleware.ts","apps/hosted/server/src/contracts/account-grants.ts","apps/hosted/server/src/contracts/auth.ts","apps/hosted/server/src/contracts/authorization.ts","apps/hosted/server/src/contracts/groups.ts","apps/hosted/server/src/contracts/resource-access.ts","apps/hosted/server/src/contracts/api-keys.ts","apps/hosted/server/src/contracts/oauth-clients.ts","apps/hosted/server/src/contracts/mcp-connections.ts","apps/hosted/server/src/contracts/desktop-sessions.ts","apps/hosted/server/src/contracts/sign-in-origin.ts","apps/hosted/server/src/contracts/browser.ts","apps/hosted/server/src/contracts/app-accounts.ts","apps/hosted/cloud/src/implementation/auth-options.ts","apps/hosted/cloud/src/implementation/auth-provisioning.ts","apps/hosted/cloud/src/implementation/auth-refusals.ts","apps/hosted/cloud/src/implementation/auth-audit*.ts","apps/hosted/cloud/src/implementation/sso.ts","apps/hosted/cloud/src/implementation/chatgpt-sign-in.ts","apps/hosted/cloud/src/infrastructure/auth.ts","apps/hosted/cloud/src/infrastructure/auth-database.ts","apps/hosted/cloud/src/infrastructure/mcp-auth.ts","apps/hosted/cloud/src/infrastructure/app-sessions.ts","apps/hosted/cloud/src/contracts/passkey-enrollment.ts","apps/hosted/self-host/src/auth.ts","apps/hosted/self-host/src/implementation/auth-database.ts","apps/hosted/self-host/src/implementation/auth-options.ts","apps/local/server/src/implementation/auth.ts","apps/local/server/src/implementation/pair.ts","apps/local/server/src/implementation/session-store.ts","apps/local/server/src/implementation/owners.ts","apps/local/server/src/implementation/app-accounts.ts","apps/local/server/src/implementation/account-choice.ts","apps/local/server/src/implementation/mcp-oauth.ts","apps/local/server/src/implementation/mcp-connections.ts","apps/local/server/src/implementation/app-auth.ts","apps/local/server/src/contracts/auth.ts","apps/local/server/src/contracts/mcp-connections.ts"]},{"place":"Activity log","kind":"component","paths":["apps/hosted/server/src/implementation/tool-call-log.ts","apps/hosted/server/src/implementation/tool-call-log-reads.ts","apps/hosted/server/src/contracts/tool-call-log.ts"]},{"place":"Engine","kind":"component","paths":["packages/sdk/**","packages/app-source/**","apps/hosted/cloud/src/artifacts-credentials.ts","apps/hosted/cloud/src/contracts/artifacts-namespace.ts","apps/hosted/cloud/src/infrastructure/source.ts","apps/hosted/cloud/src/infrastructure/artifacts-credentials-worker.ts","apps/hosted/cloud/src/infrastructure/artifacts-tokens.ts","apps/hosted/cloud/src/infrastructure/blobs.ts","apps/hosted/cloud/src/infrastructure/durable-declarations.ts","apps/hosted/cloud/src/infrastructure/event-cleanup.ts","apps/hosted/cloud/src/implementation/version-source-cache.ts","apps/hosted/cloud/src/implementation/r2-read.ts","apps/hosted/cloud/src/implementation/r2-write.ts"]},{"place":"Public app registry","kind":"component","paths":["packages/app-registry/**","packages/sdk/src/contracts/registry.ts","packages/sdk/src/implementation/registry.ts","packages/sdk/src/implementation/remote-registry.ts","apps/hosted/cloud/src/implementation/publishers.ts"]},{"place":"Code mode","kind":"component","paths":["packages/mcp/**","apps/hosted/cloud/src/mcp-server.ts","apps/hosted/cloud/src/infrastructure/mcp-server-worker.ts","apps/hosted/cloud/src/infrastructure/mcp-session*.ts","apps/hosted/cloud/src/infrastructure/mcp-interaction-store.ts","apps/hosted/cloud/src/implementation/mcp-session-*.ts","apps/hosted/cloud/src/implementation/mcp-stream-observability.ts","apps/hosted/cloud/src/implementation/mcp-request-method.ts"]},{"place":"Desktop app","kind":"component","paths":["apps/local/desktop/**"]},{"place":"Builder","kind":"component","paths":["packages/sdk/src/implementation/worker-build*.ts","packages/sdk/src/implementation/worker-browser-build.ts","packages/sdk/src/implementation/worker-compiled-files.ts","packages/sdk/src/implementation/worker-dependencies.ts","packages/sdk/src/implementation/worker-json-modules.ts","packages/sdk/src/implementation/worker-source-*.ts","packages/sdk/src/implementation/worker-wasm-build.ts","packages/sdk/src/implementation/ui-build.ts","packages/sdk/src/implementation/ui-tailwind.ts","packages/sdk/src/contracts/worker-build.ts","packages/sdk/src/contracts/ui-build.ts","packages/sdk/src/ui-build.ts","packages/sdk/src/workerd-build.ts","packages/sdk/src/workerd-migration.ts","apps/hosted/cloud/src/compiler.ts","apps/hosted/cloud/src/contracts/builds.ts","apps/hosted/cloud/src/contracts/retained-assets.ts","apps/hosted/cloud/src/implementation/app-build.ts","apps/hosted/cloud/src/implementation/build-admission.ts","apps/hosted/cloud/src/implementation/build-storage.ts","apps/hosted/cloud/src/implementation/runtime-build-cache.ts","apps/hosted/cloud/src/infrastructure/compiler.ts"]},{"place":"App sandbox","kind":"component","paths":["packages/app-data/**","packages/sdk/src/implementation/app-runner.ts","packages/sdk/src/implementation/remote-app-runner.ts","packages/sdk/src/implementation/app-runtime.ts","packages/sdk/src/implementation/runtime.ts","packages/sdk/src/implementation/app-protocols.ts","packages/sdk/src/implementation/app-worker-residency.ts","packages/sdk/src/implementation/worker-bridge.ts","packages/sdk/src/implementation/worker-elicitation.ts","packages/sdk/src/implementation/workerd-*.ts","packages/sdk/src/implementation/binding-workerd-apps.ts","packages/sdk/src/implementation/runtime-hop.ts","packages/sdk/src/implementation/runtime-connect.ts","packages/sdk/src/implementation/evaluated-declarations.ts","packages/sdk/src/implementation/tool-call-overhead.ts","packages/sdk/src/contracts/runtime.ts","packages/sdk/src/contracts/workerd-host.ts","packages/sdk/src/contracts/workerd-modules.d.ts","packages/sdk/src/node.ts","packages/sdk/src/node-workerd.ts","packages/sdk/src/node-build.ts","packages/sdk/src/workerd.ts","apps/hosted/cloud/src/app-data.ts","apps/hosted/cloud/src/infrastructure/runtime.ts","apps/hosted/cloud/src/infrastructure/app-data-worker.ts","apps/hosted/cloud/src/infrastructure/app-data.ts","apps/hosted/cloud/src/infrastructure/isolate-memory.ts","apps/hosted/cloud/src/implementation/runtime-actor.ts"]},{"place":"Outbound gateway","kind":"component","paths":["packages/sdk/src/implementation/credential-handles.ts","packages/sdk/src/implementation/app-network.ts","apps/hosted/cloud/src/implementation/app-egress.ts","apps/hosted/cloud/src/implementation/app-outbound-*.ts","apps/hosted/cloud/src/infrastructure/app-outbound.ts"]},{"place":"Workflow engine","kind":"component","paths":["packages/sdk/src/implementation/worker-workflow-rpc.ts","packages/sdk/src/implementation/workflow-engine-calls.ts","packages/sdk/src/implementation/sleep-until.ts","packages/sdk/src/implementation/native-engine-failure.ts","packages/sdk/src/contracts/workflow-runtime.ts","packages/sdk/src/contracts/engine-faults.ts","apps/hosted/cloud/src/infrastructure/workflow-runtime.ts","apps/hosted/cloud/src/infrastructure/workflows.ts","apps/hosted/cloud/src/implementation/workflow-status.ts","apps/hosted/cloud/src/contracts/native-workflows.d.ts"]},{"place":"Apps framework","kind":"component","paths":["packages/apps/**","packages/app-cache/**"]},{"place":"Executor 1 compatibility","kind":"cleanup","paths":["apps/hosted/cloud/src/implementation/v1-*.ts","apps/hosted/cloud/src/contracts/v1-documents.ts","apps/hosted/cloud/src/infrastructure/v1-api-key-settings.ts"]},{"place":"Profile migration remnants","kind":"cleanup","paths":["apps/hosted/server/src/implementation/profile-app-copies.ts","packages/app-management/src/implementation/profile-app-copies.ts","apps/local/server/src/implementation/mcp-auth-profiles.ts"]},{"place":"Legacy field names","kind":"cleanup","paths":["packages/utils/src/legacy-keys.ts"]}],"boundaries":[{"consumer":"Person","provider":"Executor","interfaces":["hosted dashboard","local dashboard","Executor desktop app","app pages","executor CLI","hosted API","Executor app tools"],"areas":[{"name":"Use apps","type":"core","description":"Add apps, run their tools, answer the approvals they ask for and use their pages.","capabilities":[{"name":"Add an app","takes":"an official app, a public listing, or a remote MCP, OpenAPI or GraphQL address","gives":"a new app of their own, ready for its accounts","acts":[{"mode":"produces","resource":"App"},{"mode":"observes","resource":"Catalog app"},{"mode":"observes","resource":"Publication"}],"interfaces":["hosted dashboard","local dashboard","Executor desktop app","executor CLI","Executor app tools"]},{"name":"List apps","takes":"nothing, or a search","gives":"the apps they can use, with their tools and accounts","acts":[{"mode":"observes","resource":"App"}],"interfaces":["hosted dashboard","local dashboard","Executor desktop app","hosted API","executor CLI","Executor app tools"]},{"name":"Run a tool","takes":"a tool of an app and its input","gives":"the tool's result, after any approval it asks for","acts":[{"mode":"produces","resource":"Tool call"},{"mode":"mutates","resource":"App data"}],"interfaces":["hosted dashboard","local dashboard","Executor desktop app"]},{"name":"Answer an approval request","takes":"an approval request and their decision, or the input it asks for","gives":"the paused call, program or scheduled run going ahead, or refused","acts":[{"mode":"mutates","resource":"Approval request"}],"interfaces":["hosted dashboard","local dashboard","Executor desktop app"]},{"name":"List tool calls","takes":"filters such as an app, a tool, a person or a connection","gives":"the history of tool calls with their approvals and outcomes","acts":[{"mode":"observes","resource":"Tool call"}],"interfaces":["hosted dashboard","hosted API"]},{"name":"Use an app page","takes":"an app that ships a web page","gives":"the app's page, signed in, reading and changing the app's data","acts":[{"mode":"observes","resource":"App data"},{"mode":"mutates","resource":"App data"}],"interfaces":["app pages","Executor desktop app"]},{"name":"Share an app","takes":"an app and its audience: only them, chosen groups, or everyone","gives":"the app with its new audience","acts":[{"mode":"mutates","resource":"App"}],"interfaces":["hosted dashboard","hosted API"]},{"name":"Rename an app","takes":"an app and a new name","gives":"the renamed app","acts":[{"mode":"mutates","resource":"App"}],"interfaces":["hosted dashboard","local dashboard","Executor desktop app","Executor app tools"]},{"name":"Copy an app","takes":"an app and a name for the copy","gives":"an independent copy with its own source, accounts and data, deployed","acts":[{"mode":"produces","resource":"App"}],"interfaces":["hosted dashboard","local dashboard","Executor desktop app","Executor app tools"]},{"name":"Delete an app","takes":"an app","gives":"the app removed, its accounts and other copies kept","acts":[{"mode":"mutates","resource":"App"}],"interfaces":["hosted dashboard","local dashboard","Executor desktop app","Executor app tools"]},{"name":"Install an app as a desktop app","takes":"an app that ships a web page","gives":"the app in its own window, with a launcher and icon","acts":[{"mode":"produces","resource":"Installed app"}],"interfaces":["Executor desktop app"]},{"name":"Change an installed app's permissions","takes":"an installed app and a permission, such as shortcuts or the microphone","gives":"the permission granted or denied for that app","acts":[{"mode":"mutates","resource":"Installed app"}],"interfaces":["Executor desktop app"]}]},{"name":"Connect accounts","type":"supporting","description":"Save the credentials apps need once, and choose which saved accounts each app uses.","capabilities":[{"name":"Connect an account","takes":"an app requirement and the provider's fields, or an OAuth sign-in","gives":"a saved account, linked to the app","acts":[{"mode":"produces","resource":"Account"},{"mode":"produces","resource":"Account link"},{"mode":"mutates","resource":"Connection request"}],"interfaces":["hosted dashboard","local dashboard","Executor desktop app"]},{"name":"Change an app's linked accounts","takes":"an app requirement and an account to link or unlink, for themselves or, with edit access, for everyone","gives":"the app's new account links","acts":[{"mode":"mutates","resource":"Account link"}],"interfaces":["hosted dashboard","local dashboard","Executor desktop app","hosted API","Executor app tools"]},{"name":"List accounts","takes":"nothing","gives":"their saved accounts and the apps that use each","acts":[{"mode":"observes","resource":"Account"},{"mode":"observes","resource":"Account link"}],"interfaces":["hosted dashboard","local dashboard","Executor desktop app","hosted API","Executor app tools"]},{"name":"Check an account","takes":"an account","gives":"whether it works or needs signing in again","acts":[{"mode":"observes","resource":"Account"}],"interfaces":["hosted dashboard","local dashboard","Executor desktop app"]},{"name":"Reconnect an account","takes":"an account and new credentials or a new sign-in","gives":"the same account with its credentials replaced, still linked everywhere","acts":[{"mode":"mutates","resource":"Account"}],"interfaces":["hosted dashboard","local dashboard","Executor desktop app"]},{"name":"Edit account details","takes":"an account and its new label or description","gives":"the renamed or redescribed account","acts":[{"mode":"mutates","resource":"Account"}],"interfaces":["hosted dashboard","local dashboard","Executor desktop app","Executor app tools"]},{"name":"Remove an account","takes":"an account no app links for everyone","gives":"the account deleted and its links removed","acts":[{"mode":"mutates","resource":"Account"},{"mode":"mutates","resource":"Account link"}],"interfaces":["hosted dashboard","local dashboard","Executor desktop app"]}]},{"name":"Run apps in the background","type":"supporting","description":"Turn on and run an app's schedules, webhooks and workflows.","capabilities":[{"name":"Change a schedule","takes":"an app schedule and its settings, such as enabled","gives":"the schedule with its next run","acts":[{"mode":"mutates","resource":"Schedule"}],"interfaces":["hosted dashboard","local dashboard","Executor desktop app","Executor app tools"]},{"name":"Run a schedule now","takes":"a schedule","gives":"a run started at once","acts":[{"mode":"mutates","resource":"Schedule"}],"interfaces":["hosted dashboard","local dashboard","Executor desktop app"]},{"name":"List scheduled runs","takes":"an app or nothing","gives":"past and pending runs with their outcomes","acts":[{"mode":"observes","resource":"Schedule"}],"interfaces":["hosted dashboard","local dashboard","Executor desktop app"]},{"name":"Set up a webhook","takes":"a webhook's setup link and the settings it asks for","gives":"the webhook registered with the service","acts":[{"mode":"mutates","resource":"Webhook"}],"interfaces":["hosted dashboard","local dashboard","Executor desktop app"]},{"name":"Start a workflow run","takes":"an app's workflow and its input","gives":"the new workflow run","acts":[{"mode":"produces","resource":"Workflow run"}],"interfaces":["hosted dashboard","local dashboard","Executor desktop app","Executor app tools"]},{"name":"List workflow runs","takes":"an app's workflow","gives":"its runs and their status","acts":[{"mode":"observes","resource":"Workflow run"}],"interfaces":["hosted dashboard","local dashboard","Executor desktop app","Executor app tools"]},{"name":"Stop a workflow run","takes":"a workflow run","gives":"the run terminated","acts":[{"mode":"mutates","resource":"Workflow run"}],"interfaces":["hosted dashboard","local dashboard","Executor desktop app","Executor app tools"]}]},{"name":"Connect agents","type":"supporting","description":"Let agents and scripts reach their apps, and limit or revoke what they reach.","capabilities":[{"name":"Approve an agent connection","takes":"an agent's or the CLI's sign-in request, an organization, what it may reach and its approval mode","gives":"a connection the agent uses","acts":[{"mode":"produces","resource":"Connected agent"}],"interfaces":["hosted dashboard","local dashboard","Executor desktop app"]},{"name":"List connected agents","takes":"nothing","gives":"each approved agent with the apps it reaches","acts":[{"mode":"observes","resource":"Connected agent"}],"interfaces":["hosted dashboard"]},{"name":"Revoke an agent","takes":"a connected agent","gives":"its connection stopped","acts":[{"mode":"mutates","resource":"Connected agent"}],"interfaces":["hosted dashboard"]},{"name":"Create a scoped connection","takes":"a name and, for each app, the accounts and tools it may use","gives":"a connection address that reaches only those","acts":[{"mode":"produces","resource":"Scoped connection"}],"interfaces":["hosted dashboard","local dashboard","Executor desktop app"]},{"name":"Edit a scoped connection","takes":"a scoped connection and its new choices","gives":"the connection, applied at once to connected agents","acts":[{"mode":"mutates","resource":"Scoped connection"}],"interfaces":["hosted dashboard","local dashboard","Executor desktop app"]},{"name":"Revoke a scoped connection","takes":"a scoped connection","gives":"the connection and every grant issued through it revoked","acts":[{"mode":"mutates","resource":"Scoped connection"}],"interfaces":["hosted dashboard","local dashboard","Executor desktop app"]},{"name":"Create an access token","takes":"a name, one organization or the full account, and an optional expiry","gives":"a personal access token, shown once","acts":[{"mode":"produces","resource":"Access token"}],"interfaces":["hosted dashboard"]},{"name":"Revoke an access token","takes":"an access token","gives":"the token stopped","acts":[{"mode":"mutates","resource":"Access token"}],"interfaces":["hosted dashboard"]}]},{"name":"Sign in","type":"supporting","description":"Get into Executor and manage their own sign-in.","capabilities":[{"name":"Sign in","takes":"a Google, GitHub or ChatGPT sign-in, a passkey, an email code, single sign-on, a self-host password, or a local connection link","gives":"a signed-in session","acts":[{"mode":"produces","resource":"Session"}],"interfaces":["hosted dashboard","local dashboard","Executor desktop app","executor CLI"]},{"name":"Accept an invitation","takes":"an invitation","gives":"membership of the organization","acts":[{"mode":"mutates","resource":"Invitation"},{"mode":"produces","resource":"Member"}],"interfaces":["hosted dashboard"]},{"name":"List active sessions","takes":"nothing","gives":"their signed-in sessions","acts":[{"mode":"observes","resource":"Session"}],"interfaces":["hosted dashboard"]},{"name":"Sign out","takes":"a session","gives":"the session ended","acts":[{"mode":"mutates","resource":"Session"}],"interfaces":["hosted dashboard","local dashboard","Executor desktop app","executor CLI"]},{"name":"Edit their profile","takes":"a name","gives":"the updated profile","acts":[{"mode":"mutates","resource":"Profile"}],"interfaces":["hosted dashboard"]},{"name":"Change email preferences","takes":"an unsubscribe link or a preference","gives":"Executor's emails to them turned on or off","acts":[{"mode":"mutates","resource":"Profile"}],"interfaces":["hosted dashboard"]},{"name":"Delete their user","takes":"a confirmation","gives":"their user, sign-ins, tokens and memberships removed","acts":[{"mode":"mutates","resource":"Profile"}],"interfaces":["hosted dashboard"]}]}],"evidence":[{"path":"apps/docs/content/connect-an-account.mdx","shows":"connecting, linking, reconnecting and removing accounts from an app's Accounts tab, for oneself or for everyone"},{"path":"apps/docs/content/concepts/tools-and-approvals.md","shows":"running a tool from the Tools tab and answering approvals in the dashboard or a browser page"},{"path":"apps/docs/content/mcp.md","shows":"approving an agent's sign-in, scoped connections and connected agents"},{"path":"apps/docs/content/api-keys.md","shows":"personal access tokens and the hosted HTTP API"},{"path":"apps/docs/content/concepts/organizations-and-access.md","shows":"app audiences, personal accounts and sign-in methods"},{"path":"apps/docs/content/author-an-app.mdx","shows":"app pages and installing an app as a desktop app with its permissions"},{"path":"apps/hosted/server/src/contracts/api.ts","shows":"the hosted API's groups: apps, accounts, app accounts, tools, schedules, webhooks, workflows, tool calls, MCP connections, resource access"},{"path":"apps/hosted/server/src/contracts/tool-call-log.ts","shows":"listing tool calls with filters"},{"path":"apps/local/server/src/contracts/dashboard.ts","shows":"the local dashboard's API for apps, tools, accounts, links, catalog imports and approvals"},{"path":"apps/local/desktop/src/contracts/installed-apps.ts","shows":"installed apps and their desktop permissions"},{"path":"apps/hosted/web/src/implementation/pages/security.tsx","shows":"the active sessions page"},{"path":"apps/hosted/cloud/web/src/implementation/routes/email.unsubscribe.tsx","shows":"unsubscribing from Cloud's emails"}]},{"consumer":"Organization admin","provider":"Executor","interfaces":["hosted dashboard","hosted API"],"areas":[{"name":"Run the organization","type":"core","description":"Decide who belongs to the organization, how they are grouped, and how it presents itself.","capabilities":[{"name":"Create an organization","takes":"a name and a slug","gives":"a new organization with them as owner","acts":[{"mode":"produces","resource":"Organization"}],"interfaces":["hosted dashboard"]},{"name":"Edit the organization","takes":"a new name, slug, icon or defaults","gives":"the updated organization","acts":[{"mode":"mutates","resource":"Organization"}]},{"name":"Invite a person","takes":"an email address and a role","gives":"an invitation sent","acts":[{"mode":"produces","resource":"Invitation"}],"interfaces":["hosted dashboard"]},{"name":"Cancel an invitation","takes":"a pending invitation","gives":"the invitation withdrawn","acts":[{"mode":"mutates","resource":"Invitation"}],"interfaces":["hosted dashboard"]},{"name":"List members","takes":"nothing","gives":"the organization's members and their roles","acts":[{"mode":"observes","resource":"Member"}]},{"name":"Change a member's role","takes":"a member and a role","gives":"the member with the new role","acts":[{"mode":"mutates","resource":"Member"}],"interfaces":["hosted dashboard"]},{"name":"Remove a member","takes":"a member","gives":"the member removed, with their access to the organization","acts":[{"mode":"mutates","resource":"Member"}],"interfaces":["hosted dashboard"]},{"name":"Create a group","takes":"a name and members","gives":"a new group to share apps and OAuth clients with","acts":[{"mode":"produces","resource":"Group"}]},{"name":"Edit a group","takes":"a group and its new name or members","gives":"the updated group","acts":[{"mode":"mutates","resource":"Group"}]},{"name":"Delete a group","takes":"a group","gives":"the group removed, with what was shared through it","acts":[{"mode":"mutates","resource":"Group"}]},{"name":"Register an OAuth client","takes":"a service's sign-in server, the client ID and secret, and who may use it","gives":"a client every app of the organization signing in there offers","acts":[{"mode":"produces","resource":"OAuth client"}]},{"name":"Edit an OAuth client","takes":"a registered client and its new details or audience","gives":"the updated client for new connections","acts":[{"mode":"mutates","resource":"OAuth client"}]},{"name":"Remove an OAuth client","takes":"a registered client","gives":"the client removed","acts":[{"mode":"mutates","resource":"OAuth client"}]},{"name":"Delete the organization","takes":"a confirmation, by the owner on Cloud","gives":"the organization and everything it owns removed","acts":[{"mode":"mutates","resource":"Organization"}],"interfaces":["hosted dashboard"]}]},{"name":"Pay for Executor","type":"supporting","description":"Choose and pay for the organization's Cloud plan.","capabilities":[{"name":"See the subscription","takes":"nothing","gives":"the plans on offer and the organization's current plan","acts":[{"mode":"observes","resource":"Subscription"}],"interfaces":["hosted dashboard"]},{"name":"Change the plan","takes":"a plan","gives":"a checkout or billing portal for the new plan","acts":[{"mode":"mutates","resource":"Subscription"}],"interfaces":["hosted dashboard"]}]}],"evidence":[{"path":"apps/docs/content/concepts/organizations-and-access.md","shows":"roles, invitations, groups and what admins and owners may do"},{"path":"apps/hosted/server/src/contracts/groups.ts","shows":"the groups API"},{"path":"apps/hosted/server/src/contracts/oauth-clients.ts","shows":"registering, editing and removing OAuth clients, administrators only"},{"path":"apps/hosted/server/src/contracts/organization.ts","shows":"the organization API"},{"path":"apps/hosted/server/src/contracts/organization-removal.ts","shows":"deleting an organization"},{"path":"apps/hosted/web/src/implementation/components/organization-members.tsx","shows":"members and invitations in the dashboard"},{"path":"apps/hosted/cloud/src/contracts/billing.ts","shows":"the billing overview, checkout and portal"},{"path":"apps/hosted/cloud/web/src/implementation/routes/create.tsx","shows":"creating an organization on Cloud"}]},{"consumer":"Agent","provider":"Executor","interfaces":["MCP endpoint","executor CLI","Executor app tools"],"areas":[{"name":"Use tools","type":"core","description":"Find the tools of every app the connection reaches and call them, alone or from a program.","capabilities":[{"name":"Read skills","takes":"nothing, an app, or an app and a skill name","gives":"the visible skills, or one skill's text","acts":[{"mode":"observes","resource":"Skill"}],"interfaces":["MCP endpoint","executor CLI"]},{"name":"Search tools","takes":"words to look for","gives":"matching tools with their exact paths and input types","acts":[{"mode":"observes","resource":"Tool"}],"interfaces":["MCP endpoint","executor CLI"]},{"name":"Describe tools","takes":"exact tool paths","gives":"each tool's whole description and signature","acts":[{"mode":"observes","resource":"Tool"}],"interfaces":["MCP endpoint","executor CLI"]},{"name":"Call tools","takes":"one or more tool paths with their inputs","gives":"each call's value or error, or a request for approval or input","acts":[{"mode":"produces","resource":"Program run"},{"mode":"produces","resource":"Tool call"}],"interfaces":["MCP endpoint","executor CLI"]},{"name":"Run a program","takes":"a JavaScript program over the apps' tools","gives":"what the program returns, or a request for approval or input","acts":[{"mode":"produces","resource":"Program run"},{"mode":"produces","resource":"Tool call"}],"interfaces":["MCP endpoint","executor CLI"]},{"name":"Resume a paused call","takes":"the request ID and the person's answer","gives":"the call or program continuing to its result","acts":[{"mode":"mutates","resource":"Program run"},{"mode":"mutates","resource":"Approval request"}],"interfaces":["MCP endpoint","executor CLI"]}]},{"name":"Request an account connection","type":"supporting","description":"Have the person connect an account an app needs without the credential passing through the agent.","capabilities":[{"name":"Request an account connection","takes":"an app requirement","gives":"a connection link to give the person, then the request's state once they finish in the browser","acts":[{"mode":"produces","resource":"Connection request"},{"mode":"observes","resource":"Connection request"}],"interfaces":["Executor app tools"]}]},{"name":"Follow app events","type":"supporting","description":"Receive the events apps emit, such as a new issue, in the chat.","capabilities":[{"name":"Subscribe to app events","takes":"nothing, an app, or an app, an event and its filters","gives":"each matching event delivered into the chat","acts":[{"mode":"produces","resource":"Event subscription"}],"interfaces":["MCP endpoint"]},{"name":"Unsubscribe from app events","takes":"a subscription","gives":"deliveries stopped","acts":[{"mode":"mutates","resource":"Event subscription"}],"interfaces":["MCP endpoint"]}]},{"name":"Check what a connection reaches","type":"supporting","description":"See what its own sign-in reaches.","capabilities":[{"name":"Check what a connection reaches","takes":"its token","gives":"the organization, apps and approval mode its grant holds","acts":[{"mode":"observes","resource":"Connected agent"}],"interfaces":["MCP endpoint","executor CLI"]}]},{"name":"Send feedback","type":"supporting","description":"Tell the Executor team where Executor got in the way or worked well.","capabilities":[{"name":"Send feedback","takes":"a message, without credentials or user data","gives":"the message sent to the Executor team","acts":[{"mode":"produces","resource":"Feedback"}],"interfaces":["Executor app tools"]}]}],"evidence":[{"path":"apps/docs/content/mcp.md","shows":"the MCP tools, codemode, elicitation modes, scoped connections and whoami"},{"path":"packages/mcp/README.md","shows":"skills, search, describe, call, execute and resume over the product's backend"},{"path":"packages/mcp/src/implementation/server.ts","shows":"the MCP server's tools"},{"path":"packages/mcp/src/implementation/events.ts","shows":"the executor.app_event subscription"},{"path":"packages/app-management/src/tools-cli.ts","shows":"the CLI's login, whoami, search, describe, call, execute, resume, skills and mcp commands"},{"path":"apps/docs/content/connect-an-account.mdx","shows":"an agent starting a connection link and checking its state"},{"path":"packages/app-templates/executor/skills/executor/feedback.md","shows":"sending feedback through the Executor app"}]},{"consumer":"App author","provider":"Executor","interfaces":["apps package","app management API","executor CLI","Executor app tools","app Git repository"],"areas":[{"name":"Build apps","type":"core","description":"Create apps, change their source and deploy and roll back their versions.","capabilities":[{"name":"Read the framework reference","takes":"nothing, a search term or declaration names","gives":"the apps release the host builds with and its declarations","acts":[{"mode":"observes","resource":"Framework release"}],"interfaces":["app management API","executor CLI","Executor app tools"]},{"name":"Create an app","takes":"a name and the app's files","gives":"the new app, not yet deployed","acts":[{"mode":"produces","resource":"App"},{"mode":"produces","resource":"App source"}],"interfaces":["app management API","executor CLI","Executor app tools"]},{"name":"Read app source","takes":"an app, and optionally a revision","gives":"its files and current revision","acts":[{"mode":"observes","resource":"App source"}],"interfaces":["app management API","executor CLI","Executor app tools","app Git repository"]},{"name":"Commit source","takes":"the complete file list and the revision it starts from, or a Git push","gives":"the new revision and the files it removed, not deployed","acts":[{"mode":"mutates","resource":"App source"}],"interfaces":["app management API","executor CLI","Executor app tools","app Git repository"]},{"name":"Deploy a version","takes":"a commit or a complete file set","gives":"the new active version, once its build succeeds","acts":[{"mode":"produces","resource":"Version"},{"mode":"mutates","resource":"App"}],"interfaces":["app management API","executor CLI","Executor app tools"]},{"name":"Activate a version","takes":"a retained version","gives":"the app running that version, its data unchanged","acts":[{"mode":"mutates","resource":"App"}],"interfaces":["app management API","Executor app tools"]},{"name":"List versions","takes":"an app","gives":"its deployments and history","acts":[{"mode":"observes","resource":"Version"}],"interfaces":["app management API","executor CLI","Executor app tools"]},{"name":"Copy an app","takes":"an app and a new name","gives":"an independent copy with fresh Git history, deployed","acts":[{"mode":"produces","resource":"App"},{"mode":"produces","resource":"App source"}],"interfaces":["app management API","executor CLI","Executor app tools"]}]},{"name":"Publish apps","type":"supporting","description":"Share an app's source as a public listing others can copy.","capabilities":[{"name":"Publish an app","takes":"a commit of the app","gives":"the public listing under the organization's scope","acts":[{"mode":"produces","resource":"Publication"}],"interfaces":["app management API","executor CLI","Executor app tools"]},{"name":"Unpublish an app","takes":"a package name","gives":"the listing removed; copies stay","acts":[{"mode":"mutates","resource":"Publication"}],"interfaces":["app management API","executor CLI","Executor app tools"]},{"name":"List published apps","takes":"nothing","gives":"the public listings, or the organization's own","acts":[{"mode":"observes","resource":"Publication"}],"interfaces":["app management API","executor CLI","Executor app tools"]}]},{"name":"Write app code","type":"supporting","description":"Use what the host gives app code while it runs.","capabilities":[{"name":"Store app data","takes":"SQL migrations and statements","gives":"the app's own database, read-only in queries and transactional in mutations","acts":[{"mode":"mutates","resource":"App data"}],"interfaces":["apps package"]},{"name":"Call a service with linked accounts","takes":"a request and the account fields the call runs with","gives":"the service's response, with the credential attached by Executor","acts":[{"mode":"observes","resource":"Account"}],"interfaces":["apps package"]},{"name":"Ask a person for input","takes":"a message and a form","gives":"the person's answer: accept with content, decline or cancel","acts":[{"mode":"produces","resource":"Approval request"}],"interfaces":["apps package"]},{"name":"Emit an app event","takes":"an event name, its data and filters","gives":"the event delivered to every matching subscription","acts":[{"mode":"reacts","resource":"Event subscription"}],"interfaces":["apps package"]},{"name":"Start a workflow from app code","takes":"a workflow, its input and an optional key","gives":"the workflow run","acts":[{"mode":"produces","resource":"Workflow run"}],"interfaces":["apps package"]},{"name":"Use the desktop from an app page","takes":"a desktop call such as a shortcut, a menu bar title or a window","gives":"its effect in the installed app, once permitted","acts":[{"mode":"mutates","resource":"Installed app"}],"interfaces":["apps package"]}]}],"evidence":[{"path":"apps/docs/content/author-an-app.mdx","shows":"creating, committing and deploying apps, storage, approvals, schedules, webhooks, input mid-tool, app pages and the desktop API"},{"path":"apps/docs/content/concepts/apps-and-versions.md","shows":"versions, rollback, copies and publishing"},{"path":"packages/app-management/src/contracts/api.ts","shows":"the app management operations: list, create, source, commit, deploy, copy, git, publish, history, catalog, published, unpublish"},{"path":"packages/app-management/src/contracts/framework.ts","shows":"framework release, search and describe"},{"path":"packages/app-management/src/contracts/git.ts","shows":"the app Git repository's smart HTTP protocol"},{"path":"packages/app-management/src/cli.ts","shows":"the executor apps commands"},{"path":"packages/apps/README.md","shows":"the apps package's declarations and helpers"},{"path":"packages/app-templates/executor/skills/app-authoring/events.md","shows":"emitting app events"},{"path":"packages/app-templates/executor/skills/app-authoring/workflows.md","shows":"starting workflows from app code"}]},{"consumer":"Visitor","provider":"Executor","interfaces":["marketing site","documentation site"],"areas":[{"name":"Explore Executor","type":"core","description":"Find out what Executor is and which public apps exist.","capabilities":[{"name":"Browse public apps","takes":"nothing, or a public app's package name","gives":"the public listings and an app's source files","acts":[{"mode":"observes","resource":"Publication"}],"interfaces":["marketing site"]},{"name":"Read about Executor","takes":"a page","gives":"Executor's guides, pricing and blog","acts":[{"mode":"observes","resource":"Guide"}]}]}],"evidence":[{"path":"apps/marketing/src/pages/apps/index.astro","shows":"the public apps directory"},{"path":"apps/marketing/src/contracts/public-apps.ts","shows":"the directory reading the public registry's listings and snapshots"},{"path":"apps/marketing/src/pages/pricing.astro","shows":"the pricing page"},{"path":"apps/docs/content/index.mdx","shows":"the documentation's entry page"}]},{"consumer":"Product server","provider":"Engine","interfaces":["engine SDK"],"areas":[{"name":"Run apps","type":"core","description":"List, search and call the tools of apps with the accounts a call runs with, and read their skills and data.","capabilities":[{"name":"List tools","takes":"an app and the accounts the caller's links resolve to","gives":"the app's current tools","acts":[{"mode":"observes","resource":"Tool"}]},{"name":"Search tools","takes":"words and the apps and tools the caller may discover","gives":"ranked tools with their paths and input types","acts":[{"mode":"observes","resource":"Tool"}]},{"name":"Call a tool","takes":"an app, a tool, its input and the accounts it runs with","gives":"the tool's result, or a pending approval","acts":[{"mode":"mutates","resource":"App data"},{"mode":"produces","resource":"Approval request"}]},{"name":"Resume a paused tool call","takes":"a pending approval and the person's answer","gives":"the call's result","acts":[{"mode":"mutates","resource":"Approval request"}]},{"name":"Read skills","takes":"an app and the accounts it runs with","gives":"its skill catalog or one skill","acts":[{"mode":"observes","resource":"Skill"}]},{"name":"Query app data","takes":"an app, a query and its input","gives":"the query's result, live when subscribed","acts":[{"mode":"observes","resource":"App data"}]},{"name":"Change app data","takes":"an app, a mutation and its input","gives":"the mutation's result","acts":[{"mode":"mutates","resource":"App data"}]}]},{"name":"Keep accounts","type":"supporting","description":"Save, check, change and remove accounts and the OAuth clients they sign in with.","capabilities":[{"name":"Connect an account","takes":"an owner, an app requirement and the provider's fields or an OAuth sign-in","gives":"a connection request and, once it completes, the saved account","acts":[{"mode":"produces","resource":"Connection request"},{"mode":"produces","resource":"Account"}]},{"name":"Check an account","takes":"an account","gives":"its health","acts":[{"mode":"observes","resource":"Account"}]},{"name":"Edit an account","takes":"an account and its new label or description","gives":"the updated account","acts":[{"mode":"mutates","resource":"Account"}]},{"name":"Remove an account","takes":"an account","gives":"the account deleted and its OAuth grant revoked","acts":[{"mode":"mutates","resource":"Account"}]},{"name":"Register an OAuth client","takes":"an issuer and client details","gives":"the saved client","acts":[{"mode":"produces","resource":"OAuth client"}]}]},{"name":"Manage app code","type":"supporting","description":"Create apps and change their source and versions.","capabilities":[{"name":"Create an app","takes":"an owner, a name and files","gives":"the new app and its first revision","acts":[{"mode":"produces","resource":"App"},{"mode":"produces","resource":"App source"}]},{"name":"Read app source","takes":"an app and a revision","gives":"its files","acts":[{"mode":"observes","resource":"App source"}]},{"name":"Commit source","takes":"an app, files and the expected revision","gives":"the new revision","acts":[{"mode":"mutates","resource":"App source"}]},{"name":"Deploy a version","takes":"an app and a commit or files","gives":"the built, active version","acts":[{"mode":"produces","resource":"Version"}]},{"name":"Activate a version","takes":"an app and a retained version","gives":"the app running it","acts":[{"mode":"mutates","resource":"App"}]},{"name":"Copy an app","takes":"an app or a publication and a name","gives":"the deployed copy","acts":[{"mode":"produces","resource":"App"}]},{"name":"Remove an app","takes":"an app","gives":"the app removed","acts":[{"mode":"mutates","resource":"App"}]}]},{"name":"Run background work","type":"supporting","description":"Configure and run apps' schedules, webhooks, workflows and events.","capabilities":[{"name":"Configure a schedule","takes":"a schedule or a member's copy and its settings","gives":"the schedule with its next run","acts":[{"mode":"mutates","resource":"Schedule"}]},{"name":"Run a schedule now","takes":"a schedule copy","gives":"a run started","acts":[{"mode":"mutates","resource":"Schedule"}]},{"name":"Set up a webhook","takes":"a webhook subscription and its settings","gives":"the webhook registered","acts":[{"mode":"mutates","resource":"Webhook"}]},{"name":"Start a workflow run","takes":"an app's workflow, its input and the accounts it runs with","gives":"the run","acts":[{"mode":"produces","resource":"Workflow run"}]},{"name":"Stop a workflow run","takes":"a run","gives":"the run terminated","acts":[{"mode":"mutates","resource":"Workflow run"}]},{"name":"Subscribe to app events","takes":"an app, an event, filters and a callback","gives":"a subscription the Engine delivers to","acts":[{"mode":"produces","resource":"Event subscription"}]}]},{"name":"Publish apps","type":"supporting","description":"Publish and unpublish apps' listings and read public ones.","capabilities":[{"name":"Publish an app","takes":"an app and a commit","gives":"the publication","acts":[{"mode":"produces","resource":"Publication"}]},{"name":"Unpublish an app","takes":"a package name","gives":"the listing removed","acts":[{"mode":"mutates","resource":"Publication"}]},{"name":"List public apps","takes":"nothing or a name","gives":"public listings and their snapshots","acts":[{"mode":"observes","resource":"Publication"}]}]}],"evidence":[{"path":"packages/sdk/src/contracts/executor.ts","shows":"the Executor contract, ExecutorInputs (database, git, blobs, runtime, workflows, registry, hooks, events) and the ResourceLifecycle hooks"},{"path":"packages/sdk/src/contracts/http.ts","shows":"the one HTTP contract the Executor type is projected from, and its groups"},{"path":"apps/local/server/src/implementation/server.ts","shows":"the local server constructing the Engine with createExecutor"},{"path":"apps/hosted/cloud/src/infrastructure/executor.ts","shows":"Cloud constructing the Engine with its adapters and the hosted lifecycle hooks"},{"path":"apps/hosted/self-host/src/implementation/executor-services.ts","shows":"self-host constructing the Engine"}]},{"consumer":"Product server","provider":"Code mode","interfaces":["MCP tools handler"],"areas":[{"name":"Serve agent tools","type":"core","description":"Answer agents' MCP tool calls over the product's authorized operations.","capabilities":[{"name":"Run a program","takes":"an agent's program and the approval mode","gives":"its result, or a pending request","acts":[{"mode":"produces","resource":"Program run"}]},{"name":"Call tools","takes":"tool paths and inputs","gives":"each outcome, or a pending request","acts":[{"mode":"produces","resource":"Program run"}]},{"name":"Resume a paused call","takes":"a request ID and the answer","gives":"the continued result","acts":[{"mode":"mutates","resource":"Program run"}]},{"name":"Search tools","takes":"words","gives":"a page of tools the caller may discover","acts":[{"mode":"observes","resource":"Tool"}]},{"name":"Describe tools","takes":"tool paths","gives":"their signatures","acts":[{"mode":"observes","resource":"Tool"}]},{"name":"Read skills","takes":"an app and a skill name","gives":"skill text","acts":[{"mode":"observes","resource":"Skill"}]}]},{"name":"Answer a browser approval","type":"supporting","description":"Let a signed-in browser page show and answer a pending request in browser mode.","capabilities":[{"name":"Answer a browser approval","takes":"a request address and the person's answer","gives":"the saved call to show, then the request answered for the agent to collect","acts":[{"mode":"observes","resource":"Approval request"},{"mode":"mutates","resource":"Approval request"}]}]}],"evidence":[{"path":"packages/mcp/src/implementation/server.ts","shows":"mcp and makeMcp, the handler and browser accessors"},{"path":"packages/mcp/src/contracts/backend.ts","shows":"McpBackend, the product operations code mode calls back to complete each tool"},{"path":"packages/mcp/src/contracts/browser.ts","shows":"the browser approval accessors"},{"path":"packages/mcp/src/implementation/executions.ts","shows":"running programs and paused calls"}]},{"consumer":"Engine","provider":"App runtime","interfaces":["app runtime contract"],"areas":[{"name":"Run app code","type":"core","description":"Run an app version's tools, webhooks, account checks and workflows with the accounts a call runs with.","capabilities":[{"name":"Call a tool","takes":"a build, a tool, its input and the resolved accounts","gives":"the tool's JSON result","acts":[{"mode":"mutates","resource":"App data"}]},{"name":"Describe an app","takes":"a build and the accounts","gives":"its current tools and skills","acts":[{"mode":"observes","resource":"Tool"},{"mode":"observes","resource":"Skill"}]},{"name":"Run a webhook command","takes":"a build and a webhook lifecycle command or delivery","gives":"the command's result","acts":[{"mode":"mutates","resource":"App data"}]},{"name":"Check an account","takes":"a build, a requirement and one account","gives":"whether the account works","acts":[{"mode":"observes","resource":"Account"}]},{"name":"Run a workflow","takes":"a workflow run","gives":"the run started, its status, or the run terminated","acts":[{"mode":"produces","resource":"Workflow run"},{"mode":"observes","resource":"Workflow run"}]}]},{"name":"Build apps","type":"supporting","description":"Turn source into a retained build and prepare its data.","capabilities":[{"name":"Build an app","takes":"an app's code files and public file paths","gives":"the retained build and its declared requirements","acts":[{"mode":"produces","resource":"Build"}]},{"name":"Apply app migrations","takes":"a build with SQL migrations","gives":"the app's database migrated before activation","acts":[{"mode":"mutates","resource":"App data"}]},{"name":"Read a public file","takes":"a build and a path","gives":"the file served beside the build","acts":[{"mode":"observes","resource":"Build"}]}]}],"evidence":[{"path":"packages/sdk/src/contracts/runtime.ts","shows":"Runtime: build, asset, skills, inspect, index, query, mutate, webhook, workflow, call, checkAccount, migrate"},{"path":"packages/sdk/src/contracts/workflow-runtime.ts","shows":"WorkflowRuntime start, status, terminate and the WorkflowHost callbacks"},{"path":"packages/sdk/src/implementation/workerd-apps.ts","shows":"the workerd variant returning runtime and workflows"},{"path":"apps/hosted/cloud/src/infrastructure/runtime.ts","shows":"the Cloud variant on Dynamic Workers"}]},{"consumer":"Engine","provider":"Public app registry","interfaces":["registry contract"],"areas":[{"name":"Keep public listings","type":"core","description":"Store, remove and read public app listings.","capabilities":[{"name":"Publish a listing","takes":"a publication with its source snapshot","gives":"the stored listing","acts":[{"mode":"produces","resource":"Publication"}]},{"name":"Remove a listing","takes":"an owner and a package name","gives":"the listing removed","acts":[{"mode":"mutates","resource":"Publication"}]},{"name":"List public apps","takes":"nothing, a name or an owner","gives":"the listings","acts":[{"mode":"observes","resource":"Publication"}]},{"name":"Read a published snapshot","takes":"a name and a commit","gives":"the listing's source files","acts":[{"mode":"observes","resource":"Publication"}]}]}],"evidence":[{"path":"packages/sdk/src/contracts/registry.ts","shows":"Registry (list, snapshot, file, files) and RegistryStorage (get, list, owned, publish, unpublish)"},{"path":"packages/app-registry/src/implementation/storage.ts","shows":"the registry's tables"},{"path":"packages/sdk/src/implementation/remote-registry.ts","shows":"the HTTP client local and self-host use"}]},{"consumer":"Desktop app","provider":"Product server","interfaces":["desktop sign-in API"],"areas":[{"name":"Open signed-in windows","type":"core","description":"Open the dashboard and app pages in desktop windows, signed in as the person.","capabilities":[{"name":"Sign a window in","takes":"a desktop token or local pairing, and a path to return to","gives":"a one-use link that signs the window in, and whom and which organization it signs in","acts":[{"mode":"produces","resource":"Session"},{"mode":"observes","resource":"Member"}]},{"name":"Find an app's page","takes":"an app","gives":"its page address and icon","acts":[{"mode":"observes","resource":"App"}]}]}],"evidence":[{"path":"apps/hosted/server/src/contracts/desktop-sessions.ts","shows":"desktop session links and account reads"},{"path":"apps/local/server/src/contracts/desktop-return.ts","shows":"local OAuth returns for the desktop"},{"path":"apps/local/server/src/contracts/auth.ts","shows":"local pairing"},{"path":"apps/hosted/server/src/contracts/app-ui.ts","shows":"app page location and icon"}]},{"consumer":"Engine","provider":"Connected services","interfaces":["service OAuth endpoints"],"areas":[{"name":"Authorize accounts","type":"core","description":"Get and give back services' OAuth authorizations for accounts.","capabilities":[{"name":"Authorize an account","takes":"a provider's OAuth method, a client and the person's consent","gives":"tokens for the account","acts":[{"mode":"produces","resource":"Service authorization"}]},{"name":"Revoke an authorization","takes":"a deleted account's grant","gives":"the grant revoked at the service","acts":[{"mode":"mutates","resource":"Service authorization"}]}]}],"evidence":[{"path":"packages/sdk/src/implementation/oauth-protocol.ts","shows":"discovery, client registration, code exchange, refresh and revocation"},{"path":"packages/sdk/src/contracts/oauth.ts","shows":"the OAuth contract"}]},{"consumer":"App runtime","provider":"Connected services","interfaces":["service APIs"],"areas":[{"name":"Use services","type":"core","description":"Call the services apps wrap, with the accounts a call runs with.","capabilities":[{"name":"Call a service API","takes":"a request with the account's credentials placed for the provider's hosts","gives":"the service's response","acts":[{"mode":"observes","resource":"Service data"},{"mode":"mutates","resource":"Service data"}]},{"name":"Read a service description","takes":"a remote MCP server, OpenAPI document or GraphQL endpoint","gives":"its tools or schema","acts":[{"mode":"observes","resource":"Service description"}]}]}],"evidence":[{"path":"packages/sdk/src/implementation/credential-handles.ts","shows":"credentialFetch placing credentials for matching hosts"},{"path":"packages/apps/src/implementation/openapi-source.ts","shows":"reading live OpenAPI documents"},{"path":"apps/docs/content/run/self-host.mdx","shows":"app code's fetch reaching only public addresses"}]},{"consumer":"App runtime","provider":"npm registry","interfaces":["npm registry API"],"areas":[{"name":"Download an app's dependencies","type":"core","description":"Download the dependencies an app declares.","capabilities":[{"name":"Download an app's dependencies","takes":"the app's package.json dependencies","gives":"the packages to build with","acts":[{"mode":"observes","resource":"Package"}]}]}],"evidence":[{"path":"packages/sdk/src/implementation/worker-dependencies.ts","shows":"installing declared dependencies for a build"},{"path":"apps/docs/content/run/self-host.mdx","shows":"EXECUTOR_NPM_REGISTRY"}]},{"consumer":"Product server","provider":"Identity providers","interfaces":["identity provider sign-in"],"areas":[{"name":"Verify a person's identity","type":"core","description":"Learn who a person is from their identity provider.","capabilities":[{"name":"Verify a person's identity","takes":"a sign-in at the provider","gives":"the person's identity and email","acts":[{"mode":"observes","resource":"External identity"}]}]}],"evidence":[{"path":"apps/hosted/cloud/src/implementation/auth-options.ts","shows":"Google and GitHub sign-in on Cloud"},{"path":"apps/hosted/cloud/src/implementation/chatgpt-sign-in.ts","shows":"ChatGPT sign-in"},{"path":"apps/hosted/cloud/src/implementation/sso.ts","shows":"single sign-on"}]},{"consumer":"Product server","provider":"Official app feed","interfaces":["official app feed"],"areas":[{"name":"List official apps","type":"core","description":"Read the vetted official apps people can add.","capabilities":[{"name":"List official apps","takes":"nothing","gives":"the feed's apps, or why it is unavailable","acts":[{"mode":"observes","resource":"Catalog app"}]},{"name":"Fetch an official app's source","takes":"a feed entry","gives":"the app's source files","acts":[{"mode":"observes","resource":"Catalog app"}]}]}],"evidence":[{"path":"packages/catalog/README.md","shows":"the feed, written by another repository, and how hosts read it"},{"path":"packages/catalog/src/implementation/source.ts","shows":"reading the feed"}]},{"consumer":"Product server","provider":"Connected services","interfaces":["service APIs"],"areas":[{"name":"Check how a remote MCP server connects","type":"core","description":"Find out how a remote MCP server a person entered can be connected.","capabilities":[{"name":"Check how a remote MCP server connects","takes":"a server address","gives":"whether it works anonymously or with OAuth, or needs an agent to set it up","acts":[{"mode":"observes","resource":"Service description"}]}]}],"evidence":[{"path":"packages/catalog/src/implementation/detection.ts","shows":"the MCP access check"},{"path":"packages/catalog/src/implementation/custom.ts","shows":"preparing a user-entered MCP address"}]},{"consumer":"Product server","provider":"Billing service","interfaces":["billing API"],"areas":[{"name":"Manage subscriptions","type":"core","description":"Read and change an organization's Cloud plan.","capabilities":[{"name":"Read the subscription","takes":"an organization","gives":"its plans and current subscription","acts":[{"mode":"observes","resource":"Subscription"}]},{"name":"Start a checkout","takes":"an organization and a plan","gives":"a checkout or billing portal address","acts":[{"mode":"mutates","resource":"Subscription"}]},{"name":"Update seats","takes":"an organization's member count","gives":"the subscription's seats","acts":[{"mode":"mutates","resource":"Subscription"}]}]}],"evidence":[{"path":"apps/hosted/cloud/src/contracts/billing.ts","shows":"the Billing service: overview, checkout, portal"},{"path":"apps/hosted/cloud/src/implementation/autumn-client.ts","shows":"the billing service's client"},{"path":"apps/hosted/cloud/src/implementation/billing-seats.ts","shows":"seat updates"}]},{"consumer":"Product server","provider":"Email delivery","interfaces":["email sending"],"areas":[{"name":"Send an email","type":"core","description":"Send people Executor's emails.","capabilities":[{"name":"Send an email","takes":"a recipient and a sign-in code, invitation or welcome message","gives":"the email sent","acts":[{"mode":"produces","resource":"Email message"}]}]}],"evidence":[{"path":"apps/hosted/cloud/src/contracts/email.ts","shows":"SendAuthEmail and SendWelcomeEmail"},{"path":"apps/hosted/cloud/src/infrastructure/email.ts","shows":"the email sending configuration"}]},{"consumer":"Product server","provider":"Company profile lookup","interfaces":["company lookup API"],"areas":[{"name":"Look up a company's brand","type":"core","description":"Suggest an organization's name and logo.","capabilities":[{"name":"Look up a company's brand","takes":"a domain","gives":"the company's name and logos","acts":[{"mode":"observes","resource":"Company profile"}]}]}],"evidence":[{"path":"apps/hosted/cloud/src/implementation/company-profile.ts","shows":"the brand lookup"}]},{"consumer":"Access","provider":"Identity providers","interfaces":["identity provider sign-in"],"areas":[{"name":"Verify a person's identity","type":"core","description":"Learn who a person is from their identity provider.","capabilities":[{"name":"Verify a person's identity","takes":"a sign-in at the provider","gives":"the person's identity and email","acts":[{"mode":"observes","resource":"External identity"}]}]}],"evidence":[{"path":"apps/hosted/cloud/src/implementation/auth-options.ts","shows":"the sign-in library's social providers"},{"path":"apps/hosted/self-host/src/implementation/auth-options.ts","shows":"self-host's sign-in options, with OIDC single sign-on"}]},{"consumer":"Access","provider":"Email delivery","interfaces":["email sending"],"areas":[{"name":"Send an email","type":"core","description":"Send sign-in codes and invitations.","capabilities":[{"name":"Send an email","takes":"a recipient and a sign-in code or invitation","gives":"the email sent","acts":[{"mode":"produces","resource":"Email message"}]}]}],"evidence":[{"path":"apps/hosted/cloud/src/contracts/email.ts","shows":"SendAuthEmail"},{"path":"apps/hosted/cloud/src/implementation/auth-options.ts","shows":"email codes in the sign-in options"}]},{"consumer":"App sandbox","provider":"Apps framework","interfaces":["host protocol"],"areas":[{"name":"Run app code","type":"core","description":"Have an app's bundle answer for its declarations and run its operations.","capabilities":[{"name":"Describe the app","takes":"a requirements, inspect or skills request","gives":"its requirements, tools and skills","acts":[{"mode":"observes","resource":"Tool"},{"mode":"observes","resource":"Skill"}]},{"name":"Run a tool","takes":"a tool name, its input and the accounts","gives":"the validated output, or a refusal by the tool's approval rule","acts":[{"mode":"mutates","resource":"App data"}]},{"name":"Run a query or mutation","takes":"a name and input from an app page or a schedule","gives":"its result","acts":[{"mode":"observes","resource":"App data"},{"mode":"mutates","resource":"App data"}]},{"name":"Run a webhook command","takes":"a webhook lifecycle command or delivery","gives":"its result","acts":[{"mode":"mutates","resource":"App data"}]},{"name":"Run a workflow step","takes":"a workflow step command","gives":"the step's result","acts":[{"mode":"mutates","resource":"App data"}]},{"name":"Check an account","takes":"an account-check request with one account","gives":"the provider check's result","acts":[{"mode":"observes","resource":"Account"}]},{"name":"Apply migrations","takes":"a migrate request","gives":"the migrations applied","acts":[{"mode":"mutates","resource":"App data"}]}]}],"evidence":[{"path":"packages/apps/src/contracts/protocols/current.ts","shows":"HostRequest: requirements, inspect, skills, query, mutate, call, account-check, migrate, webhook and workflow commands"},{"path":"packages/apps/protocols/README.md","shows":"the host protocol is recorded and frozen per release"},{"path":"packages/apps/src/implementation/host.ts","shows":"the framework's handler, including migrations and ctx.sql"},{"path":".oxlintrc.jsonc","shows":"the rest of the SDK reaches an app only by RPC"}]},{"consumer":"App sandbox","provider":"Builder","interfaces":["retained builds"],"areas":[{"name":"Load a build","type":"core","description":"Get the retained build a call runs.","capabilities":[{"name":"Load a build","takes":"a build ID","gives":"the build's modules and framework","acts":[{"mode":"observes","resource":"Build"}]}]}],"evidence":[{"path":"packages/sdk/src/implementation/worker-build-storage.ts","shows":"loadWorkerBuild, loadWorkerFramework and workerBuildAsset"}]},{"consumer":"Apps framework","provider":"Outbound gateway","interfaces":["outbound fetch"],"areas":[{"name":"Reach services","type":"core","description":"Send app code's requests out, with credentials only where they belong.","capabilities":[{"name":"Call a service API","takes":"a request, with account fields as sealed handles","gives":"the service's response, or a refusal for a forbidden address","acts":[{"mode":"observes","resource":"Service data"},{"mode":"mutates","resource":"Service data"}]},{"name":"Read a service description","takes":"a request for a remote server's tools or document","gives":"the description","acts":[{"mode":"observes","resource":"Service description"}]}]}],"evidence":[{"path":"packages/sdk/src/implementation/credential-handles.ts","shows":"CredentialOutbound, AppEgress, sealAccounts and credentialFetch"},{"path":"packages/sdk/src/implementation/app-network.ts","shows":"the network module generated into each app Worker"}]},{"consumer":"Outbound gateway","provider":"Connected services","interfaces":["service APIs"],"areas":[{"name":"Use services","type":"core","description":"Call the services apps wrap.","capabilities":[{"name":"Call a service API","takes":"a request with credentials placed","gives":"the service's response","acts":[{"mode":"observes","resource":"Service data"},{"mode":"mutates","resource":"Service data"}]},{"name":"Read a service description","takes":"a request for tools or a document","gives":"the description","acts":[{"mode":"observes","resource":"Service description"}]}]}],"evidence":[{"path":"apps/hosted/cloud/src/implementation/app-outbound-relay.ts","shows":"Cloud's outbound relay"},{"path":"packages/sdk/src/implementation/credential-handles.ts","shows":"credentialFetch"}]},{"consumer":"Builder","provider":"npm registry","interfaces":["npm registry API"],"areas":[{"name":"Download an app's dependencies","type":"core","description":"Download the dependencies an app declares.","capabilities":[{"name":"Download an app's dependencies","takes":"the app's package.json dependencies","gives":"the packages to compile","acts":[{"mode":"observes","resource":"Package"}]}]}],"evidence":[{"path":"packages/sdk/src/implementation/worker-dependencies.ts","shows":"installing declared dependencies"}]}],"questions":[{"question":"Is the agent a consumer of its own, or the person using another interface?","answer":"A consumer of its own rather than an interface of the Person; the model's rule that a consumer's own scripts are the same consumer points the other way, but the agent has its own grant, approval mode and limits, and the product keeps it from widening its own access (apps/docs/content/mcp.md), so its goals and capabilities diverge."},{"question":"Is the organization admin a separate consumer, or the Person with a role?","answer":"A separate consumer rather than a permission attribute of the Person; the model allows both, and admins' goals (members, invitations, groups, OAuth clients, billing) are ones members do not have (apps/docs/content/concepts/organizations-and-access.md)."},{"question":"Do visitors of the public sites deserve a boundary?","answer":"A Visitor boundary with two capabilities rather than folding the public sites into the Person's boundary; the model counts public pages as part of the provider but says nothing on who reads them, and the public apps directory works on real listings."},{"question":"Are Cloud, self-host and local one provider, and one Product server with variants?","answer":"One provider, Executor, and one Product server with a local and a hosted variant, rather than three providers or two servers; the docs say all three run the same apps and serve the same endpoint, and both servers plug the same contracts into the Engine and Code mode, but what a consumer gets differs (organizations, groups, billing, scoped connections, activity), which the extraction rule names as the reason to split."},{"question":"Is the catalog a component?","answer":"Not a component but an adapter of the Product server, rather than a component; it decides whether a remote MCP server can be added (packages/catalog/src/implementation/detection.ts), but it keeps nothing, installs nothing and mostly reads an outside feed, and the rule that adapters are not components does not say what to do with an adapter that also decides."},{"question":"Is tool search a component of the Engine?","answer":"A part of the Engine rather than a component; its listing rows are written only by tool-search-store.ts and it alone ranks tools, which would pass the test's letter, but the rows are a derived index of listings the Engine evaluates and rebuilds, which the model treats as how a component keeps things."},{"question":"Should sign-in and sharing be two components inside the Product server?","answer":"One component, Access, rather than splitting along the package seam of packages/mcp-auth and the sign-in library; access policy reads the sign-in library's member table directly, revoking a grant ends sessions, and deleting members and groups cascades into sharing rows, so they share one store and change each other's records."},{"question":"Is the tool-call history a resource and the Activity log a component?","answer":"Both, rather than treating the history as the record a capability leaves behind; people list and filter tool calls on the Activity page (apps/hosted/server/src/contracts/tool-call-log.ts), and only the log's files write or read its table."},{"question":"Does the Product server going around the Engine's contract merge the two?","answer":"They stay two components, with the leaks noted, rather than one; the Engine's contract and the products' adapters are code-enforced (packages/sdk/src/contracts/executor.ts), but the hosted server joins engine tables in its access queries (resource-policy.ts, app-accounts.ts), its data migrations rewrite engine rows (app-account-schema.ts, personal-account-schema.ts) and its tables reference engine tables with cascading deletes (resource-schema.ts)."},{"question":"Is the apps package a component or a library?","answer":"A component of the App runtime, the Apps framework, rather than a library; it is a library app code imports, but inside each Worker it applies migrations, keeps the app's data and enforces input and approval rules, and the sandbox reaches it only through the recorded host protocol (packages/apps/src/contracts/protocols/current.ts)."},{"question":"Is the desktop app a component or an interface?","answer":"A component rather than only an interface; it presents the dashboards, but it also keeps installed apps with their permissions and decides those permissions, reached by app pages through the desktop bridge (apps/local/desktop/src/contracts/installed-apps.ts)."},{"question":"Is the bundled Executor app a component?","answer":"An interface, Executor app tools, rather than a component; it runs as an app, but its tools are generated from the host's own API and only present the Product server's capabilities."},{"question":"Is the Workflow engine Executor's or the platform's?","answer":"A component of the App runtime rather than part of the Engine or an outside service; the durable state lives in the platform's workflow service (Cloudflare Workflows, workerd's local form), an implementation choice, and Executor's step runner is reached only through WorkflowRuntime (packages/sdk/src/contracts/workflow-runtime.ts)."},{"question":"Is the McpBackend a boundary from Code mode to the Product server?","answer":"Callbacks inside the Product server's boundary with Code mode rather than a boundary of its own; Code mode declares the backend it needs and calls it to complete each agent tool, which the model treats as the provider calling back."},{"question":"Is the outbound gateway separate from the sandbox?","answer":"A component of its own rather than part of the sandbox; it runs as its own Worker entrypoint in both forms (workerd-entry AppOutbound, Cloud app-outbound.ts) and alone decides credential placement, though one could read it as the sandbox's network policy. The Engine imports one of its functions, intersectCredentialHosts, to work out a provider's credential hosts when it normalizes a provider (packages/sdk/src/implementation/provider.ts): a shared rule, not a call into the gateway's state."},{"question":"Does the desktop app reach the Apps framework around a contract?","answer":"No, rather than a leak: it imports the framework's desktop and UI contract files by relative path (apps/local/desktop/src/contracts/installed-apps.ts imports packages/apps/src/contracts/desktop.ts), the same contract app pages use through the bridge, and no implementation file."},{"question":"Should approval requests be a resource?","answer":"A resource rather than a property of tool calls and program runs; people answer them on an Approvals page and agents resume them by ID, and scheduled runs pause the same way."},{"question":"Do app data and the app sandbox's data facets form a component?","answer":"Storage, rather than a component; the data Workers hold each app's database, but app code changes it through ctx.sql and the framework applies its migrations (packages/apps/src/implementation/host.ts)."}],"cleanupCandidates":[{"name":"Executor 1 compatibility on Cloud","why":"Forwarding from Executor 1's edge, its AuthKit sign-in host, legacy MCP URLs, captured Executor 1 API keys and session hand-off (apps/hosted/cloud/src/implementation/v1-*.ts, host-roles.ts, packages/mcp-auth legacyMcpPath) exist only until Executor 1 shuts down, as host-roles.ts says."},{"name":"Profile migration remnants","why":"Profiles were removed (plans/remove-profiles.md: implemented), but the engine table behind them is still named executor_installations as profiles, and data steps that turn profiles into app copies remain (profile-app-copies.ts in apps/hosted/server and packages/app-management, apps/local/server/src/implementation/mcp-auth-profiles.ts)."},{"name":"Personal accounts backup","why":"hosted_personal_accounts_backup records the conversion when shared accounts were removed on November 11, 2026 (apps/hosted/server/src/implementation/personal-account-schema.ts); a one-off migration's trail."},{"name":"Remote SDK scaffold","why":"createRemoteExecutor is exported but always fails with NotImplemented (packages/sdk/src/implementation/create.ts), while DEVELOPMENT.md documents it as part of the root SDK."},{"name":"Legacy local storage paths","why":"The local server still passes legacy app-data and workflow-engine directories to the runtime and leaves old executor.sqlite and browser-auth.sqlite files untouched (apps/local/server/src/implementation/server.ts; apps/local/server/README.md, Storage transition); build migration code converts earlier retained builds (packages/sdk/src/implementation/worker-build-migration.ts)."},{"name":"Earlier host protocols","why":"Adapters and protocol records keep bundles built with earlier framework releases running (packages/sdk/src/implementation/app-protocols.ts, packages/apps/protocols/1.json to 14.json, gates.json); compatibility paths for retained builds."},{"name":"Legacy account requirements","why":"Upgrade notes and refusals for apps written before apps 0.0.1-beta.90, which declared { accounts } and read ctx.accounts (packages/app-templates/executor/skills/app-authoring/upgrades/0.0.1-beta.90.md, 0.0.1-beta.38.md)."},{"name":"Legacy field names in hosted API contracts","why":"withLegacyKeys lets hosted contracts accept older field names (packages/utils/src/legacy-keys.ts, used by apps/hosted/server/src/contracts/apps.ts, tools.ts, skills.ts, app-data.ts, workflows.ts)."},{"name":"Desktop data move","why":"A one-time move of the desktop app's own data into the command line's data directory, with backups (apps/local/desktop/src/implementation/migration.ts; apps/docs/content/run/cli.mdx)."},{"name":"Historical Motel names","why":"The self-host telemetry directory is still EXECUTOR_MOTEL_DATA_DIR and old Motel stores are left behind, though the collector replaced Motel (apps/docs/content/run/tracing.md)."},{"name":"Deployment origin and rollback switch","why":"v2.executor.sh keeps the full product with permanent redirects to the browser origin, and CLOUD_BROWSER_ORIGIN=deployment is a rollback switch (apps/hosted/cloud/src/implementation/host-roles.ts)."}],"excluded":[{"name":"Self-host operation","why":"Environment settings, health checks, stall detection and restarts, trusted proxies and the native process supervisor (apps/hosted/self-host/native, apps/docs/content/run/self-host.mdx) set up and run the system rather than use it."},{"name":"Installing and upgrading","why":"install.sh, install.ps1, executor upgrade, update checks and desktop updates set the system up."},{"name":"Local background service control","why":"executor service start, stop, status, pair, rotate-key and serve start and configure the local server; set-up."},{"name":"Diagnostics","why":"The bundled trace collector and viewer, logs and security audit lines are direct reads of the system's own diagnostics (apps/docs/content/run/tracing.md)."},{"name":"Usage analytics, feature flags and error reporting","why":"PostHog events and flags, Sentry and Axiom usage reports watch the system for its team (apps/docs/content/run/usage-analytics.md); feedback sent through them is kept as a capability."},{"name":"Engineering tooling","why":"Repository scripts and checks, release tooling and changesets, end-to-end tests, playgrounds and developer tools build, check and release the system."},{"name":"Cloud deploy and test infrastructure","why":"Alchemy stacks, test stages, PR previews, worker size budgets and agent mail test inboxes deploy and test Cloud."},{"name":"Storage migrations and data steps","why":"Schema migrations and startup data steps (packages/sdk/src/implementation/storage-migrations.ts, packages/app-management/src/data-steps.ts) migrate the system."},{"name":"Hosting platforms","why":"Cloudflare Workers, Dynamic Workers, Durable Objects, R2, Artifacts and Workflows, PlanetScale through Hyperdrive, PGlite and workerd are implementation choices, not outside services consumers or components use for a purpose of their own."},{"name":"Provider behavior","why":"Rate limits, tool listing refreshes, Worker residency and unloading, MCP client state eviction, idle agent grant expiry, schedule dispatch, event delivery retries, webhook reconciliation and OAuth token refresh are what Executor does on its own."},{"name":"Remote SDK","why":"Documented in DEVELOPMENT.md but not implemented in code (createRemoteExecutor fails with NotImplemented)."},{"name":"In-process SDK embedding","why":"createExecutor is used only by Executor's own servers and its playground examples; the package is private and not published (packages/sdk/package.json)."},{"name":"Documented future work","why":"Workspaces, remembered approvals, browser approval for calls from app pages, app-to-app calls, authored HTTP endpoints, automatic updates from a public package and an executor dev loop are documented as coming later and absent from the code."},{"name":"stdio MCP servers","why":"Apps cannot start local processes, so stdio MCP servers cannot be added (DEVELOPMENT.md)."}]}</script>
+<script>
+// Draws a boundary map one open box at a time. Each screen shows who uses the open box, its
+// interfaces, its capabilities, the components inside it, and what it uses; every box lists the
+// resources it keeps. A click lights what the clicked thing connects to and explains it in the
+// panel; Open, at the foot of a box, makes it the open box. With ?still in the address the page
+// draws one screen for a still image, with what the panel would say written under the drawing.
+
+// ---------- the map ----------
+
+const RAW = JSON.parse(document.getElementById("map-data").textContent);
+const params = new URLSearchParams(location.search);
+const STILL = params.has("still");
+if (STILL) document.documentElement.classList.add("still");
+const MODE_WORD = { produces: "creates", mutates: "changes", observes: "reads", reacts: "reacts to" };
+const KIND_WORD = {
+  consumer: "Consumer",
+  provider: "Provider",
+  component: "Component",
+  outside: "Outside service",
+};
+
+function el(tag, attrs = {}, ...children) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v === undefined || v === null || v === false) continue;
+    if (k === "class") e.className = v;
+    else if (k === "html") e.innerHTML = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v);
+  }
+  for (const c of children.flat(3)) if (c !== null && c !== undefined && c !== false) e.append(c);
+  return e;
+}
+
+function svgEl(tag, attrs = {}) {
+  const e = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const [k, v] of Object.entries(attrs)) if (v !== undefined && v !== null) e.setAttribute(k, v);
+  return e;
+}
+
+const escapeHtml = (s) =>
+  s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const inline = (s) =>
+  escapeHtml(s)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+const sentence = (s) => s.replace(/^[a-z]/, (c) => c.toUpperCase());
+const text = (tag, s, cls) => el(tag, { class: cls, html: inline(sentence(s)) });
+const unique = (xs) => [...new Set(xs)];
+
+const nodes = new Map();
+for (const c of RAW.consumers) nodes.set(c.name, { ...c, kind: "consumer", children: [], shared: [], also: [] });
+const addComponent = (c, parent) => {
+  const n = {
+    name: c.name,
+    description: c.description,
+    kind: parent ? "component" : "provider",
+    parent: parent ?? null,
+    resources: c.resources,
+    parts: c.parts,
+    serves: [...(c.serves ?? [])],
+    children: (c.components ?? []).map((k) => k.name),
+    shared: [],
+    also: [],
+  };
+  nodes.set(c.name, n);
+  for (const k of c.components ?? []) addComponent(k, c.name);
+};
+for (const p of RAW.providers) addComponent(p, null);
+for (const s of RAW.outsideServices)
+  nodes.set(s.name, { ...s, kind: "outside", children: [], shared: [], also: [], parts: [] });
+// A component can sit inside a second provider or component at any level.
+const defined = (c) => [c, ...(c.components ?? []).flatMap(defined)];
+for (const p of RAW.providers.flatMap(defined))
+  for (const s of p.sharedComponents ?? []) {
+    nodes.get(p.name).shared.push(s.name);
+    nodes.get(s.name).also.push(p.name);
+    nodes.get(s.name).serves.push(...s.serves);
+  }
+
+const boundaries = RAW.boundaries.map((b) => {
+  const boundary = { ...b, id: `${b.consumer} → ${b.provider}` };
+  boundary.areas = b.areas.map((a) => {
+    const area = { ...a, key: `${b.consumer} › ${a.name}`, boundary };
+    area.capabilities = a.capabilities.map((c) => ({
+      ...c,
+      area,
+      id: `${area.key} › ${c.name}`,
+      via: c.interfaces ?? b.interfaces,
+    }));
+    return area;
+  });
+  return boundary;
+});
+const allAreas = boundaries.flatMap((b) => b.areas);
+const allCapabilities = allAreas.flatMap((a) => a.capabilities);
+const capabilityById = new Map(allCapabilities.map((c) => [c.id, c]));
+const resourceByName = new Map(RAW.resources.map((r) => [r.name, r]));
+const interfaceText = new Map(RAW.interfaces.map((i) => [i.name, i.description]));
+
+const node = (name) => nodes.get(name);
+const incoming = (name) => boundaries.filter((b) => b.provider === name);
+const subtree = (name) => [name, ...node(name).children.flatMap(subtree)];
+const ancestors = (name) => {
+  const p = node(name).parent;
+  return p ? [...ancestors(p), p] : [];
+};
+const handlers = (area) => {
+  const serving = [...nodes.values()]
+    .filter((n) => n.serves?.some((s) => `${s.consumer} › ${s.area}` === area.key))
+    .map((n) => n.name);
+  return serving.length ? serving : [area.boundary.provider];
+};
+// A boundary drawn on a whole component that one of its inner components carries in detail.
+const refinedBy = (b) =>
+  boundaries.find((o) => o !== b && o.provider === b.provider && node(b.consumer).children.includes(o.consumer));
+const capabilitiesThrough = (b, iface) => b.areas.flatMap((a) => a.capabilities).filter((c) => c.via.includes(iface));
+
+// ---------- motion ----------
+
+// Moves things to their new place where the browser can, and just redraws where it cannot.
+const NO_MOTION = STILL || matchMedia("(prefers-reduced-motion: reduce)").matches;
+const cssName = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+function transition(fn) {
+  if (!document.startViewTransition || NO_MOTION || document.visibilityState === "hidden") return fn();
+  const t = document.startViewTransition(fn);
+  // A transition that a quicker click cuts short still runs its update; only the motion is lost.
+  t.ready.catch(() => {});
+  t.updateCallbackDone.catch(() => {});
+  t.finished.catch(() => {});
+}
+
+// ---------- screens ----------
+
+// One open box per screen, in fixed columns: who uses it, its interfaces, its capabilities, its
+// components, and what it uses. Blue dots are the interfaces of the open box only; each box lists
+// the resources it keeps. Lines join who uses the box to its interfaces, its interfaces to its
+// capabilities, and each component to what it depends on; they light with whatever is in focus.
+// All providers, above every open box, shows each provider with the consumers that use it.
+const TOP = "";
+// Keep in step with addressOf in render-map.mjs, which refuses a map where two names share an address.
+const slugOf = (s) => s.normalize("NFC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "");
+const bySlug = new Map([...nodes.keys()].map((n) => [slugOf(n), n]));
+// The page opens on the provider named after the system, when there is one, else on All providers.
+const HOME = RAW.providers.some((p) => p.name === RAW.system.name) ? [RAW.system.name] : [];
+
+let openBox = TOP;
+let trail = []; // the boxes opened from All providers down to the open one, as you came
+const visited = []; // earlier trails, most recent last, for Back
+const memory = new Map(); // a screen's address -> its scroll and selection when it was left
+let selected = null; // the data-key of what is selected
+let current = null; // what the selection lights, from lineage
+let screen; // what the open box shows, from screenOf
+let reg; // what the screen drew, by data-key: the first element drawn for each
+let drawn; // every element drawn with a data-key, as [key, element]; a shared resource is drawn twice
+
+const servedBy = (name) =>
+  allAreas.filter((a) => node(name).serves?.some((s) => `${s.consumer} › ${s.area}` === a.key));
+const actedOn = (g) => unique(g.members.flatMap((a) => a.capabilities.flatMap((c) => c.acts.map((x) => x.resource))));
+const actingOn = (r) => allCapabilities.filter((c) => c.acts.some((a) => a.resource === r));
+// A box and everything in it, components it shares with another provider included.
+const within = (name) => [name, ...[...node(name).children, ...node(name).shared].flatMap(within)];
+// A box opens when its screen has something of its own: components inside it, or capabilities it
+// offers across a boundary of its own. Otherwise its screen would repeat the level above.
+const opens = (name) => {
+  const n = node(name);
+  return n.kind !== "consumer" && (n.children.length + n.shared.length > 0 || incoming(name).some((b) => !refinedBy(b)));
+};
+// Who keeps a resource, leaving out a box when one of its inner components keeps it too.
+const keepersOf = (r) => {
+  const keepers = [...nodes.values()].filter((n) => n.resources?.includes(r)).map((n) => n.name);
+  return keepers.filter((k) => !keepers.some((o) => o !== k && subtree(k).includes(o)));
+};
+const kindClass = (name) => `k-${node(name).kind === "provider" ? "component" : node(name).kind}`;
+
+function screenOf(name) {
+  const top = name === TOP;
+  const n = top ? null : node(name);
+  const into = top ? [] : incoming(name).filter((b) => !refinedBy(b));
+  const reached = top ? [] : into.length ? into.flatMap((b) => b.areas) : servedBy(name);
+  const areas = [];
+  for (const a of reached) {
+    const same = areas.find((g) => g.name === a.name);
+    if (same) same.members.push(a);
+    else areas.push({ name: a.name, type: a.type, members: [a] });
+  }
+  for (const g of areas) {
+    g.ports = unique(g.members.flatMap((a) => a.capabilities.flatMap((c) => c.via)));
+    g.consumers = unique(g.members.map((a) => a.boundary.consumer));
+    // Consumers may reach areas of the same name; each capability is listed once.
+    g.capabilities = g.members
+      .flatMap((a) => a.capabilities)
+      .filter((c, i, all) => all.findIndex((o) => o.name === c.name) === i);
+  }
+  const inner = top ? [] : [...n.children, ...n.shared];
+  const consumers = top ? RAW.consumers.map((c) => c.name) : unique(areas.flatMap((g) => g.consumers));
+  const calls = top ? [] : boundaries.filter((b) => !refinedBy(b) && (b.consumer === name || inner.includes(b.consumer)));
+  // An outside service that a component inside calls sits with the components, in the column after
+  // its callers, so its links stay short; what the open box itself calls sits to the right of it.
+  const outside = unique(calls.filter((b) => inner.includes(b.consumer) && node(b.provider).kind === "outside").map((b) => b.provider));
+  const boxes = top ? RAW.providers.map((p) => p.name) : [...inner, ...outside];
+  const uses = unique(calls.filter((b) => !within(name).includes(b.provider) && !outside.includes(b.provider)).map((b) => b.provider));
+  // Each resource kept inside the open box goes in the box on this screen that holds its keeper.
+  const holder = (k) => boxes.find((b) => subtree(b).includes(k)) ?? (!top && subtree(name).includes(k) ? name : null);
+  const kept = new Map();
+  for (const r of RAW.resources)
+    for (const h of unique(keepersOf(r.name).map(holder)).filter(Boolean)) kept.set(h, [...(kept.get(h) ?? []), r.name]);
+  return {
+    top,
+    consumers,
+    ports: unique(areas.flatMap((g) => g.ports)),
+    areas,
+    through: !top && !into.length ? reached[0]?.boundary.provider : null,
+    columns: top ? [boxes] : columnsOf(boxes),
+    boxes,
+    uses,
+    visible: new Set([...consumers, ...boxes, ...uses]),
+    kept,
+    // What each component, or the open box, depends on among the boxes on this screen.
+    links: calls.filter((b) => boxes.includes(b.provider) || uses.includes(b.provider)),
+  };
+}
+
+function columnsOf(ids) {
+  const depth = new Map();
+  const visit = (id, seen) => {
+    if (depth.has(id)) return depth.get(id);
+    const before = boundaries.filter((b) => b.provider === id && ids.includes(b.consumer) && !seen.has(b.consumer));
+    const d = Math.max(-1, ...before.map((b) => visit(b.consumer, new Set([...seen, id])))) + 1;
+    depth.set(id, d);
+    return d;
+  };
+  ids.forEach((id) => visit(id, new Set([id])));
+  const columns = [];
+  for (const id of ids) (columns[depth.get(id)] ??= []).push(id);
+  return columns.filter(Boolean);
+}
+
+// ---------- what a selection lights ----------
+
+// What leads to the selection and what it leads to, on this screen. A component that is not on the
+// screen lights the box that holds it, which then says which components it stands for.
+function lineage(key) {
+  const s = screen;
+  const keys = new Set([key]);
+  const cut = key.indexOf(":");
+  const kind = key.slice(0, cut);
+  const id = key.slice(cut + 1);
+  // Components to light, with what each does; each lights the box on this screen that holds it.
+  const requests = [];
+  const lightBox = (name, role) => name && requests.push([name, role]);
+  const holders = (name) => (s.visible.has(name) ? [name] : [...s.visible].filter((v) => within(v).includes(name)));
+  const upstream = (g) => {
+    keys.add(`a:${g.name}`);
+    g.ports.forEach((p) => keys.add(`p:${p}`));
+    g.consumers.forEach((c) => keys.add(`b:${c}`));
+  };
+  if (kind === "a") {
+    const g = s.areas.find((x) => x.name === id);
+    if (g) {
+      upstream(g);
+      g.members.flatMap(handlers).forEach((h) => lightBox(h, "handles"));
+      actedOn(g).forEach((r) => keys.add(`r:${r}`));
+    }
+  }
+  if (kind === "c") {
+    const c = capabilityById.get(id);
+    const g = s.areas.find((x) => x.members.includes(c.area));
+    if (g) keys.add(`a:${g.name}`);
+    c.via.filter((p) => s.ports.includes(p)).forEach((p) => keys.add(`p:${p}`));
+    lightBox(c.area.boundary.consumer, "asks");
+    handlers(c.area).forEach((h) => lightBox(h, "handles"));
+    c.acts.forEach((a) => keys.add(`r:${a.resource}`));
+  }
+  if (kind === "p")
+    for (const g of s.areas.filter((x) => x.ports.includes(id))) {
+      keys.add(`a:${g.name}`);
+      g.members.filter((a) => a.boundary.interfaces.includes(id)).forEach((a) => keys.add(`b:${a.boundary.consumer}`));
+    }
+  if (kind === "r") {
+    const caps = actingOn(id);
+    for (const g of s.areas) if (g.members.some((a) => caps.some((c) => c.area === a))) keys.add(`a:${g.name}`);
+    keepersOf(id).forEach((o) => lightBox(o, "keeps"));
+    unique(caps.flatMap((c) => handlers(c.area))).forEach((h) => lightBox(h, "acts"));
+  }
+  if (kind === "b") {
+    const inside = within(id);
+    if (s.consumers.includes(id))
+      for (const g of s.areas.filter((x) => x.consumers.includes(id))) {
+        keys.add(`a:${g.name}`);
+        g.members.filter((a) => a.boundary.consumer === id).forEach((a) => a.capabilities.forEach((c) => c.via.forEach((p) => keys.add(`p:${p}`))));
+      }
+    for (const g of s.areas) if (g.members.some((a) => handlers(a).some((h) => inside.includes(h)))) upstream(g);
+    for (const b of boundaries) {
+      if (refinedBy(b)) continue;
+      for (const [near, far, role] of [
+        [b.provider, b.consumer, "calls"],
+        [b.consumer, b.provider, "called"],
+      ]) {
+        if (!inside.includes(near) || inside.includes(far)) continue;
+        // A call to a component that the other box also contains stays inside both.
+        if (holders(far).some((o) => within(o).includes(near))) continue;
+        lightBox(far, role);
+      }
+    }
+    (s.kept.get(id) ?? []).forEach((r) => keys.add(`r:${r}`));
+  }
+  // A shared component sits in more than one box on the screen: it lights the one already lit, else
+  // the one holding the selection, else the one it is defined in.
+  const home = kind === "r" ? [...s.kept].find(([, rs]) => rs.includes(id))?.[0] : kind === "b" ? id : null;
+  const notes = new Map(); // a lit box -> what the components inside it do, by role
+  const assign = (at, name, role) => {
+    keys.add(`b:${at}`);
+    if (at === name || at === id) return;
+    const roles = notes.get(at) ?? notes.set(at, new Map()).get(at);
+    (roles.get(role) ?? roles.set(role, new Set()).get(role)).add(name);
+  };
+  const later = [];
+  for (const [name, role] of requests) {
+    const c = holders(name);
+    if (c.length === 1) assign(c[0], name, role);
+    else if (c.length > 1) later.push([name, role, c]);
+  }
+  for (const [name, role, c] of later)
+    assign(c.find((v) => keys.has(`b:${v}`)) ?? c.find((v) => v === home) ?? c.find((v) => ancestors(name).includes(v)) ?? c[0], name, role);
+  return { keys, notes };
+}
+
+// What the components inside a lit box do with the selection: "Run controller keeps it; Conversations
+// and Execution kits act on it."
+const VERBS = { keeps: ["keeps it", "keep it"], acts: ["acts on it", "act on it"], handles: ["handles it", "handle it"], calls: ["calls it", "call it"], asks: ["asks for it", "ask for it"] };
+function noteOf(roles) {
+  const keepers = roles.get("keeps") ?? new Set();
+  const parts = [...roles].map(([role, names]) => {
+    const list = [...names].filter((n) => role === "keeps" || !keepers.has(n));
+    if (!list.length) return null;
+    const who = list.length > 1 ? `${list.slice(0, -1).join(", ")} and ${list.at(-1)}` : list[0];
+    return role === "called" ? `It calls ${who}` : `${who} ${VERBS[role][list.length > 1 ? 1 : 0]}`;
+  });
+  return `${parts.filter(Boolean).join("; ")}.`;
+}
+
+// ---------- drawing ----------
+
+const pick = (key) => (event) => {
+  event.stopPropagation();
+  selected = key;
+  render();
+};
+
+const register = (key, e) => {
+  e.dataset.key = key;
+  if (!reg.has(key)) reg.set(key, e);
+  drawn.push([key, e]);
+  return e;
+};
+
+const kindLine = (kind, qualifier) =>
+  el("span", { class: "b-top" }, el("span", { class: "b-kind" }, kind), qualifier && el("span", { class: "b-qual" }, qualifier));
+
+function chips(names) {
+  if (!names.length) return null;
+  return el(
+    "span",
+    { class: "b-chips" },
+    names.map((r) => register(`r:${r}`, el("button", { type: "button", class: "b-chip", onclick: pick(`r:${r}`) }, r))),
+  );
+}
+
+function box(name, where) {
+  const n = node(name);
+  const key = `b:${name}`;
+  const inner = n.children.length + n.shared.length;
+  const shared = where === "inside" && n.also.includes(openBox) ? `Shared with ${n.parent}` : null;
+  const canOpen = opens(name);
+  const enter = (e) => (e.stopPropagation(), go(name));
+  const note = current?.notes.get(name);
+  return register(
+    key,
+    el(
+      "section",
+      { class: `b-box ${kindClass(name)}${n.kind === "provider" ? " provider" : ""}${canOpen ? " opens" : ""}`, onclick: pick(key), ondblclick: canOpen ? enter : null },
+      kindLine(shared ?? KIND_WORD[n.kind]),
+      el("button", { type: "button", class: "b-name", onclick: pick(key) }, name),
+      note && el("span", { class: "b-via" }, noteOf(note)),
+      where === "inside" && chips(screen.kept.get(name) ?? []),
+      canOpen && el("button", { type: "button", class: "b-go", onclick: enter }, el("span", {}, inner ? `Open, ${inner} components` : "Open"), el("span", {}, "›")),
+    ),
+  );
+}
+
+function areaBox(g) {
+  return register(
+    `a:${g.name}`,
+    el(
+      "button",
+      { type: "button", class: "b-box k-capability b-area", onclick: pick(`a:${g.name}`) },
+      kindLine("Capabilities", `${g.type}, ${g.capabilities.length}`),
+      el("span", { class: "b-name" }, g.name),
+    ),
+  );
+}
+
+const zone = (cls, title, ...content) => el("div", { class: `b-zone ${cls}` }, el("h3", {}, title), el("div", { class: "b-zone-body" }, content));
+
+function frame(name) {
+  const n = node(name);
+  const s = screen;
+  const keeps = s.kept.get(name) ?? [];
+  const body = [
+    zone("z-interface", "Interfaces", s.ports.map((iface) => register(`p:${iface}`, el("button", { type: "button", class: "b-port edge", onclick: pick(`p:${iface}`) }, iface)))),
+    zone("z-capability", "Capabilities", s.areas.map(areaBox)),
+    s.columns.length > 0 &&
+      zone("z-component", "Components", el("div", { class: "b-cols" }, s.columns.map((c) => el("div", { class: "b-col b-placed" }, c.map((id) => box(id, "inside")))))),
+  ];
+  return el(
+    "section",
+    { class: `b-frame ${kindClass(name)}` },
+    el(
+      "header",
+      { class: "b-frame-head" },
+      el("span", { class: "b-kind" }, KIND_WORD[n.kind] + (n.also.length ? `, shared with ${n.also.join(", ")}` : "")),
+      el("h2", {}, name),
+      text("p", n.description),
+      s.through && el("p", { class: "b-through" }, `Reached through ${s.through}'s interfaces.`),
+      keeps.length > 0 && el("div", { class: "b-keeps" }, el("span", { class: "b-keeps-label" }, "Keeps"), chips(keeps)),
+    ),
+    el("div", { class: "b-body" }, body),
+  );
+}
+
+// Places absolutely positioned items, each as close as it can to the height it wants its centre at.
+// Items that would overlap form a block, kept in order and centred on what its items want on
+// average, so that several boxes linked to one thing sit around it rather than below it. Returns
+// the height used.
+function settle(items, gap) {
+  const blocks = [...items].sort((a, b) => a.want - b.want).map((it) => ({ items: [it] }));
+  const place = (b) => {
+    let off = 0;
+    const tops = b.items.map((it) => {
+      const want = it.want - it.el.offsetHeight / 2 - off;
+      off += it.el.offsetHeight + gap;
+      return want;
+    });
+    b.height = off - gap;
+    b.top = Math.max(0, avg(tops));
+  };
+  blocks.forEach(place);
+  for (let i = 1; i < blocks.length; ) {
+    const [a, b] = [blocks[i - 1], blocks[i]];
+    if (a.top + a.height + gap <= b.top) i++;
+    else {
+      a.items.push(...b.items);
+      blocks.splice(i, 1);
+      place(a);
+      i = 1;
+    }
+  }
+  for (const b of blocks) {
+    let y = b.top;
+    for (const it of b.items) {
+      it.el.style.top = `${y}px`;
+      y += it.el.offsetHeight + gap;
+    }
+  }
+  const last = blocks.at(-1);
+  return last ? last.top + last.height : 0;
+}
+
+function render() {
+  reg = new Map();
+  drawn = [];
+  screen = screenOf(openBox);
+  const s = screen;
+  current = null;
+  if (selected)
+    try {
+      current = lineage(selected);
+    } catch {
+      selected = null;
+    }
+  const stage = el("div", { class: `b-stage${s.top ? " top" : ""}` });
+  const wires = svgEl("svg", { class: "b-wires" });
+  const left = zone("z-consumer b-left", "Used by", s.consumers.map((c) => box(c, "left")));
+  const middle = s.top ? zone("z-component b-mid", "Providers", el("div", { class: "b-col b-placed" }, s.boxes.map((p) => box(p, "inside")))) : frame(openBox);
+  const right = s.uses.length > 0 && zone("z-uses b-right", "Uses", s.uses.map((u) => box(u, "right")));
+  stage.append(wires, left, middle, ...[right].filter(Boolean));
+  document.getElementById("scroll").replaceChildren(stage);
+  drawNav();
+  if (selected && !reg.has(selected) && !selected.startsWith("c:")) {
+    selected = null;
+    return render();
+  }
+
+  const o = stage.getBoundingClientRect();
+  const mid = (e) => {
+    const r = e.getBoundingClientRect();
+    return { l: r.left - o.left, r: r.right - o.left, t: r.top - o.top, b: r.bottom - o.top, y: (r.top + r.bottom) / 2 - o.top };
+  };
+  const bodyOf = (cls) => stage.querySelector(`.${cls} > .b-zone-body`);
+
+  // Capabilities stack in the order of the interfaces that reach them, each interface sits level
+  // with its capabilities, each component level with the capabilities it handles, and each
+  // consumer level with what it uses. A group linked to one thing is centred on it.
+  if (!s.top) {
+    const first = (g) => Math.min(...g.ports.map((p) => s.ports.indexOf(p)));
+    let y = 0;
+    for (const g of [...s.areas].sort((a, b) => first(a) - first(b))) {
+      const e = reg.get(`a:${g.name}`);
+      e.style.top = `${y}px`;
+      g.y = y + e.offsetHeight / 2;
+      y += e.offsetHeight + 12;
+    }
+    const h = settle(s.ports.map((p) => ({ el: reg.get(`p:${p}`), want: avg(s.areas.filter((g) => g.ports.includes(p)).map((g) => g.y)) })), 6);
+    bodyOf("z-capability").style.height = `${Math.max(y, h)}px`;
+    bodyOf("z-interface").style.height = `${Math.max(y, h)}px`;
+    // A component without capabilities on this screen sits level with what calls it. Columns go
+    // left to right, so callers are already placed.
+    const capTop = mid(bodyOf("z-capability")).t;
+    for (const col of stage.querySelectorAll(".b-cols > .b-col")) {
+      const t = mid(col).t;
+      const items = [...col.children].map((e) => {
+        const inside = subtree(e.dataset.key.slice(2));
+        const served = s.areas.filter((g) => g.members.some((a) => handlers(a).some((x) => inside.includes(x))));
+        const callers = s.links.filter((b) => b.provider === inside[0] && s.boxes.includes(b.consumer)).map((b) => mid(reg.get(`b:${b.consumer}`)).y);
+        const want = served.length ? avg(served.map((g) => capTop + g.y)) : callers.length ? avg(callers) : t;
+        return { el: e, want: want - t };
+      });
+      col.style.height = `${settle(items, 14)}px`;
+    }
+  }
+  const targetsOf = (c) =>
+    unique(
+      s.top
+        ? boundaries.filter((b) => b.consumer === c && s.boxes.includes(b.provider)).map((b) => reg.get(`b:${b.provider}`))
+        : boundaries.filter((b) => b.consumer === c).flatMap((b) => b.interfaces).filter((i) => s.ports.includes(i)).map((i) => reg.get(`p:${i}`)),
+    );
+  const leftBody = bodyOf("b-left");
+  if (s.top) {
+    // Each provider and the consumers that use it form a row, centred on each other.
+    const col = stage.querySelector(".b-mid .b-col");
+    const firstUse = (c) => s.boxes.find((p) => boundaries.some((b) => b.consumer === c && b.provider === p));
+    const rows = [...s.boxes.map((p) => [reg.get(`b:${p}`), s.consumers.filter((c) => firstUse(c) === p)]), [null, s.consumers.filter((c) => !firstUse(c))]];
+    let y = 0;
+    for (const [pe, cs] of rows) {
+      const ces = cs.map((c) => reg.get(`b:${c}`));
+      const ph = pe?.offsetHeight ?? 0;
+      const ch = ces.reduce((n, e) => n + e.offsetHeight + 14, -14);
+      const rh = Math.max(ph, ch);
+      if (rh <= 0) continue;
+      if (pe) pe.style.top = `${y + (rh - ph) / 2}px`;
+      let cy = y + (rh - Math.max(ch, 0)) / 2;
+      for (const e of ces) {
+        e.style.top = `${cy}px`;
+        cy += e.offsetHeight + 14;
+      }
+      y += rh + 28;
+    }
+    col.style.height = leftBody.style.height = `${Math.max(0, y - 28)}px`;
+  } else {
+    const lt = mid(leftBody).t;
+    leftBody.style.height = `${settle(
+      s.consumers.map((c) => {
+        const to = targetsOf(c);
+        return { el: reg.get(`b:${c}`), want: (to.length ? avg(to.map((p) => mid(p).y)) : 0) - lt };
+      }),
+      14,
+    )}px`;
+  }
+  // What the open box uses is centred, as a block, on the open box's body.
+  // Each box to the right sits level with what calls it; the open box calls from its body's middle.
+  if (right) {
+    const body = right.querySelector(".b-zone-body");
+    const rt = mid(body).t;
+    const frameMid = mid(stage.querySelector(".b-body")).y;
+    const items = s.uses.map((u) => {
+      const ys = s.links.filter((b) => b.provider === u).map((b) => (b.consumer === openBox ? frameMid : mid(reg.get(`b:${b.consumer}`)).y));
+      return { el: reg.get(`b:${u}`), want: (ys.length ? avg(ys) : frameMid) - rt };
+    });
+    body.style.height = `${settle(items, 14)}px`;
+  }
+
+  wires.setAttribute("width", stage.scrollWidth);
+  wires.setAttribute("height", stage.scrollHeight);
+  const curve = (a, b) => {
+    const dx = Math.max(20, Math.abs(b[0] - a[0]) / 2);
+    return `M${a[0]},${a[1]} C${a[0] + dx},${a[1]} ${b[0] - dx},${b[1]} ${b[0]},${b[1]}`;
+  };
+  const wire = (from, to, a, b) => wires.append(svgEl("path", { d: curve(a, b), "data-from": from, "data-to": to }));
+  for (const c of s.consumers)
+    for (const t of targetsOf(c)) {
+      const from = mid(reg.get(`b:${c}`));
+      const to = mid(t);
+      wire(`b:${c}`, t.dataset.key, [from.r, from.y], [to.l - (s.top ? 0 : 4), to.y]);
+    }
+  for (const g of s.areas) {
+    const at = mid(reg.get(`a:${g.name}`));
+    for (const p of g.ports) {
+      const from = mid(reg.get(`p:${p}`));
+      wire(`p:${p}`, `a:${g.name}`, [from.r, from.y], [at.l, at.y]);
+    }
+  }
+  // Dependencies, from the right edge of a component, or of the open box, to what it depends on. A
+  // line that passes a column in between goes straight through the nearest gap between its boxes,
+  // so that it never seems to leave from a box it only passes behind.
+  const frameEl = stage.querySelector(".b-frame");
+  const cols = [...stage.querySelectorAll(".b-cols > .b-col")].map((c) => ({ ...mid(c), boxes: [...c.children].map(mid).sort((a, b) => a.t - b.t) }));
+  const colOf = (e) => cols.findIndex((c) => e.l >= c.l - 1 && e.r <= c.r + 1);
+  const gapAt = (c, want) => {
+    const gaps = [[-Infinity, c.boxes[0]?.t ?? Infinity], ...c.boxes.map((x, i) => [x.b, c.boxes[i + 1]?.t ?? Infinity])];
+    const ys = gaps.map(([lo, hi]) => (hi - lo < 40 ? (lo + hi) / 2 : Math.min(Math.max(want, lo + 12), hi - 12)));
+    return ys.reduce((best, y) => (Math.abs(y - want) < Math.abs(best - want) ? y : best));
+  };
+  for (const b of s.links) {
+    const own = b.consumer === openBox;
+    const from = mid(own ? frameEl : reg.get(`b:${b.consumer}`));
+    const to = mid(reg.get(`b:${b.provider}`));
+    const y = own ? Math.min(Math.max(to.y, from.t + 40), from.b - 20) : from.y;
+    const start = own ? -1 : colOf(from);
+    const end = colOf(to) === -1 ? cols.length : colOf(to);
+    let d = "";
+    let at = [from.r, y];
+    for (let k = start + 1; k < end && start !== -1; k++) {
+      const gy = gapAt(cols[k], at[1] + ((to.y - at[1]) * (cols[k].l - at[0])) / Math.max(1, to.l - at[0]));
+      d += `${d ? " " : ""}${curve(at, [cols[k].l - 10, gy])} L${cols[k].r + 10},${gy}`;
+      at = [cols[k].r + 10, gy];
+    }
+    wires.append(svgEl("path", { d: `${d}${d ? " " : ""}${curve(at, [to.l, to.y])}`, "data-from": `b:${b.consumer}`, "data-to": `b:${b.provider}` }));
+  }
+  paint(stage);
+  drawPanel();
+  if (selected && reg.has(selected)) reg.get(selected).scrollIntoView({ block: "nearest", inline: "nearest" });
+  if (STILL) drawLegend(stage);
+}
+
+function paint(stage) {
+  const keys = current?.keys;
+  for (const [key, e] of drawn) {
+    const on = Boolean(keys?.has(key));
+    e.classList.toggle("lit", on);
+    e.classList.toggle("chosen", key === selected);
+    e.classList.toggle("dim", Boolean(keys) && !on);
+  }
+  // A resource in a lit box is part of that box, so it does not fade; it is outlined only when it is
+  // linked to the selection. In the box of a selected resource, the other resources still fade.
+  if (keys)
+    for (const chip of stage.querySelectorAll(".b-chip.dim")) {
+      const box = chip.closest(".b-box");
+      if (!box?.classList.contains("lit")) continue;
+      if (selected.startsWith("r:") && box.querySelector(`[data-key="${CSS.escape(selected)}"]`)) continue;
+      chip.classList.remove("dim");
+    }
+  // A line lights when both its ends are; the open box counts as lit.
+  const end = (k) => keys.has(k) || k === `b:${openBox}`;
+  for (const p of stage.querySelectorAll(".b-wires path")) {
+    const on = Boolean(keys) && end(p.dataset.from) && keys.has(p.dataset.to);
+    p.classList.toggle("lit", on);
+    p.classList.toggle("dim", Boolean(keys) && !on);
+  }
+}
+
+// ---------- the panel: only what the map does not already show ----------
+
+function capabilityList(caps) {
+  return el(
+    "ul",
+    { class: "b-caps" },
+    caps.map((c) =>
+      el(
+        "li",
+        { class: selected === `c:${c.id}` ? "on" : "" },
+        el("button", { type: "button", onclick: pick(`c:${c.id}`) }, c.name),
+        el("span", {}, c.acts.map((a) => `${MODE_WORD[a.mode]} ${a.resource}`).join(", ")),
+      ),
+    ),
+  );
+}
+
+function panelOf(key) {
+  const s = screen;
+  const cut = key.indexOf(":");
+  const kind = key.slice(0, cut);
+  const id = key.slice(cut + 1);
+  const head = (k, cls, title) => [el("span", { class: `b-kind ${cls}` }, k), el("h2", {}, title)];
+  if (kind === "a") {
+    const g = s.areas.find((x) => x.name === id);
+    return [head(`Capabilities, ${g.type}`, "k-capability", g.name), text("p", g.members[0].description), capabilityList(g.capabilities)];
+  }
+  if (kind === "p") {
+    const b = incoming(s.through ?? openBox).find((x) => x.interfaces.includes(id));
+    return [head("Interface", "k-interface", id), text("p", interfaceText.get(id)), b && capabilityList(capabilitiesThrough(b, id))];
+  }
+  if (kind === "c") {
+    const c = capabilityById.get(id);
+    const g = s.areas.find((x) => x.members.includes(c.area));
+    return [
+      g && el("button", { type: "button", class: "b-back", onclick: pick(`a:${g.name}`) }, `‹ ${g.name}`),
+      head("Capability", "k-capability", c.name),
+      el("h3", {}, "Takes"),
+      el("p", {}, c.takes),
+      el("h3", {}, "Gives"),
+      el("p", {}, c.gives),
+    ];
+  }
+  if (kind === "r") {
+    const r = resourceByName.get(id);
+    const hidden = keepersOf(id).flatMap((k) => {
+      const at = [...s.kept].find(([b, rs]) => rs.includes(id) && subtree(b).includes(k))?.[0];
+      return at && at !== k ? [`Kept by ${k}, inside ${at}.`] : [];
+    });
+    return [
+      head("Resource", "k-resource", id),
+      text("p", r.description),
+      hidden.map((t) => el("p", { class: "b-note" }, t)),
+      r.properties?.length > 0 && [el("h3", {}, "Properties"), el("ul", { class: "b-props" }, r.properties.map((x) => el("li", {}, x)))],
+      el("h3", {}, "Capabilities that act on it"),
+      // Two consumers may have the same capability, such as Start a run; list it once.
+      capabilityList(actingOn(id).filter((c, i, all) => all.findIndex((o) => o.name === c.name) === i)),
+    ];
+  }
+  const n = node(id);
+  return [
+    head(KIND_WORD[n.kind], kindClass(id), n.name),
+    n.description && [n.kind === "consumer" ? null : el("h3", {}, "Responsibilities"), text("p", n.description)],
+    opens(id) && id !== openBox && el("button", { type: "button", class: "b-go wide", onclick: () => go(id) }, el("span", {}, `Open ${id}`), el("span", {}, "›")),
+  ];
+}
+
+function drawPanel() {
+  const panel = document.getElementById("panel");
+  panel.hidden = !selected;
+  if (!selected) return;
+  panel.replaceChildren(
+    el("button", { type: "button", class: "b-close", "aria-label": "Close", onclick: clear }, "×"),
+    ...[panelOf(selected)].flat(3).filter(Boolean),
+  );
+}
+
+function clear() {
+  if (!selected) return;
+  selected = null;
+  render();
+}
+
+// ---------- where you are ----------
+
+function drawNav() {
+  const crumbs = [["All providers", 0], ...trail.map((n, i) => [n, i + 1])];
+  document.getElementById("nav").replaceChildren(
+    el("button", { type: "button", class: "b-back-nav", disabled: !visited.length && !trail.length ? "" : null, onclick: back }, "‹ Back"),
+    ...crumbs
+      .flatMap(([label, depth], i) => [
+        i > 0 && el("span", { class: "b-sep" }, "›"),
+        i === crumbs.length - 1 ? el("strong", {}, label) : el("button", { type: "button", onclick: () => navigate(trail.slice(0, depth)) }, label),
+      ])
+      .filter(Boolean),
+  );
+}
+
+// The path to a box when nothing says how you came: its parents, or, for an outside service, the
+// screen that shows a component calling it.
+function trailFor(name) {
+  if (name === TOP) return [];
+  const n = node(name);
+  if (n.kind !== "outside") return [...ancestors(name), name];
+  const caller = boundaries.find((b) => b.provider === name && !refinedBy(b) && nodes.has(b.consumer) && node(b.consumer).kind !== "consumer");
+  if (!caller) return [name];
+  const at = node(caller.consumer).parent;
+  return [...trailFor(at ?? caller.consumer), name];
+}
+
+// Opening a box from the screen it is on adds it to the path you came by; a box elsewhere gets the
+// path trailFor gives it.
+function go(name) {
+  if (name === TOP) return navigate([]);
+  const i = trail.indexOf(name);
+  if (i >= 0) return navigate(trail.slice(0, i + 1));
+  navigate(screen.visible.has(name) || screen.boxes.includes(name) ? [...trail, name] : trailFor(name));
+}
+
+// Back returns to the previous screen as it was left: same scroll, same selection.
+function back() {
+  if (visited.length) navigate(visited.pop(), { remember: false, restore: true });
+  else if (trail.length) navigate(trail.slice(0, -1), { remember: false, restore: true });
+}
+
+// Changes screen. Opening a box grows it into the new screen's frame; going back shrinks the frame
+// into the box it came from. Everything else fades.
+const addressOf = (t) => `#${t.length ? t.map(slugOf).join("/") : "all"}`;
+function navigate(next, { remember = true, fromAddress = false, restore = false } = {}) {
+  const before = trail;
+  if (before.length === next.length && before.every((x, i) => x === next[i])) return;
+  if (remember) visited.push(before);
+  const scroller = document.getElementById("scroll");
+  memory.set(addressOf(before), { left: scroller.scrollLeft, top: scroller.scrollTop, selected });
+  const kept = restore ? memory.get(addressOf(next)) : null;
+  const deeper = next.length > before.length && before.every((x, i) => next[i] === x);
+  const shallower = before.length > next.length && next.every((x, i) => before[i] === x);
+  const frameEl = () => document.querySelector(".b-frame");
+  // Only one element may carry the name at a time; the last landing still has it.
+  for (const e of document.querySelectorAll(".b-frame, .b-box")) e.style.viewTransitionName = "";
+  const grow = deeper ? reg.get(`b:${next[before.length]}`) : shallower ? frameEl() : null;
+  if (grow) grow.style.viewTransitionName = "zoom";
+  // A box on both screens travels from its place on this one to its place on the next, such as a
+  // component that moves from Components to Used by when a component it calls opens.
+  const nextOpen = next.at(-1) ?? TOP;
+  const nextVisible = screenOf(nextOpen).visible;
+  const travellers = [...screen.visible].filter((n) => n !== nextOpen && nextVisible.has(n));
+  const travel = () => {
+    for (const n of travellers) {
+      const e = reg.get(`b:${n}`);
+      if (e) e.style.viewTransitionName = `b-${cssName(n)}`;
+    }
+  };
+  travel();
+  if (!fromAddress) {
+    const hash = addressOf(next);
+    // A sandboxed viewer may refuse to change the address; the screen changes all the same.
+    try {
+      if (decodeURIComponent(location.hash) !== hash) history.pushState(null, "", hash);
+    } catch {}
+  }
+  transition(() => {
+    trail = next;
+    openBox = next.at(-1) ?? TOP;
+    selected = kept?.selected ?? null;
+    render();
+    scroller.scrollTo(kept?.left ?? 0, kept?.top ?? 0);
+    const landing = deeper ? frameEl() : shallower ? reg.get(`b:${before[next.length]}`) : null;
+    if (grow && landing) landing.style.viewTransitionName = "zoom";
+    travel();
+  });
+}
+
+function fromHash() {
+  const parts = decodeURIComponent(location.hash.slice(1)).split("/").filter(Boolean);
+  if (parts[0] === "all") return [];
+  const names = parts.map((p) => bySlug.get(p));
+  if (!names.length || names.some((n) => !n)) return HOME;
+  return names.length === 1 ? trailFor(names[0]) : names;
+}
+
+// ---------- still images ----------
+
+// Every screen once: All providers, then each box that opens, in the order the map lists them.
+const screens = () => [[], ...[...nodes.keys()].filter(opens).map(trailFor)];
+
+// A still image cannot be clicked, so it carries under the drawing what the panel would say about
+// what the screen shows.
+function legendOf(s) {
+  const entry = (name, about) => el("li", { html: inline(`**${name}**: ${sentence(about ?? "")}`) });
+  const section = (title, about, items) =>
+    items.length > 0 && el("section", {}, el("h3", {}, title), about && text("p", about), el("ul", {}, items));
+  const acts = (c) => c.acts.map((a) => `${MODE_WORD[a.mode]} ${a.resource}`).join(", ");
+  return el(
+    "div",
+    { class: "b-legend" },
+    section("On this screen", null, [...s.consumers, ...s.boxes, ...s.uses].map((n) => entry(n, node(n).description))),
+    section("Interfaces", null, s.ports.map((p) => entry(p, interfaceText.get(p)))),
+    s.areas.map((g) =>
+      section(
+        `${g.name} (${g.type})`,
+        g.members[0].description,
+        g.capabilities.map((c) => entry(c.name, `takes ${c.takes}; gives ${c.gives}; ${acts(c)}.`)),
+      ),
+    ),
+    section("Resources", null, unique([...s.kept.values()].flat()).map((r) => entry(r, resourceByName.get(r).description))),
+  );
+}
+
+// Writes the size the image needs, and the addresses of every screen, on the page for shoot-map.mjs.
+function drawLegend(stage) {
+  const legend = legendOf(screen);
+  legend.style.width = `${Math.max(stage.offsetWidth, 1200)}px`;
+  document.querySelector(".b-legend")?.remove();
+  document.querySelector("main").after(legend);
+  const right = Math.max(stage.getBoundingClientRect().right, legend.getBoundingClientRect().right) + 16;
+  const bottom = legend.getBoundingClientRect().bottom + window.scrollY;
+  document.documentElement.dataset.stillSize = `${Math.ceil(right)}x${Math.ceil(bottom)}`;
+  document.documentElement.dataset.screens = screens().map(addressOf).join(" ");
+}
+
+const avg = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
+window.addEventListener("popstate", () => navigate(fromHash(), { fromAddress: true, remember: false, restore: true }));
+document.getElementById("scroll").addEventListener("click", clear);
+document.addEventListener("keydown", (e) => e.key === "Escape" && clear());
+window.addEventListener("resize", () => render());
+trail = fromHash();
+openBox = trail.at(-1) ?? TOP;
+render();
+document.fonts?.ready.then(render);
+</script>
+</body>
+</html>

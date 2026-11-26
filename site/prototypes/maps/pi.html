@@ -1,0 +1,1111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pi boundary map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono&family=Public+Sans:wght@400;600&display=swap">
+<style>
+/* Thin ink lines on paper, with one colour per kind of thing: consumers grey, components green,
+   outside services stone, interfaces blue, capabilities violet, resources amber. Layout: a
+   breadcrumb, then one open box whose columns are headed by what they hold, and a panel docked
+   beside it when something is selected, so the map stays scrollable. */
+:root {
+  --paper: #ffffff;
+  --ink: #1a1a1a;
+  --graphite: #6b6b6b;
+  --pencil: #c9c9c9;
+  --panel: #f5f5f4;
+  --panel-line: #e3e3e1;
+  --k-consumer: #6b7280;
+  --k-component: #2e8b57;
+  --k-outside: #8a7f72;
+  --k-interface: #2f6fdb;
+  --k-capability: #7a4fd1;
+  --k-resource: #b7791f;
+  --sans: "Public Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #17181a; --ink: #ececea; --graphite: #a0a09c; --pencil: #55565a; --panel: #212225; --panel-line: #33343a;
+    --k-consumer: #9aa1ad; --k-component: #5cc18a; --k-outside: #b0a596; --k-interface: #6f9cf0; --k-capability: #a585ef; --k-resource: #e0a64a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #17181a; --ink: #ececea; --graphite: #a0a09c; --pencil: #55565a; --panel: #212225; --panel-line: #33343a;
+  --k-consumer: #9aa1ad; --k-component: #5cc18a; --k-outside: #b0a596; --k-interface: #6f9cf0; --k-capability: #a585ef; --k-resource: #e0a64a;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  --k: var(--graphite);
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  margin: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: var(--paper);
+  color: var(--ink);
+  font: 14px/1.4 var(--sans);
+}
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+code { font-family: var(--mono); font-size: 0.92em; }
+
+.k-consumer { --k: var(--k-consumer); }
+.k-component { --k: var(--k-component); }
+.k-outside { --k: var(--k-outside); }
+.k-interface { --k: var(--k-interface); }
+.k-capability { --k: var(--k-capability); }
+.k-resource { --k: var(--k-resource); }
+
+.top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; padding-block: 12px 10px; border-bottom: 1px solid var(--panel-line); }
+.top h1 { margin: 0; font-size: 15px; font-weight: 600; }
+.top .rev { font-family: var(--mono); font-size: 12px; color: var(--graphite); }
+.top p { margin: 0; font-size: 13px; color: var(--graphite); }
+#nav { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; padding-block: 10px 0; font-size: 13px; }
+#nav button { color: var(--graphite); border-bottom: 1px dotted var(--pencil); }
+#nav .b-back-nav { margin-right: 8px; padding: 1px 8px; color: var(--ink); border: 1px solid var(--panel-line); border-radius: 3px; }
+#nav .b-back-nav:hover { border-color: var(--ink); }
+#nav .b-back-nav:disabled { color: var(--pencil); border-color: var(--panel-line); cursor: default; }
+#nav button:hover { color: var(--ink); }
+.b-sep { color: var(--pencil); }
+main { display: flex; min-height: 0; min-width: 0; }
+#scroll { flex: 1 1 auto; min-width: 0; overflow: auto; }
+
+/* ---- stage and zones ---- */
+.b-stage { position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: max-content; gap: 0 64px; align-items: start; width: max-content; min-width: 100%; padding: 14px 4px 48px; }
+.b-wires { position: absolute; top: 0; left: 0; z-index: 1; overflow: visible; pointer-events: none; }
+.b-wires path { fill: none; stroke: var(--pencil); stroke-width: 1.25; }
+.b-wires path.lit { stroke: var(--ink); stroke-width: 1.75; opacity: 1; }
+.b-wires path.dim { opacity: 0.18; }
+.b-zone h3 { margin: 0 0 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--k); }
+.z-consumer { --k: var(--k-consumer); }
+.z-interface { --k: var(--k-interface); }
+.z-capability { --k: var(--k-capability); }
+.z-component { --k: var(--k-component); }
+.z-resource { --k: var(--k-resource); }
+.z-uses { --k: var(--graphite); }
+.b-left > .b-zone-body { position: relative; width: 170px; }
+.b-left > .b-zone-body > .b-box { position: absolute; left: 0; width: 170px; }
+.b-col { display: flex; flex-direction: column; gap: 14px; }
+.b-right > .b-zone-body { position: relative; width: 210px; }
+.b-right > .b-zone-body > .b-box { position: absolute; left: 0; }
+.b-col.b-placed { position: relative; display: block; width: 210px; }
+.b-placed > .b-box { position: absolute; left: 0; }
+.b-cols { display: flex; align-items: flex-start; gap: 48px; }
+.dim { opacity: 0.22; }
+
+/* ---- the open box ---- */
+.b-frame { position: relative; border: 1.5px solid var(--ink); }
+.b-frame-head { position: relative; z-index: 2; padding: 10px 14px 12px; border-bottom: 1px solid var(--panel-line); background: var(--paper); }
+.b-frame-head h2 { margin: 0 0 4px; font-size: 20px; font-weight: 600; }
+.b-frame-head p { margin: 0; max-width: 70ch; color: var(--graphite); font-size: 13px; }
+.b-frame-head .b-through { margin-top: 4px; color: var(--ink); }
+.b-body { display: grid; grid-auto-flow: column; grid-auto-columns: max-content; gap: 0 44px; padding: 14px 20px 20px 0; }
+.z-interface { width: 184px; }
+.z-interface > h3 { padding-left: 13px; }
+.z-interface > .b-zone-body, .z-capability > .b-zone-body, .z-resource > .b-zone-body { position: relative; }
+.z-capability > .b-zone-body { width: 196px; }
+.z-resource > .b-zone-body { width: 180px; }
+.b-keeps { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin-top: 8px; }
+.b-keeps-label { font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--k-resource); }
+.b-keeps .b-chips { margin-top: 0; }
+
+/* ---- boxes: one shape for every kind ---- */
+.b-box { position: relative; z-index: 2; display: block; width: 210px; padding: 6px 10px 7px; text-align: left; background: color-mix(in srgb, var(--k) 6%, var(--paper)); border: 1px solid color-mix(in srgb, var(--k) 45%, var(--paper)); cursor: pointer; }
+.b-box:hover { border-color: var(--k); }
+.b-box.provider { border-width: 1.5px; }
+.b-box.k-outside { border-style: dashed; }
+.b-box.opens:hover { background: color-mix(in srgb, var(--k) 13%, var(--paper)); border-color: var(--k); }
+.b-box.lit { border-color: var(--k); box-shadow: 0 0 0 1.5px var(--k); }
+.b-box.chosen { box-shadow: 0 0 0 1.5px var(--k), 0 0 0 4px color-mix(in srgb, var(--ink) 25%, transparent); }
+.b-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.b-kind { font-size: 10.5px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--k); }
+.b-qual { font-size: 11px; color: var(--graphite); white-space: nowrap; }
+.b-name { display: block; width: 100%; font-weight: 600; font-size: 13.5px; text-align: left; }
+.b-sub { display: block; font-size: 11.5px; color: var(--graphite); }
+.b-via { display: block; margin-top: 2px; font-size: 11.5px; font-style: italic; color: var(--ink); }
+.b-area { position: absolute; left: 0; width: 100%; }
+
+/* ---- the way in: a bar at the foot of the box ---- */
+.b-go { display: flex; justify-content: space-between; align-items: baseline; width: calc(100% + 20px); margin: 7px -10px -7px; padding: 4px 10px; font-size: 12px; font-weight: 600; color: var(--k); border-top: 1px solid color-mix(in srgb, var(--k) 40%, var(--paper)); }
+.b-go span:last-child { font-size: 15px; line-height: 1; }
+.b-go:hover { background: var(--k); color: var(--paper); }
+.b-go.wide { --k: var(--k-component); width: 100%; margin: 18px 0 0; padding: 6px 10px; font-size: 13px; border: 1px solid var(--k); }
+
+/* ---- interfaces: dots on the edge of the open box ---- */
+.b-port { position: relative; display: block; width: calc(100% + 10px); margin-left: -10px; padding: 2px 0 2px 13px; font-size: 12px; line-height: 1.3; color: var(--ink); text-align: left; }
+.b-port::before { content: ""; position: absolute; left: -5px; top: 50%; width: 8px; height: 8px; margin-top: -4px; border-radius: 50%; border: 1.5px solid var(--k-interface); background: var(--paper); }
+.b-port:hover, .b-port.lit { color: var(--k-interface); }
+.b-port.lit { font-weight: 600; }
+.b-port.lit::before { background: var(--k-interface); }
+.b-port.edge { position: absolute; left: 0; width: 184px; margin-left: 0; padding-right: 0; font-size: 12.5px; background: var(--paper); }
+
+/* ---- resources as chips ---- */
+.b-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.b-chip { --k: var(--k-resource); padding: 1px 7px; font-size: 11.5px; border: 1px solid color-mix(in srgb, var(--k) 50%, var(--paper)); background: color-mix(in srgb, var(--k) 8%, var(--paper)); border-radius: 999px; }
+.b-chip:hover, .b-chip.lit { border-color: var(--k); }
+.b-chip.lit { box-shadow: 0 0 0 1px var(--k); }
+
+/* ---- panel ---- */
+#panel { position: relative; flex: none; width: 340px; overflow: auto; padding: 16px 18px 24px; background: var(--panel); border-left: 1px solid var(--panel-line); }
+#panel[hidden] { display: none; }
+@media (max-width: 760px) {
+  main { flex-direction: column; }
+  #scroll { flex: 1 1 0; min-height: 0; }
+  #panel { width: auto; max-height: 50%; border-left: 0; border-top: 1px solid var(--panel-line); }
+}
+#panel h2 { margin: 2px 0 6px; font-size: 18px; font-weight: 600; padding-right: 24px; }
+#panel h3 { margin: 18px 0 6px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--graphite); }
+#panel p { margin: 0 0 6px; }
+.b-note { font-size: 12.5px; color: var(--graphite); }
+.b-back { margin-bottom: 10px; font-size: 12.5px; color: var(--graphite); }
+.b-back:hover { color: var(--k-capability); }
+.b-props { margin: 0; padding-left: 18px; }
+.b-props li + li { margin-top: 2px; }
+.b-close { position: absolute; top: 10px; right: 12px; font-size: 20px; line-height: 1; color: var(--graphite); }
+.b-caps { margin: 12px 0 0; padding: 0; list-style: none; }
+.b-caps li { padding: 4px 0 4px 10px; border-left: 2px solid color-mix(in srgb, var(--k-capability) 30%, var(--panel)); }
+.b-caps li + li { margin-top: 4px; }
+.b-caps button { display: block; font-size: 13.5px; }
+.b-caps button:hover, .b-caps li.on button { color: var(--k-capability); }
+.b-caps li.on { border-left-color: var(--k-capability); }
+.b-caps span { display: block; font-size: 12px; color: var(--graphite); }
+/* What leaves fades first, what arrives fades in after, while the boxes on both screens travel. */
+::view-transition-group(*) { animation-duration: 560ms; animation-timing-function: cubic-bezier(0.45, 0, 0.2, 1); }
+::view-transition-old(root) { animation: 200ms ease-out both b-fade-out; }
+/* New content, such as a consumer that was not on the last screen, is fully there when the
+   travelling boxes land, at 560ms. */
+::view-transition-new(root) { animation: 280ms ease-in 280ms both b-fade-in; }
+/* Opening a box grows it into the frame of the next screen; going back shrinks the frame into it. */
+/* The rectangle grows or shrinks; what is inside it is shown at its real size, never stretched. */
+::view-transition-group(zoom) { overflow: hidden; }
+::view-transition-old(zoom), ::view-transition-new(zoom) { width: 100%; height: 100%; object-fit: none; object-position: left top; mix-blend-mode: normal; }
+::view-transition-old(zoom) { animation: 220ms ease-out both b-fade-out; }
+::view-transition-new(zoom) { animation: 400ms ease-in 160ms both b-fade-in; }
+@keyframes b-fade-out { to { opacity: 0; } }
+@keyframes b-fade-in { from { opacity: 0; } }
+
+/* ---- still images: the whole screen, then what the panel would say about it ---- */
+html.still, html.still body { height: auto; }
+html.still body, html.still main { display: block; }
+html.still #scroll { overflow: visible; }
+html.still #panel, html.still .b-back-nav, html.still .top p { display: none; }
+.b-legend { columns: 3; column-gap: 32px; padding: 16px 4px; border-top: 1px solid var(--panel-line); }
+.b-legend section { break-inside: avoid; margin-bottom: 16px; }
+.b-legend h3 { margin: 0 0 6px; font-size: 13px; }
+.b-legend p { margin: 0 0 6px; font-size: 13px; color: var(--graphite); }
+.b-legend ul { margin: 0; padding-left: 16px; }
+.b-legend li { margin-bottom: 4px; font-size: 13px; }
+</style>
+</head>
+<body>
+<header class="top">
+<h1>Pi boundary map</h1><span class="rev">362bf6f</span>
+<p>Click anything to light what it connects to. Open, at the foot of a box, goes inside.</p>
+</header>
+<nav id="nav" aria-label="Where you are"></nav>
+<main><div id="scroll"></div><aside id="panel" hidden></aside></main>
+<script type="application/json" id="map-data">{"system":{"name":"Pi","description":"A minimal, extensible agent harness: the `pi` command-line coding agent, which works on files in a folder with a model, and the libraries it ships.","corpus":{"included":"The whole repository at this revision with its history, read only: packages/coding-agent, agent, ai, tui, mcp, codemode, schema, telemetry and evals, the root documents and config files, .github, .pi, scripts and nix. Dependencies, generated output and secrets are left out.","excluded":"apps/p2, apps/p2-mac, apps/p3, packages/chord, packages/durable and packages/env: an experimental product line (the Pi Durable runtime and the apps built on it; apps/p2's README calls it a prototype that will be gone soon), which the `pi` CLI and its libraries do not depend on."},"revision":"362bf6f1bec2db70dc072e4db4eb5b2903f4e9f6"},"consumers":[{"name":"Pi user","description":"A person who runs `pi` in a working folder to get a task done with a model, and who sets Pi up for their work."},{"name":"Extension author","description":"A developer who writes TypeScript extensions and Pi packages that run inside Pi to add tools, commands, providers and interface."},{"name":"Integrator","description":"Another program that runs Pi's agent, in process through the SDK or as a child process over RPC or the JSON event stream, such as an editor plugin or a chat bot."},{"name":"Library developer","description":"A developer who builds their own application from Pi's published libraries without using the coding agent."}],"providers":[{"name":"Pi","description":"The `pi` coding agent: it runs a model in a working folder with tools, keeps the conversations as sessions, and loads the user's packages, extensions, skills and settings.","resources":["Session","Model","Model response","Provider credential","Pi package","Skill","Prompt template","Theme","Context file","Extension","Tool","Command","MCP server","Project trust decision","Settings","Dialog","Widget"],"parts":[{"name":"Settings store","why":"Storage of the user's and project's preferences (src/core/settings-manager.ts) that every part reads; writes go through its setters and decide nothing."},{"name":"Terminal UI","why":"The interactive mode and its themes and keybindings (src/modes/interactive, src/core/keybindings.ts), drawn with the Pi TUI library: a client that presents the session, part of the terminal UI interface."},{"name":"Print mode, JSON event stream and RPC mode","why":"I/O layers over the agent session (src/modes/print-mode.ts, json-event.ts, rpc/): parts of their interfaces; RpcClient is a client of RPC mode."},{"name":"Shell commands","why":"Argument parsing and the install, auth, mcp and config commands (src/main.ts, src/cli/, src/package-manager-cli.ts, src/extensions/mcp/cli.ts): part of the pi shell commands interface; they call the components."},{"name":"SDK exports","why":"src/index.ts re-exports the session factory, contracts and tool factories: part of the SDK interface."},{"name":"Pi TUI, Pi MCP and Pi Codemode libraries","why":"Libraries Pi bundles: the renderer of the terminal UI, the adapter MCP connections use to reach MCP servers, and the sandbox the codemode tool runs scripts in. Each is also its own provider."},{"name":"Pi Schema and Pi Telemetry libraries","why":"Reach Pi only inside Pi AI and Pi Agent Core: tool-argument validation and request spans. Each is also its own provider."},{"name":"Configuration and utilities","why":"Paths, start-up migrations, HTTP and stdout plumbing, helpers (src/config.ts, src/migrations.ts, src/utils/, src/core/http-dispatcher.ts): how parts reach the file system and network."},{"name":"Documentation and examples","why":"The user guides, references and example extensions and SDK programs (docs/, examples/): surfaces consumers read as part of the product."}],"components":[{"name":"Agent session","description":"Runs a conversation in one working folder and keeps it as a session: prompts and queues, retries, compaction, model and tool choice, branching, export and sharing.","resources":["Session"],"serves":[{"consumer":"Pi user","area":"Get work done"},{"consumer":"Pi user","area":"Manage sessions"},{"consumer":"Pi user","area":"Choose a model"},{"consumer":"Pi user","area":"Report a bug"},{"consumer":"Integrator","area":"Run sessions"},{"consumer":"Integrator","area":"Manage sessions"},{"consumer":"Integrator","area":"Choose a model"},{"consumer":"Extension author","area":"Extend Pi"}],"parts":[{"name":"Session store","why":"Storage of the session tree (src/core/session-manager.ts); the session runtime copies imported files into the session folder and the terminal UI deletes session files, so it is not the only writer and stays inside this component."},{"name":"Session runtime","why":"Replaces the session on new, resume, fork and import (src/core/agent-session-runtime.ts); works on the same sessions."},{"name":"Compaction and branch summaries","why":"Decide cut points and write summaries but keep nothing (src/core/compaction/, \"Compaction and summarization utilities\"): the result counts only once the session appends it, the session decides when to compact and whether to take an extension's session_before_compact result instead, and AgentSession's header lists compaction among what it encapsulates. A step of Compact session and Branch session."},{"name":"Session wiring","why":"The dependency-injection setup that builds the session and its services (src/core/sdk.ts, agent-session-services.ts)."},{"name":"System prompt, messages, cache warmer, usage","why":"Steps of a run on the same session state (system-prompt.ts, messages.ts, cache-warmer.ts, usage-totals.ts, cache-stats.ts, nested-tool-calls.ts); nested tool calls are recorded on the parent call's result, and cache warming is provider behaviour."},{"name":"Built-in tools, codemode tool, tool search","why":"Variants of the tool contract that the agent loop runs and the session chooses (src/core/tools/, src/extensions/codemode, src/extensions/tool-search): adapters to the working folder and the shell that keep no state of their own. Codemode's stored values are session entries it appends, and tool_search changes the session's active tools."},{"name":"Shell command runner and exec helper","why":"Adapters to the shell for ! commands and for pi.exec (src/core/bash-executor.ts, exec.ts)."},{"name":"Export, share and bug report","why":"Representations of the session and their uploads (src/core/export-html/, session-export.ts, bug-report.ts, src/modes/interactive/session-share.ts); they sit partly in the interactive mode's folder but work on the session."}]},{"name":"Model runtime","description":"Decides which models Pi offers, from the built-in providers, models.json, extension providers, the pi.dev catalog and virtual models, and sends each request to Pi AI.","resources":["Model","Model response","Provider credential"],"serves":[{"consumer":"Pi user","area":"Get work done"},{"consumer":"Pi user","area":"Choose a model"},{"consumer":"Pi user","area":"Sign in to providers"},{"consumer":"Integrator","area":"Choose a model"},{"consumer":"Extension author","area":"Extend Pi"}],"parts":[{"name":"Model registry","why":"A facade that only passes calls on to the runtime (src/core/model-registry.ts), handed to extensions as ctx.modelRegistry."},{"name":"Provider composition and models.json","why":"Builds the provider set the runtime holds (provider-composer.ts, model-config.ts)."},{"name":"pi.dev catalog overlay","why":"An adapter to pi.dev that wraps a provider (remote-catalog-provider.ts)."},{"name":"Credential and model-list stores","why":"File storage Pi AI writes through (auth-storage.ts implements CredentialStore; models-store.ts implements ModelsStore)."},{"name":"Virtual models","why":"Dispatch to the router an extension registers and change the same provider set (virtual-models.ts)."},{"name":"Model pattern matching","why":"Steps of choosing a model from --model and --models patterns (model-resolver.ts)."},{"name":"llama.cpp support","why":"A model provider registered through the extension API plus the /llama screen that presents the router's own model management (src/extensions/llama)."}]},{"name":"Extension runtime","description":"Loads extensions, keeps what they register, delivers session events to their handlers and combines the answers, and passes their requests on to the session.","resources":["Extension","Tool","Command","MCP server"],"serves":[{"consumer":"Extension author","area":"Extend Pi"},{"consumer":"Extension author","area":"Talk to the user"},{"consumer":"Pi user","area":"Customize Pi"}],"parts":[{"name":"Loader","why":"Loads modules and maps the host packages, filling the registrations the runner reads (src/core/extensions/loader.ts)."},{"name":"Runner","why":"Dispatches events and combines results over the same registrations (src/core/extensions/runner.ts)."},{"name":"Extension contract","why":"The ExtensionAPI and ExtensionContext types (src/core/extensions/types.ts): the contract behind the extension API interface, not a part with behaviour."},{"name":"MCP server registrations","why":"\"The core only validates and stores registrations\" (src/core/mcp-servers.ts); the MCP connections component connects them."},{"name":"Event bus","why":"A channel extensions share (src/core/event-bus.ts)."},{"name":"Built-in extension list","why":"The code that registers the built-in extensions, llama.cpp, codemode, tool search and MCP, the last three replaceable by an extension that registers the same tool or command (src/extensions/index.ts)."}]},{"name":"Resource loader","description":"Finds and loads the context files, system prompt files, skills, prompt templates, themes and extensions that apply to a working folder, in order of precedence.","resources":["Skill","Prompt template","Theme","Context file","Extension"],"serves":[{"consumer":"Pi user","area":"Customize Pi"},{"consumer":"Extension author","area":"Package extensions"}],"parts":[{"name":"Skill and prompt-template loaders","why":"Parsers whose results only the loader holds (skills.ts, prompt-templates.ts)."},{"name":"Package manifest reader and source info","why":"Read the `pi` key of package.json and label where each resource came from (pi-manifest.ts, source-info.ts)."},{"name":"Slash command list","why":"The built-in command names and the commands resources add (slash-commands.ts): data the loader and the interfaces read."}]},{"name":"Project trust","description":"Decides whether a working folder may load its own settings, MCP servers, extensions and other resources, and keeps the saved decisions.","resources":["Project trust decision"],"serves":[{"consumer":"Pi user","area":"Decide project trust"}],"parts":[{"name":"Trust store and trust resolution","why":"ProjectTrustStore (trust-manager.ts) and resolveProjectTrusted (project-trust.ts) work on the same decisions in trust.json."}]},{"name":"Package manager","description":"Installs, updates and removes Pi packages from npm, git or local paths, and records them in settings.","resources":["Pi package"],"serves":[{"consumer":"Pi user","area":"Customize Pi"},{"consumer":"Extension author","area":"Package extensions"}],"parts":[{"name":"npm and git handling","why":"Steps of install and update inside DefaultPackageManager (package-manager.ts)."},{"name":"Resource discovery and filters","why":"Helpers of resolve() in the same file that find a package's or folder's extensions, skills, prompts and themes and apply its filters (collect*Entries, applyPatterns in package-manager.ts)."}]},{"name":"MCP connections","description":"Connects the MCP servers in mcp.json and those extensions register, signs in to them, and offers their tools and resources to the model.","resources":["MCP server"],"serves":[{"consumer":"Pi user","area":"Connect MCP servers"},{"consumer":"Extension author","area":"Extend Pi"}],"parts":[{"name":"Connection manager","why":"The component's core: holds the server records, connects servers, registers their tools and decides exposure and start-up waits (src/extensions/mcp/index.ts)."},{"name":"Server connections","why":"\"The part of the MCP integration that talks to servers\" (src/extensions/mcp/runtime.ts, runtime.lazy.ts): the adapter, through pi-mcp, whose connection state is a property of the manager's server records."},{"name":"Config","why":"Reads and edits mcp.json for the manager (config.ts, src/core/radius-mcp.ts)."},{"name":"OAuth","why":"Sign-in state of the same servers in mcp-auth.json (oauth.ts)."},{"name":"Tools, resources and log","why":"Steps of calling the same connections (tools.ts, resources.ts, log.ts)."},{"name":"/mcp screen and pi mcp commands","why":"Present the manager (ui.ts, cli.ts): parts of the terminal UI and shell-command interfaces."}]}],"sharedComponents":[{"name":"Pi Agent Core","serves":[{"consumer":"Pi user","area":"Get work done"},{"consumer":"Integrator","area":"Run sessions"}]},{"name":"Pi AI","serves":[{"consumer":"Pi user","area":"Get work done"},{"consumer":"Pi user","area":"Sign in to providers"}]}]},{"name":"Pi AI","description":"The pi-ai library: one API to chat with, generate images with and classify through many model providers, with their model catalogs and sign-in.","resources":["Model","Model response","Provider credential"],"parts":[{"name":"Models collection","why":"Holds the provider set, alone writes credentials (login, logout and OAuth refresh inside the credential store's modify) and stored model lists, and routes each request to the provider that owns the model with its auth applied (src/models.ts, src/auth/resolve.ts); the only part that passes, so the library is not opened."},{"name":"Provider factories","why":"Variants of the Provider contract, each an adapter to an outside model service with its catalog, auth semantics and stream behaviour (src/providers/). They hold no record only they change: Models persists a dynamic provider's model list before running its update, and runs its OAuth refresh inside Models' own credential write."},{"name":"API implementations","why":"Wire-protocol adapters shared by providers (src/api/)."},{"name":"Auth and OAuth flows","why":"Each provider's sign-in and refresh flows (src/auth/oauth/), whose credentials the Models collection stores; the credential store is storage the host supplies (src/auth/credential-store.ts)."},{"name":"Model catalog","why":"Generated model data and the store contract for refreshed lists (src/models.generated.ts, src/providers/*.models.ts, src/model-catalog.ts, src/models-store.ts)."},{"name":"Cache-warming policy","why":"Stateless numbers for hosts that warm prompt caches (src/cache-warming.ts: \"Hosts own the scheduling; this module owns the numbers\"); it serves no capability, since cache warming is provider behaviour."},{"name":"Utilities and telemetry schema","why":"Event streams, tool-argument validation through pi-schema, transcript helpers, environment key lookup, a registry of session clean-up callbacks and request spans through pi-telemetry (src/utils/, src/env-api-keys.ts, src/session-resources.ts, src/telemetry.ts)."},{"name":"Faux provider","why":"A scripted provider for tests (src/providers/faux.ts): test help offered to library users."},{"name":"Entry modules","why":"Export surfaces (src/index.ts, oauth.ts, lazy-oauth.ts, bun-oauth.ts, bedrock-provider.ts, lazy-bedrock-provider.ts); check-entry-graphs budgets what ./models and ./utils/* may reach."},{"name":"pi-ai command line","why":"`pi-ai login` and `list` (src/cli.ts): a client of the Models collection, part of the pi-ai command line interface."},{"name":"Catalog generator","why":"Builds the model catalog from upstream sources (catalog/, scripts/): engineering tooling."}]},{"name":"Pi Agent Core","description":"The pi-agent-core library: a stateful agent that runs model turns with tool calls, queued messages and events, on a stream function the host supplies.","resources":["Agent","Agent run","Model response"],"parts":[{"name":"Shared types","why":"The contract types both components use, such as AgentState, AgentLoopConfig, AgentTool and AgentEvent, and the package entry (src/types.ts, src/index.ts)."},{"name":"Default stream function","why":"Wiring: a slot the host fills with the function that reaches a model, read by both components when none is given (src/stream-fn.ts)."},{"name":"mcp-codemode example","why":"Documentation: an example program that wraps MCP tools and a codemode tool as agent tools (examples/mcp-codemode/)."}],"components":[{"name":"Stateful agent","description":"The Agent class: keeps the transcript, model, thinking level, tools and the steering and follow-up queues, and records each run's events in that state.","resources":["Agent"],"serves":[{"consumer":"Library developer","area":"Run agents"},{"consumer":"Agent session","area":"Run agent turns"}],"parts":[{"name":"Pending message queues","why":"Part of the agent's own state (PendingMessageQueue in src/agent.ts), changed through steer, followUp and the clear methods and drained when the loop polls."},{"name":"Event reduction","why":"The step that records each loop event in the same state (processEvents in src/agent.ts)."}]},{"name":"Agent loop","description":"The low-level loop that runs one prompt or continuation turn by turn: it calls the model, runs the tool calls, takes queued messages and decides when the run ends.","resources":["Agent run","Model response"],"serves":[{"consumer":"Library developer","area":"Run agents"},{"consumer":"Library developer","area":"Route model requests"},{"consumer":"Agent session","area":"Run agent turns"}],"parts":[{"name":"Tool-call pipeline","why":"Argument validation, the before and after hooks and the result of each tool call (executeToolCalls, prepareToolCall, executePreparedToolCall, runToolCall in src/agent-loop.ts); the run flow calls these unexported steps directly, on the same run."},{"name":"Model call and tool-change declarations","why":"Steps of each turn: streaming the assistant response and declaring changes to the tool set as system messages (streamAssistantResponse, declareToolChanges)."},{"name":"Proxy stream","why":"A stream function that sends model requests to the application's own server (src/proxy.ts): an adapter."}]}]},{"name":"Pi TUI","description":"The pi-tui library: a terminal UI framework that draws components with differential rendering and handles keys, paste and mouse input.","resources":["Component"],"parts":[{"name":"Renderers and built-in components","why":"The main and alternate screen renderers (src/tui.ts, tui-main-screen.ts, tui-alt-screen.ts, layout.ts) and the text, editor, input, Markdown, select list, image and other components (src/components/, editor-component.ts) are one tree on one Component contract: the TUI is itself its root container (TuiBase extends Container) and its setFocus writes the components' focused flag, so they change each other's records. The only part that could pass, so the library is not opened."},{"name":"Terminal input and output","why":"Adapters to the terminal: keys, stdin buffering, images, colours (src/terminal.ts, stdin-buffer.ts, keys.ts, terminal-image.ts, terminal-colors.ts)."},{"name":"Keybindings","why":"A store of key settings the components read (src/keybindings.ts)."},{"name":"Autocomplete, fuzzy matching, LaTeX and utilities","why":"Helpers of the components, autocomplete providers being variants the editor uses (src/autocomplete.ts, fuzzy.ts, colors.ts, latex.ts, utils.ts, kill-ring.ts, undo-stack.ts)."},{"name":"Native clipboard helpers","why":"Adapters to the operating system's clipboard (native/)."}]},{"name":"Pi MCP","description":"The pi-mcp library: a standalone Model Context Protocol client over stdio and Streamable HTTP, with OAuth sign-in.","resources":["MCP connection","MCP tool","MCP resource","MCP sign-in"],"parts":[{"name":"Config validation, naming and content conversion","why":"Helpers for applications that keep nothing (src/config.ts, naming.ts, input-schema.ts, model-content.ts, output-limit.ts, result-schema.ts), the package entry (src/index.ts) and the testing entry (src/testing/)."},{"name":"AuthProvider contract","why":"The interface between the Streamable HTTP transport and MCP OAuth (src/auth-provider.ts), not a part with behaviour."}],"components":[{"name":"MCP client","description":"McpClient with its transports: connects to one MCP server, keeps the connection, and sends the protocol's requests with correlation, timeouts and cancellation.","resources":["MCP connection","MCP tool","MCP resource"],"serves":[{"consumer":"Library developer","area":"Use MCP servers"}],"parts":[{"name":"Protocol types and JSON-RPC helpers","why":"Message types and helpers of the same client (src/protocol/)."},{"name":"Transports","why":"Variants of the transport contract, stdio, Streamable HTTP, pipe and in-memory (src/transports/): adapters that own framing and I/O."}]},{"name":"MCP OAuth","description":"pi-mcp's OAuth client: signs in to an MCP server's authorization server, keeps the tokens and client registration in a store the application supplies, and refreshes them for connections.","resources":["MCP sign-in"],"serves":[{"consumer":"Library developer","area":"Sign in to server"}],"parts":[{"name":"Authorization flow and discovery","why":"Steps on the same sign-in state: metadata discovery, client registration, PKCE, token exchange, refresh and step-up (src/oauth/flow.ts, discovery.ts, client-settings.ts)."},{"name":"Sign-in halves","why":"startMcpSignIn and completeMcpSignIn save to the same store as the OAuth provider (src/oauth/sign-in.ts)."},{"name":"Callback servers","why":"Local HTTP listeners that receive the browser's redirect (src/oauth/callback.ts, loopback.ts): adapters."}]}]},{"name":"Pi Codemode","description":"The pi-codemode library: runs model-written JavaScript in a QuickJS sandbox whose only capability is calling the tools it is given.","resources":["Sandbox","Script run"],"parts":[{"name":"Sandboxes","why":"CodemodeSandbox, RemoteCodemodeSandbox and InlineCodemodeSandbox \"share one API, one script environment, and one result format\" and \"share the same host side, prelude, and VM, and replace only the worker thread\" (README; CodemodeSandboxBase in src/runtime/execution.ts): one part with variants, the only one that could pass."},{"name":"QuickJS runtime, worker and Cloudflare Durable Object","why":"Where a variant runs the VM (src/runtime/vm.ts, prelude-source.ts, worker.ts, protocol.ts, src/wasm.ts, src/cloudflare.ts): an implementation choice whose isolation carries one run of the sandbox's own capability and persists nothing."},{"name":"Source format and declarations","why":"Parse the options line and generate tool declarations (src/source.ts, src/declarations.ts, src/identifier.ts)."}]},{"name":"Pi Schema","description":"The pi-schema library: JSON Schema builders and a validator that compiles a schema into plain checks without eval.","resources":["Schema"],"parts":[{"name":"Compiler and validator","why":"Decide whether a value matches a schema (src/compiler.ts, validator.ts, checks.ts, coerce.ts, resolver.ts, explain.ts, shared.ts): the only deciding part, so the library is not opened."},{"name":"Format checks","why":"A group with its own entry-point rule in check-entry-graphs (src/formats/, loaded only through ./formats), but pure checks the compiler calls through compile()'s formats option: steps of the same decision."},{"name":"Builders and types","why":"Return plain JSON Schema objects and their static types and decide nothing (src/builders.ts, annotations.ts, types.ts, typebox-static.ts, index.ts)."}]},{"name":"Pi Telemetry","description":"The pi-telemetry library: a vendor-neutral contract for spans and metrics that Pi's packages report to, with no-op and in-memory reference adapters.","resources":["Span","Metric"],"parts":[{"name":"Contract and reference adapters","why":"The context, span and metric contract with its no-op and in-memory variants (src/index.ts, noop.ts, memory.ts, metrics.ts; InMemoryTelemetryContext implements TelemetryContext and TelemetryStore): one part with variants, and no exporter."},{"name":"Typed schemas","why":"Typed span starters and metrics that wrap a context and pass calls on (createTypedSpanStarter in src/index.ts, createTypedMetrics in src/metrics.ts)."},{"name":"Render and conformance suite","why":"A text representation of recorded spans (src/render.ts) and test help for adapter authors (src/testing/)."}]}],"outsideServices":[{"name":"AI model providers","description":"The model services Pi AI calls: Anthropic, OpenAI, Google, Amazon Bedrock, Azure, OpenRouter, GitHub Copilot, the Radius gateway, a llama.cpp router and any OpenAI-compatible endpoint, among about forty.","resources":["Model","Model response","Provider credential"]},{"name":"MCP servers","description":"Model Context Protocol servers the user configures or an extension registers, local over stdio or remote over Streamable HTTP, including the Radius MCP server.","resources":["MCP tool","MCP resource","MCP sign-in"]},{"name":"Radius","description":"Earendil Works' service for Pi at radius.pi.dev; Pi uploads shared sessions and bug reports to it (its model gateway and MCP server are reached as one of the AI model providers and MCP servers).","resources":["Artifact","Bug report"]},{"name":"GitHub","description":"GitHub gists, reached through the `gh` command, where /share puts a session when Radius is not used.","resources":["Gist"]},{"name":"Package sources","description":"The npm registry and git hosts Pi packages are installed from.","resources":["Package release"]},{"name":"pi.dev","description":"Pi's website, which serves the current model catalog per provider.","resources":["Model catalog"]},{"name":"llama.cpp router","description":"A local llama.cpp server in router mode that discovers GGUF models and loads them on demand; Pi manages its models here, and Pi AI sends it chat requests as one of the AI model providers.","resources":["Local model"]},{"name":"Hugging Face","description":"The Hugging Face Hub, searched for GGUF models the llama.cpp router can download.","resources":["Hub model"]}],"resources":[{"name":"Session","description":"A saved conversation in a working folder: messages, tool calls and results, model changes and compactions, stored as a tree of branches.","properties":["ID","name","working folder","active branch","model and thinking level","active tools","queued messages","token usage and cost","labels"]},{"name":"Model","description":"A model Pi can use through a provider: a chat, image or classifier model, built in, configured in models.json, added by an extension, or virtual.","properties":["provider","ID","type","context window","prices","thinking levels","availability"]},{"name":"Model response","description":"What a model returns for one request: text, thinking and tool calls, generated images, or classifier answers.","properties":["stop reason","usage","cost","response ID","deferred handle"]},{"name":"Provider credential","description":"An API key or account sign-in for a model provider, saved in auth.json or taken from the environment.","properties":["type","source","expiry"]},{"name":"Pi package","description":"An npm, git or local package of extensions, skills, prompt templates and themes, declared in user or project settings.","properties":["source","scope","resource filters","installed version"]},{"name":"Skill","description":"A folder with a SKILL.md and supporting files that the model loads when a task calls for it, also available as /skill:name.","properties":["name","description","location"]},{"name":"Prompt template","description":"A Markdown prompt available as a slash command, with arguments.","properties":["name","description","argument hint"]},{"name":"Theme","description":"A set of terminal colours for Pi's interface."},{"name":"Context file","description":"Instructions Pi adds to the system prompt: AGENTS.md or CLAUDE.md in the folder, its parents and the agent directory, and SYSTEM.md or APPEND_SYSTEM.md."},{"name":"Extension","description":"A TypeScript module loaded into Pi, with the handlers and items it registers.","properties":["path","source","load errors"]},{"name":"Tool","description":"Something the model can call: a built-in tool such as read, bash, edit or write, an extension's tool, or an MCP tool.","properties":["name","active","exposure","annotations"]},{"name":"Command","description":"A slash command, keyboard shortcut or command-line flag that an extension adds."},{"name":"MCP server","description":"An MCP server Pi connects to, configured in mcp.json or registered by an extension.","properties":["transport","enabled","exposure","sign-in state","connection state","tools"]},{"name":"Project trust decision","description":"Whether a working folder may load its own settings and resources, saved per folder in trust.json."},{"name":"Settings","description":"The user's and project's saved preferences: default model and tools, compaction, retries, display, keybindings.","properties":["scope"]},{"name":"Dialog","description":"A question an extension shows the user (select, confirm, input or editor), open until answered or cancelled.","properties":["ID","timeout"]},{"name":"Widget","description":"Something an extension shows in Pi's terminal: a widget, status entry, header, footer, custom editor, custom screen or message renderer."},{"name":"Agent","description":"A stateful agent in pi-agent-core: its transcript, model, thinking level, tools and queued messages.","properties":["streaming","pending tool calls","error"]},{"name":"Agent run","description":"One run of pi-agent-core's agent loop, from a prompt or a continuation until the model stops calling tools and no queued message is left: its turns, the assistant messages and tool results it adds, and its events.","properties":["turns","new messages","stop reason"]},{"name":"Component","description":"A piece of a terminal interface built with pi-tui: text, editor, input, Markdown, select list, image, box or a custom one.","properties":["focus"]},{"name":"MCP connection","description":"A client connected to one MCP server, with its negotiated protocol version and session.","properties":["protocol version","state"]},{"name":"MCP tool","description":"A tool an MCP server offers, with its input and output schemas and annotations."},{"name":"MCP resource","description":"A document or file an MCP server offers by URI, listed directly or through URI templates."},{"name":"MCP sign-in","description":"An OAuth authorization with an MCP server's authorization server: client registration and tokens.","properties":["scopes","expiry"]},{"name":"Sandbox","description":"A configured place where model-written scripts run, with the tools and globals it gives them and its limits.","properties":["timeout","memory limit"]},{"name":"Script run","description":"One run of a script in a sandbox: its output, return value or error, the tool calls it made and its store writes."},{"name":"Schema","description":"A JSON Schema, built with the builders or supplied as is, compiled into a check."},{"name":"Span","description":"A timed record of one operation, with attributes, events, status and links."},{"name":"Metric","description":"A counter, up-down counter or histogram with typed attributes."},{"name":"Artifact","description":"An item shared on Radius, here a session, with a viewer link visible to the user's organization."},{"name":"Bug report","description":"A report to Pi's developers with a transcript or summary, environment and provider configuration without secrets, and error diagnostics."},{"name":"Gist","description":"A private GitHub gist holding a session export."},{"name":"Package release","description":"A published version of an npm package, or a git branch, tag or commit."},{"name":"Model catalog","description":"The published list of a provider's models with capabilities, limits and prices."},{"name":"Local model","description":"A GGUF model the llama.cpp router knows, downloaded, loading, loaded or unloaded.","properties":["status"]},{"name":"Hub model","description":"A model repository on the Hugging Face Hub with its GGUF files."}],"interfaces":[{"name":"terminal UI","description":"Pi's interactive terminal screen, started with `pi` and its options: transcript, editor, footer and slash commands."},{"name":"print mode","description":"`pi -p` or piped input: runs the prompts and writes the final answer to stdout, for the user's own scripts."},{"name":"pi shell commands","description":"Commands run without a session: pi install, remove, update, list, config, auth, mcp, --export and --list-models."},{"name":"configuration files","description":"Files the user edits in ~/.pi/agent and the project's .pi folder: settings.json, models.json, mcp.json, keybindings.json, AGENTS.md, and the skills, prompts, themes and extensions folders."},{"name":"extension API","description":"The ExtensionAPI and ExtensionContext objects an extension's factory receives inside Pi, with the host packages Pi supplies."},{"name":"Pi package manifest","description":"The `pi` key in a package's package.json, or its conventional folders, telling Pi what the package provides."},{"name":"SDK","description":"The @earendil-works/pi-coding-agent package used in process: createAgentSession, AgentSession and AgentSessionRuntime."},{"name":"RPC mode","description":"`pi --mode rpc`: JSONL commands on stdin and responses and events on stdout, with the RpcClient wrapper."},{"name":"JSON event stream","description":"`pi --mode json`: one run's events as JSONL on stdout."},{"name":"pi-ai package","description":"The @earendil-works/pi-ai npm package and its entry points."},{"name":"pi-ai command line","description":"The `pi-ai` command: login and list providers."},{"name":"pi-agent-core package","description":"The @earendil-works/pi-agent-core npm package: the Agent class and the low-level agent loop."},{"name":"pi-tui package","description":"The @earendil-works/pi-tui npm package."},{"name":"pi-mcp package","description":"The @earendil-works/pi-mcp npm package and its oauth and testing entry points."},{"name":"pi-codemode package","description":"The @earendil-works/pi-codemode npm package and its portable, cloudflare, source and declarations entry points."},{"name":"pi-schema package","description":"The @earendil-works/pi-schema npm package and its formats entry point."},{"name":"pi-telemetry package","description":"The @earendil-works/pi-telemetry npm package and its render and testing entry points."},{"name":"model runtime API","description":"ModelRuntime and its ModelRegistry facade (src/core/model-runtime.ts, model-registry.ts), which the rest of Pi calls for models."},{"name":"extension runner","description":"ExtensionRunner (src/core/extensions/runner.ts): emits session events to extensions and returns what they registered."},{"name":"session actions","description":"The ExtensionActions, ExtensionContextActions and ExtensionCommandContextActions the session binds into the extension runner (src/core/extensions/types.ts)."},{"name":"ResourceLoader contract","description":"The ResourceLoader interface (src/core/resource-loader.ts) the session reads its resources through; the SDK can replace it."},{"name":"PackageManager contract","description":"The PackageManager interface (src/core/package-manager.ts)."},{"name":"extension loader","description":"loadExtensionsCached and loadExtensionFromFactory (src/core/extensions/loader.ts)."},{"name":"project trust check","description":"The resolveProjectTrust callback of ResourceLoader.reload, implemented by resolveProjectTrusted (src/core/project-trust.ts)."},{"name":"extension contract","description":"ExtensionAPI and ExtensionContext (src/core/extensions/types.ts) as built-in extensions inside Pi call them."},{"name":"agent loop API","description":"runAgentLoop and runAgentLoopContinue in pi-agent-core (packages/agent/src/agent-loop.ts), with the AgentLoopConfig hooks and an event sink: what the Agent class runs each prompt through."},{"name":"AuthProvider contract","description":"The AuthProvider interface of pi-mcp (packages/mcp/src/auth-provider.ts): token() and onUnauthorized(), which the Streamable HTTP transport calls and pi-mcp's OAuth implements."},{"name":"Radius API","description":"Radius's HTTP API: POST /v1/artifacts and POST /v1/bug-reports."},{"name":"GitHub CLI","description":"The `gh gist create` command."},{"name":"npm and git","description":"The npm command (or the configured npmCommand) and git, run against registries and hosts."},{"name":"pi.dev catalog API","description":"GET /api/models/providers/\u003cid> on pi.dev."},{"name":"llama.cpp router API","description":"The llama.cpp router's HTTP API for listing, loading, unloading and downloading models."},{"name":"Hugging Face Hub API","description":"The Hub's /api/models search and model-details endpoints."},{"name":"model provider APIs","description":"Each provider's HTTP or SDK API: Anthropic Messages, OpenAI Responses and Chat Completions, Google Generative AI, Bedrock Converse and others, with their OAuth endpoints."},{"name":"MCP","description":"The Model Context Protocol over stdio or Streamable HTTP, with its OAuth authorization."}],"places":[{"place":"Excluded experimental product line","kind":"excluded","paths":["apps/p2/**","apps/p2-mac/**","apps/p3/**","packages/chord/**","packages/durable/**","packages/env/**"]},{"place":"Pi","kind":"component","paths":["packages/coding-agent/**","README.md","LICENSE","SECURITY.md"]},{"place":"Agent session","kind":"component","paths":["packages/coding-agent/src/core/agent-session.ts","packages/coding-agent/src/core/agent-session-runtime.ts","packages/coding-agent/src/core/agent-session-services.ts","packages/coding-agent/src/core/sdk.ts","packages/coding-agent/src/core/session-manager.ts","packages/coding-agent/src/core/session-cwd.ts","packages/coding-agent/src/core/compaction/**","packages/coding-agent/src/core/system-prompt.ts","packages/coding-agent/src/core/messages.ts","packages/coding-agent/src/core/cache-warmer.ts","packages/coding-agent/src/core/cache-stats.ts","packages/coding-agent/src/core/usage-totals.ts","packages/coding-agent/src/core/nested-tool-calls.ts","packages/coding-agent/src/core/tools/**","packages/coding-agent/src/core/bash-executor.ts","packages/coding-agent/src/core/exec.ts","packages/coding-agent/src/core/export-html/**","packages/coding-agent/src/core/session-export.ts","packages/coding-agent/src/core/bug-report.ts","packages/coding-agent/src/core/bug-report-upload.ts","packages/coding-agent/src/modes/interactive/session-share.ts","packages/coding-agent/src/modes/interactive/bug-report.ts","packages/coding-agent/src/extensions/codemode/**","packages/coding-agent/src/extensions/tool-search/**"]},{"place":"Model runtime","kind":"component","paths":["packages/coding-agent/src/core/model-runtime.ts","packages/coding-agent/src/core/model-registry.ts","packages/coding-agent/src/core/provider-composer.ts","packages/coding-agent/src/core/model-config.ts","packages/coding-agent/src/core/models-store.ts","packages/coding-agent/src/core/auth-storage.ts","packages/coding-agent/src/core/remote-catalog-provider.ts","packages/coding-agent/src/core/runtime-credentials.ts","packages/coding-agent/src/core/virtual-models.ts","packages/coding-agent/src/core/model-resolver.ts","packages/coding-agent/src/core/provider-matching.ts","packages/coding-agent/src/core/preferred-providers.ts","packages/coding-agent/src/extensions/llama/**"]},{"place":"Extension runtime","kind":"component","paths":["packages/coding-agent/src/core/extensions/**","packages/coding-agent/src/core/mcp-servers.ts","packages/coding-agent/src/core/event-bus.ts","packages/coding-agent/src/extensions/index.ts"]},{"place":"Resource loader","kind":"component","paths":["packages/coding-agent/src/core/resource-loader.ts","packages/coding-agent/src/core/skills.ts","packages/coding-agent/src/core/prompt-templates.ts","packages/coding-agent/src/core/source-info.ts","packages/coding-agent/src/core/pi-manifest.ts","packages/coding-agent/src/core/slash-commands.ts"]},{"place":"Project trust","kind":"component","paths":["packages/coding-agent/src/core/trust-manager.ts","packages/coding-agent/src/core/project-trust.ts"]},{"place":"Package manager","kind":"component","paths":["packages/coding-agent/src/core/package-manager.ts"]},{"place":"MCP connections","kind":"component","paths":["packages/coding-agent/src/extensions/mcp/**","packages/coding-agent/src/core/radius-mcp.ts"]},{"place":"terminal UI","kind":"interface","paths":["packages/coding-agent/src/modes/interactive/**","packages/coding-agent/src/core/keybindings.ts","packages/coding-agent/src/core/keybindings-schema.ts","packages/coding-agent/src/core/key-id-schema.ts","packages/coding-agent/src/core/footer-data-provider.ts","packages/coding-agent/src/extensions/mcp/ui.ts"]},{"place":"print mode","kind":"interface","paths":["packages/coding-agent/src/modes/print-mode.ts","packages/coding-agent/src/modes/diagnostics-stderr.ts"]},{"place":"JSON event stream","kind":"interface","paths":["packages/coding-agent/src/modes/json-event.ts"]},{"place":"RPC mode","kind":"interface","paths":["packages/coding-agent/src/modes/rpc/**","packages/coding-agent/src/rpc-entry.ts","packages/coding-agent/examples/rpc-client.ts","packages/coding-agent/examples/rpc-extension-ui.ts"]},{"place":"pi shell commands","kind":"interface","paths":["packages/coding-agent/src/main.ts","packages/coding-agent/src/cli.ts","packages/coding-agent/src/cli/**","packages/coding-agent/src/package-manager-cli.ts","packages/coding-agent/src/extensions/mcp/cli.ts","packages/coding-agent/src/extensions/mcp/cli.lazy.ts"]},{"place":"SDK","kind":"interface","paths":["packages/coding-agent/src/index.ts","packages/coding-agent/src/core/index.ts","packages/coding-agent/examples/sdk/**"]},{"place":"configuration files","kind":"interface","paths":["packages/coding-agent/schemas/**"]},{"place":"Pi AI","kind":"component","paths":["packages/ai/**"]},{"place":"pi-ai command line","kind":"interface","paths":["packages/ai/src/cli.ts"]},{"place":"Pi Agent Core","kind":"component","paths":["packages/agent/**"]},{"place":"Stateful agent","kind":"component","paths":["packages/agent/src/agent.ts"]},{"place":"Agent loop","kind":"component","paths":["packages/agent/src/agent-loop.ts","packages/agent/src/proxy.ts"]},{"place":"Pi TUI","kind":"component","paths":["packages/tui/**"]},{"place":"Pi MCP","kind":"component","paths":["packages/mcp/**"]},{"place":"MCP client","kind":"component","paths":["packages/mcp/src/client.ts","packages/mcp/src/protocol/**","packages/mcp/src/transports/**"]},{"place":"MCP OAuth","kind":"component","paths":["packages/mcp/src/oauth/**"]},{"place":"AuthProvider contract","kind":"interface","paths":["packages/mcp/src/auth-provider.ts"]},{"place":"Pi Codemode","kind":"component","paths":["packages/codemode/**"]},{"place":"Pi Schema","kind":"component","paths":["packages/schema/**"]},{"place":"Pi Telemetry","kind":"component","paths":["packages/telemetry/**"]},{"place":"pi-ai compatibility entry point","kind":"cleanup","paths":["packages/ai/src/compat.ts","packages/ai/src/legacy-api-aliases.ts","packages/ai/src/compat/**","packages/ai/src/images.ts","packages/ai/src/images-api-registry.ts","packages/ai/src/image-models.ts","packages/ai/src/providers/images/**"]},{"place":"Leftover experimental folder","kind":"cleanup","paths":["packages/coding-agent/src/experimental/**"]},{"place":"Start-up migrations","kind":"cleanup","paths":["packages/coding-agent/src/migrations.ts","packages/coding-agent/scripts/migrate-sessions.sh"]},{"place":"Tests","kind":"tooling","paths":["packages/agent/test/**","packages/ai/test/**","packages/coding-agent/test/**","packages/tui/test/**","packages/mcp/test/**","packages/codemode/test/**","packages/schema/test/**","packages/telemetry/test/**","packages/agent/vitest.config.ts","packages/ai/vitest.config.ts","packages/coding-agent/vitest.config.ts","packages/mcp/vitest.config.ts","packages/codemode/vitest.config.ts","packages/schema/vitest.config.ts","vitest.base.ts","test.sh"]},{"place":"Behavioural evals","kind":"tooling","paths":["packages/evals/**"]},{"place":"Build, packaging and release","kind":"tooling","paths":["scripts/**","nix/**","flake.nix","flake.lock","package.json","package-lock.json",".npmrc",".gitignore",".gitattributes","pi-test.sh","pi-test.ps1","pi-test.bat","packages/coding-agent/install-lock/**","packages/coding-agent/scripts/**","packages/ai/scripts/**","packages/tui/native/*/build.sh","packages/tui/native/win32/build.mjs","packages/agent/tsconfig.build.json","packages/ai/tsconfig.build.json","packages/coding-agent/tsconfig.build.json","packages/coding-agent/tsconfig.examples.json","packages/coding-agent/examples/tsconfig.json","packages/tui/tsconfig.build.json","packages/mcp/tsconfig.build.json","packages/codemode/tsconfig.build.json","packages/schema/tsconfig.build.json","packages/telemetry/tsconfig.build.json"]},{"place":"Model catalog generation","kind":"tooling","paths":["packages/ai/catalog/**"]},{"place":"CI and repository automation","kind":"tooling","paths":[".github/**",".husky/**"]},{"place":"Maintainers' Pi resources","kind":"tooling","paths":[".pi/**"]},{"place":"Lint, format and type checks","kind":"tooling","paths":["biome.json","tsconfig.json","tsconfig.base.json"]},{"place":"Contributor documents","kind":"tooling","paths":["AGENTS.md","CONTRIBUTING.md"]}],"boundaries":[{"consumer":"Pi user","provider":"Pi","interfaces":["terminal UI","print mode","pi shell commands","configuration files"],"areas":[{"name":"Get work done","type":"core","description":"Give Pi a task in the working folder and direct it while it works.","capabilities":[{"name":"Give Pi a task","takes":"a prompt, with @files, images, piped input, or a /template or /skill:name command","gives":"Pi's answer after it reads, searches, runs commands and edits files in the folder, with every tool call shown","acts":[{"mode":"mutates","resource":"Session"}],"interfaces":["terminal UI","print mode"]},{"name":"Steer the current task","takes":"a message typed while Pi works, to adjust the task (Enter) or to run after it (Alt+Enter)","gives":"the message queued to guide the next response, or returned to the editor with Alt+Up","acts":[{"mode":"mutates","resource":"Session"}],"interfaces":["terminal UI"]},{"name":"Stop the current task","takes":"Escape","gives":"the run stopped and queued messages back in the editor","acts":[{"mode":"mutates","resource":"Session"}],"interfaces":["terminal UI"]},{"name":"Run a shell command","takes":"a command after ! (output sent to the model) or !! (kept out of it)","gives":"the command's output in the conversation","acts":[{"mode":"mutates","resource":"Session"}],"interfaces":["terminal UI"]}]},{"name":"Manage sessions","type":"supporting","description":"Continue, branch, copy, compact and pass on saved conversations.","capabilities":[{"name":"Resume session","takes":"the most recent session (--continue), one picked from a list (--resume, /resume) or an ID or path (--session)","gives":"the session reopened in its working folder with its model and history","acts":[{"mode":"observes","resource":"Session"}],"interfaces":["terminal UI","print mode"]},{"name":"List sessions","takes":"a search in the session picker, for this folder or all folders","gives":"matching sessions with their names, paths and dates","acts":[{"mode":"observes","resource":"Session"}],"interfaces":["terminal UI"]},{"name":"Start new session","takes":"/new","gives":"an empty session in the folder","acts":[{"mode":"produces","resource":"Session"}],"interfaces":["terminal UI"]},{"name":"Name session","takes":"a name (/name, --name, or rename in the picker)","gives":"the session shown under that name","acts":[{"mode":"mutates","resource":"Session"}],"interfaces":["terminal UI","print mode"]},{"name":"Delete session","takes":"a session in the picker","gives":"the session file removed","acts":[{"mode":"mutates","resource":"Session"}],"interfaces":["terminal UI"]},{"name":"Branch session","takes":"an earlier entry chosen in /tree","gives":"the conversation continuing from there, with an optional summary of the branch left behind","acts":[{"mode":"mutates","resource":"Session"}],"interfaces":["terminal UI"]},{"name":"Fork session","takes":"an earlier user message (/fork, --fork) or the current position (/clone)","gives":"a new session holding the copied history","acts":[{"mode":"produces","resource":"Session"}],"interfaces":["terminal UI","print mode"]},{"name":"Import session","takes":"a JSONL session file (/import)","gives":"the session added with its ID and working folder, and opened","acts":[{"mode":"produces","resource":"Session"}],"interfaces":["terminal UI"]},{"name":"Compact session","takes":"/compact with optional instructions","gives":"older history replaced by a summary in later requests, the entries kept","acts":[{"mode":"mutates","resource":"Session"}],"interfaces":["terminal UI"]},{"name":"Show session stats","takes":"/session","gives":"the session file, ID, message count, token usage and cost per model","acts":[{"mode":"observes","resource":"Session"}],"interfaces":["terminal UI"]},{"name":"Export session","takes":"/export with an optional path, `pi --export \u003cfile>`, or /copy for the last response","gives":"an HTML or JSONL file of the session, or the last response on the clipboard","acts":[{"mode":"produces","resource":"Session"}],"interfaces":["terminal UI","pi shell commands"]},{"name":"Share session","takes":"/share","gives":"a viewer link to the session, uploaded as a Radius artifact or a private GitHub gist","acts":[{"mode":"produces","resource":"Session"}],"interfaces":["terminal UI"]}]},{"name":"Choose a model","type":"supporting","description":"Pick the model and reasoning level Pi uses, and add models Pi does not include.","capabilities":[{"name":"List models","takes":"the /model picker or `pi --list-models` with an optional search","gives":"the models whose providers have usable credentials, with their limits and capabilities","acts":[{"mode":"observes","resource":"Model"}],"interfaces":["terminal UI","pi shell commands"]},{"name":"Select model","takes":"a model from /model, Ctrl+P cycling or --model, --provider and --models patterns","gives":"the session using that model from the next request, saved as default on Ctrl+S","acts":[{"mode":"mutates","resource":"Session"},{"mode":"observes","resource":"Model"}],"interfaces":["terminal UI","print mode"]},{"name":"Set thinking level","takes":"a level from off to max (/thinking, Shift+Tab, --thinking)","gives":"the session using that reasoning level, clamped to the model","acts":[{"mode":"mutates","resource":"Session"}],"interfaces":["terminal UI","print mode"]},{"name":"Add custom models","takes":"a compatible endpoint, models or overrides in models.json","gives":"those models selectable like built-in ones","acts":[{"mode":"produces","resource":"Model"}],"interfaces":["configuration files"]},{"name":"Manage local models","takes":"/llama with a llama.cpp router configured","gives":"router models downloaded, loaded or unloaded, and loaded ones offered in /model","acts":[{"mode":"mutates","resource":"Model"}],"interfaces":["terminal UI"]}]},{"name":"Sign in to providers","type":"supporting","description":"Give Pi access to model providers with an account or an API key.","capabilities":[{"name":"Sign in to provider","takes":"a provider and an account sign-in or API key (/login, pi auth login)","gives":"the credential saved in auth.json and the provider's models available; for Radius, the Radius MCP server added to mcp.json","acts":[{"mode":"produces","resource":"Provider credential"}],"interfaces":["terminal UI","pi shell commands"]},{"name":"Sign out of provider","takes":"a provider (/logout, pi auth logout)","gives":"its stored credential removed","acts":[{"mode":"mutates","resource":"Provider credential"}],"interfaces":["terminal UI","pi shell commands"]},{"name":"Check provider credentials","takes":"a provider or model (pi auth check, print-api-key, print-bearer-token)","gives":"ready, not ready or invalid, or the resolved key or token","acts":[{"mode":"observes","resource":"Provider credential"}],"interfaces":["pi shell commands"]}]},{"name":"Connect MCP servers","type":"supporting","description":"Make MCP servers' tools and resources available to the model.","capabilities":[{"name":"Add MCP server","takes":"a stdio command or an HTTP URL with headers or OAuth settings (pi mcp add, mcp.json)","gives":"the server in the user or project mcp.json","acts":[{"mode":"produces","resource":"MCP server"}],"interfaces":["pi shell commands","configuration files"]},{"name":"Remove MCP server","takes":"a server name (pi mcp remove)","gives":"the server removed from mcp.json, its sign-in kept","acts":[{"mode":"mutates","resource":"MCP server"}],"interfaces":["pi shell commands","configuration files"]},{"name":"List MCP servers","takes":"/mcp or pi mcp list","gives":"each server's state, tools, exposure, source and errors","acts":[{"mode":"observes","resource":"MCP server"}],"interfaces":["terminal UI","pi shell commands"]},{"name":"Sign in to MCP server","takes":"a server that needs OAuth (/mcp, pi mcp login or logout)","gives":"the server authorized, or its stored tokens deleted","acts":[{"mode":"mutates","resource":"MCP server"}],"interfaces":["terminal UI","pi shell commands"]},{"name":"Change MCP server","takes":"enabled, exposure (codemode, deferred, direct, hidden) or per-tool exposure, in /mcp or mcp.json","gives":"the server's tools reaching the model that way","acts":[{"mode":"mutates","resource":"MCP server"}],"interfaces":["terminal UI","configuration files"]}]},{"name":"Customize Pi","type":"supporting","description":"Adapt Pi with packages, instructions, skills, prompt templates, themes, extensions and settings.","capabilities":[{"name":"Install package","takes":"an npm, git or local source, for the user or the project (pi install, or -e for one run)","gives":"the package installed, declared in settings and its resources loaded","acts":[{"mode":"produces","resource":"Pi package"}],"interfaces":["pi shell commands"]},{"name":"Remove package","takes":"a package source (pi remove)","gives":"the package and its settings entry removed","acts":[{"mode":"mutates","resource":"Pi package"}],"interfaces":["pi shell commands"]},{"name":"Update packages","takes":"one source or all (pi update --extensions)","gives":"packages reconciled with their registry or git ref","acts":[{"mode":"mutates","resource":"Pi package"}],"interfaces":["pi shell commands"]},{"name":"List packages","takes":"pi list","gives":"the configured packages for the user and the project","acts":[{"mode":"observes","resource":"Pi package"}],"interfaces":["pi shell commands"]},{"name":"Choose package resources","takes":"pi config, for the user or the project","gives":"which of each package's resources and which built-in extensions load","acts":[{"mode":"mutates","resource":"Pi package"}],"interfaces":["pi shell commands"]},{"name":"Add resources","takes":"AGENTS.md, SYSTEM.md or APPEND_SYSTEM.md files, skill folders, prompt Markdown, theme JSON or extension files in the agent or project folders","gives":"them loaded at start: instructions in the prompt, skills advertised, templates and skills as commands, themes selectable, extensions running","acts":[{"mode":"produces","resource":"Context file"},{"mode":"produces","resource":"Skill"},{"mode":"produces","resource":"Prompt template"},{"mode":"produces","resource":"Theme"},{"mode":"produces","resource":"Extension"}],"interfaces":["configuration files"]},{"name":"Reload resources","takes":"/reload","gives":"keybindings, extensions, skills, templates, themes and context files read again","acts":[{"mode":"mutates","resource":"Extension"},{"mode":"mutates","resource":"Skill"},{"mode":"mutates","resource":"Prompt template"},{"mode":"mutates","resource":"Theme"},{"mode":"mutates","resource":"Context file"}],"interfaces":["terminal UI"]},{"name":"Change settings","takes":"a preference in /settings or /scoped-models, or an edit of settings.json or keybindings.json","gives":"the preference saved for the user or the project and applied","acts":[{"mode":"mutates","resource":"Settings"}],"interfaces":["terminal UI","configuration files"]}]},{"name":"Decide project trust","type":"supporting","description":"Choose whether a folder may load its own settings, MCP servers and executable resources.","capabilities":[{"name":"Decide project trust","takes":"the answer to Pi's trust prompt, /trust, or --approve and --no-approve for one run or command","gives":"the folder's protected resources loaded or skipped, the choice saved when asked","acts":[{"mode":"mutates","resource":"Project trust decision"}],"interfaces":["terminal UI","print mode","pi shell commands"]}]},{"name":"Report a bug","type":"supporting","description":"Send Pi's developers a private report of a problem.","capabilities":[{"name":"Report a bug","takes":"/bug with a description, choosing to include the transcript, omit it or have the model summarize it","gives":"the report uploaded through radius.pi.dev, or exported as a zip","acts":[{"mode":"produces","resource":"Session"}],"interfaces":["terminal UI"]}]}],"evidence":[{"path":"packages/coding-agent/docs/usage.md","shows":"the terminal workflow: prompts, steering and follow-ups, shell commands, copy, export and share"},{"path":"packages/coding-agent/docs/slash-commands.md","shows":"the built-in slash commands by group"},{"path":"packages/coding-agent/src/core/slash-commands.ts","shows":"the built-in slash command list in code"},{"path":"packages/coding-agent/docs/cli.md","shows":"invocation, print mode, model, session, tool and resource options, package, auth and mcp commands"},{"path":"packages/coding-agent/src/cli/args.ts","shows":"the command-line options Pi parses"},{"path":"packages/coding-agent/docs/sessions.md","shows":"resuming, branching, forking, cloning, compaction, export, share and bug reports"},{"path":"packages/coding-agent/docs/models.md","shows":"selecting models, thinking levels, models.json, llama.cpp and classifier and image models"},{"path":"packages/coding-agent/docs/providers.md","shows":"provider sign-in, API keys and auth.json"},{"path":"packages/coding-agent/docs/mcp.md","shows":"adding, listing, signing in to and exposing MCP servers"},{"path":"packages/coding-agent/docs/packages.md","shows":"installing, updating, filtering and removing Pi packages"},{"path":"packages/coding-agent/docs/configuration.md","shows":"the agent and project folders and context files"},{"path":"packages/coding-agent/docs/security.md","shows":"project trust and how it is decided"},{"path":"packages/coding-agent/src/package-manager-cli.ts","shows":"the install, remove, update, list and config commands"}]},{"consumer":"Extension author","provider":"Pi","interfaces":["extension API","Pi package manifest"],"areas":[{"name":"Extend Pi","type":"core","description":"Add tools, commands, providers and behaviour to Pi from inside its process.","capabilities":[{"name":"Register tool","takes":"a tool definition: name, description, parameter schema, execute function and optional renderers","gives":"a tool the model can call, active now or on request","acts":[{"mode":"produces","resource":"Tool"}],"interfaces":["extension API"]},{"name":"Register command","takes":"a slash command, keyboard shortcut or command-line flag with its handler","gives":"it available to the user in the session","acts":[{"mode":"produces","resource":"Command"}],"interfaces":["extension API"]},{"name":"Handle events","takes":"a handler for a session, agent, model, tool, input, provider or trust event","gives":"the handler run at that point, able to block, change or add to what happens","acts":[{"mode":"reacts","resource":"Session"}],"interfaces":["extension API"]},{"name":"Add to session","takes":"a message, user message, custom entry, label or session name","gives":"it recorded on the active branch, starting a turn when asked","acts":[{"mode":"mutates","resource":"Session"}],"interfaces":["extension API"]},{"name":"Read session","takes":"the extension context","gives":"the entries and active branch, tools, commands, model, context usage and system prompt","acts":[{"mode":"observes","resource":"Session"}],"interfaces":["extension API"]},{"name":"Control session","takes":"a model, thinking level or tool set, or a request to compact, abort, start, fork, switch or reload the session","gives":"the session changed or replaced","acts":[{"mode":"mutates","resource":"Session"}],"interfaces":["extension API"]},{"name":"Register model provider","takes":"a provider config, a pi-ai Provider or a virtual-model router","gives":"its models selectable in /model, --model and settings","acts":[{"mode":"produces","resource":"Model"}],"interfaces":["extension API"]},{"name":"Call models","takes":"a model and input through ctx.modelRegistry","gives":"a response, generated images or classifier answers","acts":[{"mode":"produces","resource":"Model response"}],"interfaces":["extension API"]},{"name":"Register MCP server","takes":"an mcpServers entry","gives":"the server connected for this session and listed in /mcp","acts":[{"mode":"produces","resource":"MCP server"}],"interfaces":["extension API"]}]},{"name":"Talk to the user","type":"supporting","description":"Ask the user questions and show the extension's own interface in Pi's terminal.","capabilities":[{"name":"Ask the user","takes":"a select, confirm, input or editor dialog, with an optional timeout","gives":"the user's answer, or nothing when cancelled or when there is no interface","acts":[{"mode":"produces","resource":"Dialog"}],"interfaces":["extension API"]},{"name":"Show widgets","takes":"widgets, status entries, header, footer, a custom editor or screen, or message and tool renderers","gives":"them drawn in the terminal, or sent to an RPC client where supported","acts":[{"mode":"mutates","resource":"Widget"}],"interfaces":["extension API"]}]},{"name":"Package extensions","type":"supporting","description":"Distribute extensions and other resources as a Pi package.","capabilities":[{"name":"Package extensions","takes":"a package.json `pi` key or the conventional extensions, skills, prompts and themes folders","gives":"Pi installing the package from npm or git, loading what it declares and showing its changelog after updates","acts":[{"mode":"produces","resource":"Pi package"}],"interfaces":["Pi package manifest"]}]}],"evidence":[{"path":"packages/coding-agent/docs/extensions.md","shows":"extension locations, events, ExtensionContext, ExtensionAPI methods, custom tools and UI"},{"path":"packages/coding-agent/src/core/extensions/types.ts","shows":"the ExtensionAPI interface: on(), registerTool, registerCommand, registerProvider, registerVirtualModel, registerMcpServer, sendMessage and others"},{"path":"packages/coding-agent/docs/rpc-extension-ui.md","shows":"extension dialogs and notifications outside the terminal"},{"path":"packages/coding-agent/docs/custom-provider.md","shows":"registering a model provider from an extension"},{"path":"packages/coding-agent/docs/virtual-models.md","shows":"registering a virtual model with a router"},{"path":"packages/coding-agent/docs/packages.md","shows":"the package manifest, dependencies and changelogs"},{"path":"packages/coding-agent/src/core/pi-manifest.ts","shows":"how Pi reads a package's `pi` manifest"}]},{"consumer":"Integrator","provider":"Pi","interfaces":["SDK","RPC mode","JSON event stream"],"areas":[{"name":"Run sessions","type":"core","description":"Start Pi's agent from another program, prompt it and follow its work.","capabilities":[{"name":"Create session","takes":"a working folder and optional model, tools, resource loader, settings, session storage and model runtime, or a `pi --mode rpc` process","gives":"a session ready for prompts","acts":[{"mode":"produces","resource":"Session"}],"interfaces":["SDK","RPC mode"]},{"name":"Send prompt","takes":"a prompt, steering or follow-up message","gives":"the run's events up to agent_settled: message deltas, tool calls and results, compaction and retries","acts":[{"mode":"mutates","resource":"Session"}]},{"name":"Abort run","takes":"abort, abort_retry, abort_bash or clear_queue","gives":"the run, retry or command stopped and queued messages returned","acts":[{"mode":"mutates","resource":"Session"}],"interfaces":["SDK","RPC mode"]},{"name":"Read session","takes":"get_state, get_messages, get_entries, get_tree, get_session_stats, get_commands or the session's properties","gives":"the session's state, messages, tree, statistics and commands","acts":[{"mode":"observes","resource":"Session"}],"interfaces":["SDK","RPC mode"]},{"name":"Run shell command","takes":"a command","gives":"its output, recorded in the session","acts":[{"mode":"mutates","resource":"Session"}],"interfaces":["SDK","RPC mode"]}]},{"name":"Manage sessions","type":"supporting","description":"Switch, fork, compact, name and export sessions from code.","capabilities":[{"name":"Switch session","takes":"a session path (switch_session, AgentSessionRuntime.switchSession) or a new session","gives":"that session active in its working folder","acts":[{"mode":"observes","resource":"Session"}],"interfaces":["SDK","RPC mode"]},{"name":"Fork session","takes":"an earlier user message (fork) or the current position (clone)","gives":"a new session with the copied history","acts":[{"mode":"produces","resource":"Session"}],"interfaces":["SDK","RPC mode"]},{"name":"Compact session","takes":"optional instructions","gives":"older history summarized","acts":[{"mode":"mutates","resource":"Session"}],"interfaces":["SDK","RPC mode"]},{"name":"Name session","takes":"a name","gives":"the session shown under that name","acts":[{"mode":"mutates","resource":"Session"}],"interfaces":["SDK","RPC mode"]},{"name":"Set session options","takes":"auto-compaction, auto-retry, steering and follow-up modes","gives":"the session behaving that way","acts":[{"mode":"mutates","resource":"Session"}],"interfaces":["SDK","RPC mode"]},{"name":"Export session","takes":"export_html with an optional path","gives":"an HTML file of the session","acts":[{"mode":"produces","resource":"Session"}],"interfaces":["SDK","RPC mode"]}]},{"name":"Choose a model","type":"supporting","description":"Pick the model and thinking level a session uses.","capabilities":[{"name":"List models","takes":"get_available_models or get_available_thinking_levels","gives":"the models with usable credentials and the levels the current model supports","acts":[{"mode":"observes","resource":"Model"}],"interfaces":["SDK","RPC mode"]},{"name":"Select model","takes":"a model or thinking level, or a request to cycle","gives":"the session using it from the next request","acts":[{"mode":"mutates","resource":"Session"}],"interfaces":["SDK","RPC mode"]}]},{"name":"Answer extension dialogs","type":"supporting","description":"Show extensions' questions in the integrating client and send back the answers.","capabilities":[{"name":"Answer extension dialogs","takes":"an extension_ui_request for select, confirm, input or editor","gives":"the extension continuing with the value, confirmation or cancellation sent back","acts":[{"mode":"mutates","resource":"Dialog"}],"interfaces":["RPC mode"]}]}],"evidence":[{"path":"packages/coding-agent/docs/cli-integration.md","shows":"choosing between print, JSON, RPC and SDK, and RpcClient"},{"path":"packages/coding-agent/docs/sdk.md","shows":"createAgentSession, session lifecycle, prompting, events and configurable services"},{"path":"packages/coding-agent/src/core/sdk.ts","shows":"CreateAgentSessionOptions and the factory"},{"path":"packages/coding-agent/docs/rpc-commands.md","shows":"every RPC command"},{"path":"packages/coding-agent/src/modes/rpc/rpc-types.ts","shows":"the RPC command and response types"},{"path":"packages/coding-agent/docs/json.md","shows":"the JSON event stream"},{"path":"packages/coding-agent/src/modes/json-event.ts","shows":"the JSON mode writer"},{"path":"packages/coding-agent/docs/rpc-extension-ui.md","shows":"the extension dialog subprotocol"}]},{"consumer":"Library developer","provider":"Pi AI","interfaces":["pi-ai package","pi-ai command line"],"areas":[{"name":"Call models","type":"core","description":"Get responses, images and classifications from many providers through one API.","capabilities":[{"name":"Get response","takes":"a model and a context of system prompt, messages and tools","gives":"the streamed or complete assistant message with text, thinking, tool calls, usage and cost, or a deferred handle to fetch later","acts":[{"mode":"produces","resource":"Model response"}],"interfaces":["pi-ai package"]},{"name":"Generate images","takes":"an image model and a prompt with optional input images","gives":"the generated images","acts":[{"mode":"produces","resource":"Model response"}],"interfaces":["pi-ai package"]},{"name":"Classify state","takes":"a classifier model, JSON state, optional images and typed questions","gives":"answers with probabilities","acts":[{"mode":"produces","resource":"Model response"}],"interfaces":["pi-ai package"]}]},{"name":"Find models","type":"supporting","description":"Know which models exist and which can be used.","capabilities":[{"name":"List models","takes":"a provider, a type, or nothing; or `pi-ai list`","gives":"the known or available models and providers","acts":[{"mode":"observes","resource":"Model"}]},{"name":"Refresh model lists","takes":"providers with dynamic lists","gives":"their latest models","acts":[{"mode":"mutates","resource":"Model"}],"interfaces":["pi-ai package"]},{"name":"Add custom provider","takes":"identity, auth, models and an API implementation (createProvider)","gives":"a provider whose models work like built-in ones","acts":[{"mode":"produces","resource":"Model"}],"interfaces":["pi-ai package"]}]},{"name":"Sign in to providers","type":"supporting","description":"Get and keep the credentials requests need.","capabilities":[{"name":"Sign in to provider","takes":"a provider and prompts for an account sign-in or API key, or `pi-ai login`","gives":"a credential stored in the credential store, refreshed automatically","acts":[{"mode":"produces","resource":"Provider credential"}]},{"name":"Sign out of provider","takes":"a provider","gives":"its stored credential removed","acts":[{"mode":"mutates","resource":"Provider credential"}],"interfaces":["pi-ai package"]},{"name":"Check auth","takes":"a provider or model","gives":"whether it is configured, from which source, and the request auth","acts":[{"mode":"observes","resource":"Provider credential"}],"interfaces":["pi-ai package"]}]}],"evidence":[{"path":"packages/ai/README.md","shows":"providers, querying models, auth, streaming, image generation, classification, custom providers and OAuth"},{"path":"packages/ai/src/models.ts","shows":"the Models and Provider interfaces"},{"path":"packages/ai/src/cli.ts","shows":"the pi-ai login and list commands"}]},{"consumer":"Library developer","provider":"Pi Agent Core","interfaces":["pi-agent-core package"],"areas":[{"name":"Run agents","type":"core","description":"Run a model with tools turn by turn and steer it while it works.","capabilities":[{"name":"Run prompt","takes":"a message or messages, or continue from the transcript","gives":"the run's events, the assistant messages and the tool results","acts":[{"mode":"mutates","resource":"Agent"}]},{"name":"Queue message","takes":"a steering message for the current run or a follow-up for after it","gives":"it delivered after the current turn or when the run would stop","acts":[{"mode":"mutates","resource":"Agent"}]},{"name":"Abort run","takes":"abort()","gives":"the current run stopped","acts":[{"mode":"mutates","resource":"Agent"}]},{"name":"Change agent state","takes":"a model, thinking level, tools, transcript or queue mode","gives":"the agent using it from the next request","acts":[{"mode":"mutates","resource":"Agent"}]},{"name":"Intercept tool calls","takes":"beforeToolCall, afterToolCall, prepareRequest, finishTurn and transformContext hooks","gives":"tool calls blocked or changed, context rebuilt, and runs ended or continued as the hooks decide","acts":[{"mode":"reacts","resource":"Agent"}]}]},{"name":"Route model requests","type":"supporting","description":"Send the agent's model requests through the application's own server.","capabilities":[{"name":"Route model requests","takes":"a proxy URL and an auth token","gives":"a stream function that sends requests through that server","acts":[{"mode":"produces","resource":"Model response"}]}]}],"evidence":[{"path":"packages/agent/README.md","shows":"the event flow, options, state, methods, steering and follow-up, tools and proxy usage"},{"path":"packages/agent/src/agent.ts","shows":"the Agent class"},{"path":"packages/agent/src/proxy.ts","shows":"the proxy stream function"}]},{"consumer":"Library developer","provider":"Pi TUI","interfaces":["pi-tui package"],"areas":[{"name":"Build terminal interfaces","type":"core","description":"Draw and run a terminal interface from components.","capabilities":[{"name":"Show components","takes":"components added to the TUI on the main or alternate screen","gives":"them drawn with differential rendering, inline images included","acts":[{"mode":"observes","resource":"Component"}]},{"name":"Handle input","takes":"keys, paste and mouse events","gives":"them routed to the focused component and matched against keybindings","acts":[{"mode":"mutates","resource":"Component"}]},{"name":"Edit text","takes":"an Editor or Input with optional path and command autocomplete","gives":"the text the user submits","acts":[{"mode":"mutates","resource":"Component"}]},{"name":"Show overlay","takes":"a component and its position","gives":"it drawn above the rest until hidden","acts":[{"mode":"mutates","resource":"Component"}]}]}],"evidence":[{"path":"packages/tui/README.md","shows":"the TUI interface, renderers, overlays, components, input and autocomplete"},{"path":"packages/tui/src/tui.ts","shows":"the TUI interface and component contract"},{"path":"packages/tui/src/components/editor.ts","shows":"the Editor component"}]},{"consumer":"Library developer","provider":"Pi MCP","interfaces":["pi-mcp package"],"areas":[{"name":"Use MCP servers","type":"core","description":"Connect to MCP servers and use their tools and resources.","capabilities":[{"name":"Connect to server","takes":"a transport (stdio, Streamable HTTP or a pipe), client details, and optionally an mcpServers entry to validate","gives":"an initialized connection, closed on request","acts":[{"mode":"produces","resource":"MCP connection"}]},{"name":"List tools","takes":"a connection","gives":"the server's tools with their schemas","acts":[{"mode":"observes","resource":"MCP tool"}]},{"name":"Call tool","takes":"a tool name and arguments","gives":"the tool's result, or its text and images shaped for a model","acts":[{"mode":"produces","resource":"MCP tool"}]},{"name":"List resources","takes":"a connection","gives":"the server's resources and URI templates","acts":[{"mode":"observes","resource":"MCP resource"}]},{"name":"Read resource","takes":"a resource URI","gives":"its contents","acts":[{"mode":"observes","resource":"MCP resource"}]}]},{"name":"Sign in to server","type":"supporting","description":"Authorize with servers that use OAuth.","capabilities":[{"name":"Sign in to server","takes":"a server URL, a redirect URI and a state store","gives":"tokens in the store, refreshed when they expire","acts":[{"mode":"produces","resource":"MCP sign-in"}]}]}],"evidence":[{"path":"packages/mcp/README.md","shows":"usage, transports, tools for an LLM, OAuth, configuration and the supported protocol"},{"path":"packages/mcp/src/client.ts","shows":"McpClient: connect, listTools, callTool, listResources, readResource, close"},{"path":"packages/mcp/src/oauth/sign-in.ts","shows":"the two-part sign-in"}]},{"consumer":"Library developer","provider":"Pi Codemode","interfaces":["pi-codemode package"],"areas":[{"name":"Run model-written scripts","type":"core","description":"Let a model write JavaScript that calls chosen functions, and get back only what the script outputs.","capabilities":[{"name":"Create sandbox","takes":"tools, globals, time and memory limits, for Node, Bun, Cloudflare or the calling thread","gives":"a sandbox ready to run scripts","acts":[{"mode":"produces","resource":"Sandbox"}]},{"name":"Run script","takes":"JavaScript source with an optional options line, and the stored values","gives":"the output items, the return value or error, the tool calls made and the store writes","acts":[{"mode":"produces","resource":"Script run"}]},{"name":"Describe tools for scripts","takes":"the sandbox's tools","gives":"TypeScript declarations, the script reference and the source grammar","acts":[{"mode":"observes","resource":"Sandbox"}]}]}],"evidence":[{"path":"packages/codemode/README.md","shows":"the sandboxes, script environment, store, source format and Cloudflare use"},{"path":"packages/codemode/src/index.ts","shows":"CodemodeSandbox"},{"path":"packages/codemode/src/declarations.ts","shows":"declarations for the model"}]},{"consumer":"Library developer","provider":"Pi Schema","interfaces":["pi-schema package"],"areas":[{"name":"Check JSON values","type":"core","description":"Describe JSON values with schemas and check them.","capabilities":[{"name":"Build schema","takes":"builder calls such as obj, str and oneOf, or a plain JSON Schema","gives":"a JSON Schema typed with the values it accepts","acts":[{"mode":"produces","resource":"Schema"}]},{"name":"Check value","takes":"a value and a compiled schema, with optional coercion","gives":"whether it matches, narrowed to the schema's type, or errors as JSON Pointer paths","acts":[{"mode":"observes","resource":"Schema"}]}]}],"evidence":[{"path":"packages/schema/README.md","shows":"builders, compile, check and errors, coercion and supported keywords"},{"path":"packages/schema/src/compiler.ts","shows":"the compiler"},{"path":"packages/schema/src/builders.ts","shows":"the builders"}]},{"consumer":"Library developer","provider":"Pi Telemetry","interfaces":["pi-telemetry package"],"areas":[{"name":"Record telemetry","type":"core","description":"Record what an operation did and send it to any backend.","capabilities":[{"name":"Record span","takes":"an operation name, attributes, events and status, started from a context","gives":"a span in the tree of work","acts":[{"mode":"produces","resource":"Span"}]},{"name":"Record metric","takes":"a value for a counter, up-down counter or histogram","gives":"the metric recorded with its typed attributes","acts":[{"mode":"produces","resource":"Metric"}]},{"name":"Link work across processes","takes":"a carrier from another process or a span to link","gives":"spans connected to that work","acts":[{"mode":"mutates","resource":"Span"}]},{"name":"Read recorded telemetry","takes":"the in-memory reference context","gives":"the spans, events and metrics recorded","acts":[{"mode":"observes","resource":"Span"},{"mode":"observes","resource":"Metric"}]}]}],"evidence":[{"path":"packages/telemetry/README.md","shows":"the context API, adapter contract, propagation, metrics and in-memory adapter"},{"path":"packages/telemetry/src/index.ts","shows":"the TelemetryContext and TelemetrySpan contract"},{"path":"packages/telemetry/src/memory.ts","shows":"the in-memory reference adapter"}]},{"consumer":"Agent session","provider":"Pi Agent Core","interfaces":["pi-agent-core package"],"areas":[{"name":"Run agent turns","type":"core","description":"Have the agent loop run the session's prompts with its tools.","capabilities":[{"name":"Run prompt","takes":"user messages, with the session's hooks for tool preflight, context and end of turn","gives":"the run's events, assistant messages and tool results","acts":[{"mode":"mutates","resource":"Agent"}]},{"name":"Queue message","takes":"a steering or follow-up message","gives":"it queued for the current run or after it","acts":[{"mode":"mutates","resource":"Agent"}]},{"name":"Abort run","takes":"abort()","gives":"the run stopped","acts":[{"mode":"mutates","resource":"Agent"}]},{"name":"Change agent state","takes":"the session's model, thinking level, active tools or transcript","gives":"the agent using them on the next request","acts":[{"mode":"mutates","resource":"Agent"}]}]}],"evidence":[{"path":"packages/agent/src/agent.ts","shows":"prompt, continue, steer, followUp, abort, reset and state"},{"path":"packages/coding-agent/src/core/sdk.ts","shows":"the session creating its Agent with the model runtime's stream function"}]},{"consumer":"Agent session","provider":"Model runtime","interfaces":["model runtime API"],"areas":[{"name":"Use models","type":"core","description":"Get responses from the session's model and know which models are usable.","capabilities":[{"name":"Get model response","takes":"a model and a conversation","gives":"the streamed assistant response, routed to a physical model when the model is virtual","acts":[{"mode":"produces","resource":"Model response"},{"mode":"observes","resource":"Model"}]},{"name":"List available models","takes":"nothing, or a provider and model ID","gives":"the models whose providers have usable credentials","acts":[{"mode":"observes","resource":"Model"}]},{"name":"Refresh model lists","takes":"optional providers","gives":"models.json reloaded and provider lists refreshed","acts":[{"mode":"mutates","resource":"Model"}]},{"name":"Generate images","takes":"an image model and a prompt, from a codemode script","gives":"the generated images","acts":[{"mode":"produces","resource":"Model response"}]},{"name":"Classify state","takes":"a classifier model, state and questions, from a codemode script","gives":"answers with probabilities","acts":[{"mode":"produces","resource":"Model response"}]}]}],"evidence":[{"path":"packages/coding-agent/src/core/model-runtime.ts","shows":"ModelRuntime implements Models: streamSimple, resolveModel, getAvailable, refresh, classify, generateImages"},{"path":"packages/coding-agent/src/core/model-registry.ts","shows":"the ModelRegistry facade"}]},{"consumer":"Agent session","provider":"Extension runtime","interfaces":["extension runner"],"areas":[{"name":"Involve extensions","type":"core","description":"Let extensions take part in the session's work.","capabilities":[{"name":"Run extension handlers","takes":"a session event: input, start of a run, context, provider request, tool call, tool result or session change","gives":"the extensions' combined answer: block, changed input, context or result, or nothing","acts":[{"mode":"reacts","resource":"Extension"}]},{"name":"List registered tools and commands","takes":"nothing, or a name","gives":"the tools, commands, flags, shortcuts and renderers extensions registered","acts":[{"mode":"observes","resource":"Tool"},{"mode":"observes","resource":"Command"}]},{"name":"Run extension command","takes":"/name with its arguments","gives":"the command's handler run with a command context","acts":[{"mode":"produces","resource":"Command"}]}]}],"evidence":[{"path":"packages/coding-agent/src/core/extensions/runner.ts","shows":"ExtensionRunner: emit methods and registered tools and commands"}]},{"consumer":"Extension runtime","provider":"Agent session","interfaces":["session actions"],"areas":[{"name":"Act on the session","type":"core","description":"Carry out what extensions ask of the session.","capabilities":[{"name":"Add to session","takes":"a message, user message, custom entry, label or session name","gives":"it recorded on the active branch, starting a turn when asked","acts":[{"mode":"mutates","resource":"Session"}]},{"name":"Read session","takes":"nothing","gives":"the session's tools, commands, context usage, system prompt, idle state and entries","acts":[{"mode":"observes","resource":"Session"}]},{"name":"Control session","takes":"a model, thinking level or tool set, or a request to abort, compact, start, fork, switch, navigate, reload or shut down","gives":"the session changed, replaced or stopped","acts":[{"mode":"mutates","resource":"Session"}]},{"name":"Run tool call","takes":"a tool name and arguments from an extension such as codemode","gives":"the tool's result, recorded as a nested call","acts":[{"mode":"mutates","resource":"Session"}]}]}],"evidence":[{"path":"packages/coding-agent/src/core/extensions/types.ts","shows":"ExtensionActions, ExtensionContextActions and ExtensionCommandContextActions"},{"path":"packages/coding-agent/src/core/agent-session.ts","shows":"the session binding these actions into the runner"}]},{"consumer":"Agent session","provider":"Resource loader","interfaces":["ResourceLoader contract"],"areas":[{"name":"Get resources","type":"core","description":"Know which instructions, skills, templates, themes and extensions apply.","capabilities":[{"name":"List loaded resources","takes":"nothing","gives":"the context files, system prompt files, skills, prompt templates, themes and extensions in force","acts":[{"mode":"observes","resource":"Skill"},{"mode":"observes","resource":"Prompt template"},{"mode":"observes","resource":"Theme"},{"mode":"observes","resource":"Context file"},{"mode":"observes","resource":"Extension"}]},{"name":"Reload resources","takes":"a reload request","gives":"everything rediscovered from the folders and packages","acts":[{"mode":"mutates","resource":"Skill"},{"mode":"mutates","resource":"Prompt template"},{"mode":"mutates","resource":"Theme"},{"mode":"mutates","resource":"Context file"},{"mode":"mutates","resource":"Extension"}]},{"name":"Add resource paths","takes":"skill, prompt and theme paths that extensions supply","gives":"them loaded","acts":[{"mode":"mutates","resource":"Skill"},{"mode":"mutates","resource":"Prompt template"},{"mode":"mutates","resource":"Theme"}]}]}],"evidence":[{"path":"packages/coding-agent/src/core/resource-loader.ts","shows":"the ResourceLoader interface and DefaultResourceLoader"}]},{"consumer":"Resource loader","provider":"Package manager","interfaces":["PackageManager contract"],"areas":[{"name":"Resolve package resources","type":"core","description":"Turn the configured packages into resource paths.","capabilities":[{"name":"Resolve package resources","takes":"the configured and -e package sources","gives":"the paths of their extensions, skills, prompt templates and themes, missing packages installed first","acts":[{"mode":"observes","resource":"Pi package"},{"mode":"produces","resource":"Pi package"}]}]}],"evidence":[{"path":"packages/coding-agent/src/core/package-manager.ts","shows":"the PackageManager interface: resolve and resolveExtensionSources"}]},{"consumer":"Resource loader","provider":"Extension runtime","interfaces":["extension loader"],"areas":[{"name":"Load extensions","type":"core","description":"Turn extension files and factories into running extensions.","capabilities":[{"name":"Load extensions","takes":"extension paths and inline or built-in factories","gives":"the loaded extensions with what they registered, and load errors","acts":[{"mode":"produces","resource":"Extension"}]}]}],"evidence":[{"path":"packages/coding-agent/src/core/extensions/loader.ts","shows":"loadExtensionsCached and loadExtensionFromFactory"}]},{"consumer":"Resource loader","provider":"Project trust","interfaces":["project trust check"],"areas":[{"name":"Decide project trust","type":"core","description":"Know whether the folder's protected resources may load.","capabilities":[{"name":"Decide project trust","takes":"the working folder and the extensions loaded before trust","gives":"whether project resources may load, asking and saving the user's choice when needed","acts":[{"mode":"observes","resource":"Project trust decision"},{"mode":"mutates","resource":"Project trust decision"}]}]}],"evidence":[{"path":"packages/coding-agent/src/core/project-trust.ts","shows":"resolveProjectTrusted: override, extension answer, saved decision, default"},{"path":"packages/coding-agent/src/core/trust-manager.ts","shows":"ProjectTrustStore over trust.json"}]},{"consumer":"Project trust","provider":"Extension runtime","interfaces":["extension runner"],"areas":[{"name":"Ask extensions to decide trust","type":"core","description":"Let a user-level extension own the trust decision.","capabilities":[{"name":"Ask extensions to decide trust","takes":"the working folder","gives":"the first extension's yes or no, or no answer","acts":[{"mode":"reacts","resource":"Extension"}]}]}],"evidence":[{"path":"packages/coding-agent/src/core/extensions/runner.ts","shows":"emitProjectTrustEvent"}]},{"consumer":"Model runtime","provider":"Pi AI","interfaces":["pi-ai package"],"areas":[{"name":"Call providers","type":"core","description":"Reach every model provider through one collection.","capabilities":[{"name":"Get model response","takes":"a model, a context and options","gives":"the streamed or complete response, or a deferred one","acts":[{"mode":"produces","resource":"Model response"}]},{"name":"Generate images","takes":"an image model and a prompt","gives":"the images","acts":[{"mode":"produces","resource":"Model response"}]},{"name":"Classify state","takes":"a classifier model, state and questions","gives":"the answers","acts":[{"mode":"produces","resource":"Model response"}]},{"name":"List models","takes":"optional provider and type","gives":"the providers' known and available models","acts":[{"mode":"observes","resource":"Model"}]},{"name":"Refresh model lists","takes":"optional providers","gives":"refreshed dynamic lists, stored through the model-list store","acts":[{"mode":"mutates","resource":"Model"}]}]},{"name":"Manage provider credentials","type":"supporting","description":"Sign in, sign out and check auth, written through the credential store Pi supplies.","capabilities":[{"name":"Sign in to provider","takes":"a provider and an interaction for prompts","gives":"a stored credential","acts":[{"mode":"produces","resource":"Provider credential"}]},{"name":"Sign out of provider","takes":"a provider","gives":"its credential removed","acts":[{"mode":"mutates","resource":"Provider credential"}]},{"name":"Check provider auth","takes":"a provider or model","gives":"whether and how it is configured, with the resolved key or token","acts":[{"mode":"observes","resource":"Provider credential"}]}]}],"evidence":[{"path":"packages/ai/src/models.ts","shows":"the Models interface and createModels"},{"path":"packages/coding-agent/src/core/auth-storage.ts","shows":"AuthStorage implements pi-ai's CredentialStore"},{"path":"packages/coding-agent/src/core/models-store.ts","shows":"the file-backed ModelsStore"}]},{"consumer":"Extension runtime","provider":"Model runtime","interfaces":["model runtime API"],"areas":[{"name":"Register models","type":"core","description":"Add the providers and virtual models extensions register.","capabilities":[{"name":"Register model provider","takes":"a provider config or a pi-ai Provider from an extension","gives":"its models available","acts":[{"mode":"produces","resource":"Model"}]},{"name":"Register virtual model","takes":"a router from an extension","gives":"a selectable model that picks a physical model per request","acts":[{"mode":"produces","resource":"Model"}]}]}],"evidence":[{"path":"packages/coding-agent/src/core/model-runtime.ts","shows":"registerProvider, registerNativeProvider, registerVirtualModel"},{"path":"packages/coding-agent/src/core/agent-session-services.ts","shows":"pending provider and virtual-model registrations applied to the runtime"}]},{"consumer":"MCP connections","provider":"Extension runtime","interfaces":["extension contract"],"areas":[{"name":"Plug into Pi","type":"core","description":"Offer MCP servers' tools and the /mcp command inside the session.","capabilities":[{"name":"Register tool","takes":"an MCP tool's definition and renderer","gives":"it callable as mcp__\u003cserver>__\u003ctool>","acts":[{"mode":"produces","resource":"Tool"}]},{"name":"Register command","takes":"the /mcp command","gives":"it available to the user","acts":[{"mode":"produces","resource":"Command"}]},{"name":"Change active tools","takes":"tool names","gives":"codemode or tool_search switched on for servers that need them","acts":[{"mode":"mutates","resource":"Tool"}]},{"name":"List registered MCP servers","takes":"nothing","gives":"the servers other extensions registered","acts":[{"mode":"observes","resource":"MCP server"}]},{"name":"Handle session events","takes":"handlers for session start, shutdown and MCP server changes","gives":"them run when those happen","acts":[{"mode":"reacts","resource":"Extension"}]}]}],"evidence":[{"path":"packages/coding-agent/src/extensions/mcp/index.ts","shows":"the MCP extension's pi.registerTool, registerCommand, getMcpServers, setActiveTools and pi.on calls"},{"path":"packages/coding-agent/src/extensions/index.ts","shows":"MCP registered as a replaceable built-in extension"}]},{"consumer":"MCP connections","provider":"Model runtime","interfaces":["model runtime API"],"areas":[{"name":"Get provider credential","type":"core","description":"Sign in to an MCP server with a model provider's login.","capabilities":[{"name":"Get provider credential","takes":"the provider named in a server's auth.provider, such as Radius","gives":"its token for the server's requests","acts":[{"mode":"observes","resource":"Provider credential"}]}]}],"evidence":[{"path":"packages/coding-agent/src/extensions/mcp/index.ts","shows":"the session's model registry resolving auth.provider tokens"},{"path":"packages/coding-agent/src/core/radius-mcp.ts","shows":"the Radius MCP server entry using the Radius login"}]},{"consumer":"Agent session","provider":"Radius","interfaces":["Radius API"],"areas":[{"name":"Upload to Radius","type":"core","description":"Put a session or a bug report where others can see it.","capabilities":[{"name":"Upload shared session","takes":"the session as HTML and the user's Radius login","gives":"an artifact with a link visible to the organization","acts":[{"mode":"produces","resource":"Artifact"}]},{"name":"Upload bug report","takes":"the report files, with or without a Radius login","gives":"the report's ID","acts":[{"mode":"produces","resource":"Bug report"}]}]}],"evidence":[{"path":"packages/coding-agent/src/modes/interactive/session-share.ts","shows":"POST /v1/artifacts"},{"path":"packages/coding-agent/src/core/bug-report-upload.ts","shows":"POST /v1/bug-reports"}]},{"consumer":"Agent session","provider":"GitHub","interfaces":["GitHub CLI"],"areas":[{"name":"Create private gist","type":"core","description":"Store a session export as a private gist.","capabilities":[{"name":"Create private gist","takes":"the exported session file","gives":"the gist's URL","acts":[{"mode":"produces","resource":"Gist"}]}]}],"evidence":[{"path":"packages/coding-agent/src/modes/interactive/session-share.ts","shows":"gh gist create --public=false"}]},{"consumer":"Package manager","provider":"Package sources","interfaces":["npm and git"],"areas":[{"name":"Get packages","type":"core","description":"Fetch package releases and know when newer ones exist.","capabilities":[{"name":"Download package","takes":"an npm specification or a git URL and ref","gives":"the package files and their dependencies","acts":[{"mode":"observes","resource":"Package release"}]},{"name":"Check for newer release","takes":"an installed source","gives":"the newest matching version or the remote ref","acts":[{"mode":"observes","resource":"Package release"}]}]}],"evidence":[{"path":"packages/coding-agent/src/core/package-manager.ts","shows":"npm and git commands for install and update"}]},{"consumer":"Model runtime","provider":"pi.dev","interfaces":["pi.dev catalog API"],"areas":[{"name":"Get model catalog","type":"core","description":"Learn about new models without updating Pi.","capabilities":[{"name":"Get model catalog","takes":"a provider ID","gives":"that provider's current catalog, overlaid on the bundled one","acts":[{"mode":"observes","resource":"Model catalog"}]}]}],"evidence":[{"path":"packages/coding-agent/src/core/remote-catalog-provider.ts","shows":"GET /api/models/providers/\u003cid>"}]},{"consumer":"Model runtime","provider":"llama.cpp router","interfaces":["llama.cpp router API"],"areas":[{"name":"Manage router models","type":"core","description":"List, load, unload and download the router's models.","capabilities":[{"name":"List router models","takes":"the router URL","gives":"its models and their status","acts":[{"mode":"observes","resource":"Local model"}]},{"name":"Load model","takes":"a model ID","gives":"the model loaded","acts":[{"mode":"mutates","resource":"Local model"}]},{"name":"Unload model","takes":"a model ID","gives":"the model unloaded","acts":[{"mode":"mutates","resource":"Local model"}]},{"name":"Download model","takes":"a Hugging Face repository and quantization","gives":"the model downloaded with progress","acts":[{"mode":"produces","resource":"Local model"}]}]}],"evidence":[{"path":"packages/coding-agent/src/extensions/llama/client.ts","shows":"LlamaClient"},{"path":"packages/coding-agent/docs/llama-cpp.md","shows":"the router and /llama"}]},{"consumer":"Model runtime","provider":"Hugging Face","interfaces":["Hugging Face Hub API"],"areas":[{"name":"Find models to download","type":"core","description":"Search the Hub for GGUF models the router can download.","capabilities":[{"name":"Search models","takes":"a search text","gives":"matching model repositories","acts":[{"mode":"observes","resource":"Hub model"}]},{"name":"Get model files","takes":"a repository","gives":"its GGUF files and sizes","acts":[{"mode":"observes","resource":"Hub model"}]}]}],"evidence":[{"path":"packages/coding-agent/src/extensions/llama/huggingface.ts","shows":"HuggingFaceClient"}]},{"consumer":"Pi AI","provider":"AI model providers","interfaces":["model provider APIs"],"areas":[{"name":"Use model services","type":"core","description":"Send requests to each provider in its own protocol.","capabilities":[{"name":"Get model response","takes":"a provider request built from the context","gives":"the provider's streamed response","acts":[{"mode":"produces","resource":"Model response"}]},{"name":"Generate images","takes":"an image request","gives":"the images","acts":[{"mode":"produces","resource":"Model response"}]},{"name":"Classify state","takes":"a classifier request","gives":"the answers","acts":[{"mode":"produces","resource":"Model response"}]},{"name":"List models for a credential","takes":"a credential, for providers with dynamic lists such as OpenRouter and Radius","gives":"the models that credential may use","acts":[{"mode":"observes","resource":"Model"}]}]},{"name":"Sign in with an account","type":"supporting","description":"Get and refresh tokens for subscription sign-in.","capabilities":[{"name":"Sign in with an account","takes":"an OAuth device-code or PKCE flow","gives":"tokens, refreshed when they expire","acts":[{"mode":"produces","resource":"Provider credential"}]}]}],"evidence":[{"path":"packages/ai/src/api/anthropic-messages.ts","shows":"one wire protocol"},{"path":"packages/ai/src/api/openai-responses.ts","shows":"another wire protocol"},{"path":"packages/ai/src/auth/oauth/anthropic.ts","shows":"an account sign-in flow"},{"path":"packages/ai/src/providers/openrouter.ts","shows":"a provider with a credential-specific model list"}]},{"consumer":"MCP connections","provider":"MCP servers","interfaces":["MCP"],"areas":[{"name":"Use MCP servers","type":"core","description":"Call the servers' tools and read their resources.","capabilities":[{"name":"List tools","takes":"a connection","gives":"the server's tools","acts":[{"mode":"observes","resource":"MCP tool"}]},{"name":"Call tool","takes":"a tool and arguments","gives":"its result","acts":[{"mode":"produces","resource":"MCP tool"}]},{"name":"List resources","takes":"a connection","gives":"the server's resources and templates","acts":[{"mode":"observes","resource":"MCP resource"}]},{"name":"Read resource","takes":"a URI","gives":"its contents","acts":[{"mode":"observes","resource":"MCP resource"}]}]},{"name":"Sign in to server","type":"supporting","description":"Authorize with the server's authorization server.","capabilities":[{"name":"Sign in to server","takes":"the server URL and pi's client metadata document or a registered client","gives":"tokens, refreshed when they expire","acts":[{"mode":"produces","resource":"MCP sign-in"}]}]}],"evidence":[{"path":"packages/coding-agent/src/extensions/mcp/runtime.ts","shows":"connections through pi-mcp"},{"path":"packages/coding-agent/src/extensions/mcp/oauth.ts","shows":"MCP sign-in and mcp-auth.json"}]},{"consumer":"Pi MCP","provider":"MCP servers","interfaces":["MCP"],"areas":[{"name":"Use MCP servers","type":"core","description":"Speak the protocol to a server on the application's behalf.","capabilities":[{"name":"List tools","takes":"a connection","gives":"the server's tools","acts":[{"mode":"observes","resource":"MCP tool"}]},{"name":"Call tool","takes":"a tool and arguments","gives":"its result","acts":[{"mode":"produces","resource":"MCP tool"}]},{"name":"List resources","takes":"a connection","gives":"the server's resources and templates","acts":[{"mode":"observes","resource":"MCP resource"}]},{"name":"Read resource","takes":"a URI","gives":"its contents","acts":[{"mode":"observes","resource":"MCP resource"}]}]},{"name":"Sign in to server","type":"supporting","description":"Run the OAuth flow the server's authorization server asks for.","capabilities":[{"name":"Sign in to server","takes":"discovery, PKCE and client registration or a metadata document","gives":"tokens","acts":[{"mode":"produces","resource":"MCP sign-in"}]}]}],"evidence":[{"path":"packages/mcp/src/client.ts","shows":"the requests McpClient sends"},{"path":"packages/mcp/src/oauth/flow.ts","shows":"the OAuth flow"}]},{"consumer":"Stateful agent","provider":"Agent loop","interfaces":["agent loop API"],"areas":[{"name":"Run turns","type":"core","description":"Have the loop carry a prompt or a continuation through as many model turns and tool calls as it takes.","capabilities":[{"name":"Run turns","takes":"a copy of the transcript and tools, the model and thinking level, the agent's hooks and the callbacks that hand over queued messages, and new messages or none to continue","gives":"the run's events in order, ending with agent_end, and the assistant responses and tool results it added","acts":[{"mode":"produces","resource":"Agent run"}]}]}],"evidence":[{"path":"packages/agent/src/agent.ts","shows":"runPromptMessages and runContinuation call runAgentLoop and runAgentLoopContinue with a snapshot of the state and a config of hooks and queue callbacks; processEvents records each event in the agent's state"},{"path":"packages/agent/src/agent-loop.ts","shows":"runAgentLoop, runAgentLoopContinue and runLoop: the turn loop on its own working context, queue polling, tool execution and the end of the run"},{"path":"packages/agent/src/types.ts","shows":"AgentContext, AgentLoopConfig and AgentEvent"},{"path":"packages/agent/README.md","shows":"the Low-Level API, offered without the Agent class"}]},{"consumer":"MCP client","provider":"MCP OAuth","interfaces":["AuthProvider contract"],"areas":[{"name":"Get access token","type":"core","description":"Get a valid bearer token for each request to an OAuth-protected server.","capabilities":[{"name":"Get access token","takes":"nothing, before each request whose answer the transport waits for","gives":"the stored access token, refreshed first when it is about to expire or after the server rejected it, or an error saying the user has to sign in","acts":[{"mode":"observes","resource":"MCP sign-in"},{"mode":"mutates","resource":"MCP sign-in"}]}]}],"evidence":[{"path":"packages/mcp/src/auth-provider.ts","shows":"the AuthProvider interface: token() and onUnauthorized()"},{"path":"packages/mcp/src/transports/streamable-http.ts","shows":"the transport calling only token() and onUnauthorized() on its authProvider"},{"path":"packages/mcp/src/oauth/auth-provider.ts","shows":"createMcpAuthProvider: sends the stored token, refreshes it under the store's lock, and fails with McpOAuthAuthorizationRequiredError when the user must sign in"}]},{"consumer":"MCP client","provider":"MCP servers","interfaces":["MCP"],"areas":[{"name":"Use MCP servers","type":"core","description":"Speak the protocol to one server over a transport.","capabilities":[{"name":"List tools","takes":"a connection","gives":"the server's tools, page by page","acts":[{"mode":"observes","resource":"MCP tool"}]},{"name":"Call tool","takes":"a tool name and arguments","gives":"its result, with progress on the way","acts":[{"mode":"produces","resource":"MCP tool"}]},{"name":"List resources","takes":"a connection","gives":"the server's resources and URI templates","acts":[{"mode":"observes","resource":"MCP resource"}]},{"name":"Read resource","takes":"a resource URI","gives":"its contents","acts":[{"mode":"observes","resource":"MCP resource"}]}]}],"evidence":[{"path":"packages/mcp/src/client.ts","shows":"connect, listTools, callTool, listResources, listResourceTemplates, readResource, ping and close"},{"path":"packages/mcp/src/protocol/types.ts","shows":"the protocol's requests and results"},{"path":"packages/mcp/src/transports/transport.ts","shows":"the McpTransport contract the client sends messages through"}]},{"consumer":"MCP OAuth","provider":"MCP servers","interfaces":["MCP"],"areas":[{"name":"Sign in to server","type":"core","description":"Run the OAuth flow the server's authorization server asks for.","capabilities":[{"name":"Sign in to server","takes":"the server's URL, client registration or a client metadata document, and the authorization code from the browser's redirect","gives":"tokens for the server, refreshed later on the same grant","acts":[{"mode":"produces","resource":"MCP sign-in"}]}]}],"evidence":[{"path":"packages/mcp/src/oauth/discovery.ts","shows":"protected-resource and authorization-server metadata discovery"},{"path":"packages/mcp/src/oauth/flow.ts","shows":"client registration, the PKCE authorization, token exchange, refresh and step-up"},{"path":"packages/mcp/src/oauth/sign-in.ts","shows":"startMcpSignIn and completeMcpSignIn"}]}],"questions":[{"question":"Are Pi's published libraries their own providers, or interfaces of one provider, Pi?","answer":"Seven providers (Pi AI, Pi Agent Core, Pi TUI, Pi MCP, Pi Codemode, Pi Schema, Pi Telemetry) rather than one Pi provider with the libraries as interfaces; each is a separate npm package with its own README and users who never run the coding agent, but they ship from one repository with one version, so the rule on separate products does not settle it."},{"question":"How does a library that is a Level 1 provider appear inside Pi?","answer":"Pi AI and Pi Agent Core are named in Pi's sharedComponents, since each passes the component test inside Pi, rather than defining a second Model access or Agent loop component; Pi TUI, Pi MCP and Pi Codemode stay libraries inside Pi, because there they only draw, reach MCP servers or run scripts for a component."},{"question":"Are the tools (read, bash, edit, write, codemode, tool search) a component?","answer":"Parts of the Agent session rather than a Tools component with variants; they fulfil one contract and keep no state of their own, but codemode and tool search are separately registered built-in extensions, so either reading fits."},{"question":"Is the session store a component of its own?","answer":"Part of the Agent session rather than a Session store component; SessionManager makes real decisions (the active branch, the model context), but the session runtime and the terminal UI also write and delete session files, and parts that change each other's records are one component."},{"question":"Is MCP support a component while codemode and tool search are not?","answer":"MCP connections is a component and codemode and tool search are tools, rather than treating all built-in extensions alike; MCP keeps its own state (mcp.json edits, mcp-auth.json, live connections), while the other two keep none outside the session."},{"question":"Is project trust part of the resource loader?","answer":"Its own component rather than part of the Resource loader; it keeps trust.json and decides trust, and is read by start-up, package commands and MCP config as well as the loader."},{"question":"Is Radius one outside service or three?","answer":"One Radius service for shared sessions and bug reports, with its model gateway listed among the AI model providers and its MCP server among the MCP servers, rather than one Radius service serving all three; Pi reaches the gateway and the MCP server through the same code as any other provider or server."},{"question":"Are settings a resource?","answer":"A Settings resource for Change settings rather than leaving /settings out; the model warns that a setting is not a resource, but users open, scope (user or project) and edit their settings as one thing, and dropping it would leave /settings without a place."},{"question":"Who consumes print mode and JSON mode?","answer":"Print mode on the Pi user's boundary (their own scripts) and JSON mode on the Integrator's, rather than both on one; the docs offer both for scripts, and JSON mode's structured events serve programs that follow a run."},{"question":"What resources do extension dialogs and widgets work on?","answer":"Dialog and Widget resources rather than modelling them as interactions of the terminal UI; dialogs have IDs and an answer or cancellation over RPC, and widgets are set and cleared by key."},{"question":"Where does llama.cpp support sit?","answer":"In the Model runtime rather than as its own component; it registers a model provider and presents the router's own model management, keeping no state the router does not hold."},{"question":"Is self-update (`pi update` for Pi itself) a capability?","answer":"Excluded as setting up the system rather than a Pi user capability; it changes the installed Pi, not what the user works with, though users run it from the same command line."},{"question":"How are the imports that cross between Pi's components settled, since nothing in the coding agent enforces its inner seams?","answer":"Accepted as uses of a component's exported functions and shared helpers rather than redrawing the components: the session calls model-resolver.ts and virtual-models.ts helpers next to ModelRuntime, and prompt-templates.ts and skills.ts functions on resources it got through ResourceLoader; MCP connections imports text helpers from the session's tools (truncate.ts, render-utils.ts), the codemode and tool_search tool names, and auth-storage.ts's file-locking backend for its own mcp-auth.json; the extension runner builds ctx.getSystemPrompt with the session's system-prompt.ts; the package manager reads manifests with the loader's pi-manifest.ts; src/extensions/index.ts is the registry of built-in extensions. Three reach past a contract and are left as they are: the terminal UI deletes a cancelled fork's session file itself (interactive-mode.ts), the Radius login in the shell commands and the terminal UI writes mcp.json through MCP connections' config.ts rather than through the extension API (shell commands do not load extensions), and the session, the extension runner and the resource loader import the terminal UI's theme module. The coding agent has no internal boundary check, so no rule settles which of these to treat as defects."},{"question":"Are the Agent and the agent loop one part of Pi Agent Core? (changed in the deepening run)","answer":"Two components, Stateful agent and Agent loop, rather than the one part the earlier map had; the code contradicts its reason that the loop runs turns on the Agent's state: the Agent hands the loop a copy of its transcript and tools (createContextSnapshot) and alone writes its state from the loop's events (processEvents), while the loop alone decides each turn on its own working context, imports nothing from agent.ts and is offered without the Agent class (README, Low-Level API). The component rule speaks of state or decisions, and the loop holds only a run in progress, so the rule alone does not settle it."},{"question":"Is pi-mcp's OAuth a step of connecting or a component of Pi MCP? (changed in the deepening run)","answer":"A component, MCP OAuth, beside MCP client, rather than sign-in steps of a connection as the earlier map had it; the code contradicts that reading: sign-in runs on its own behind the ./oauth entry (startMcpSignIn, completeMcpSignIn, authorizeMcp), only src/oauth saves the sign-in state, through the McpOAuthStateStore the application injects, the HTTP transport reaches it only through AuthProvider, and it changed alone in 11 of its 14 commits since May. No rule says whether a part that talks to an outside authorization server is an adapter; it counts as a component because the sign-in state and its refresh are its own. src/oauth imports only a protocol version constant and an object guard from the client's protocol folder, accepted as shared helpers."},{"question":"Does pi-mcp's OAuth pass the component test inside Pi as well, now that it is a component of Pi MCP?","answer":"No: Pi MCP stays a library inside Pi, as the earlier answer on libraries inside Pi has it, rather than its OAuth becoming a shared component of MCP connections; inside Pi, MCP connections' own store also changes the sign-in records (McpOAuthCredentialStore.remove on sign-out, load taking over legacy keys, src/extensions/mcp/oauth.ts), so the two change each other's records, while a standalone application only supplies the store. The rule applies the same way in both places; what differs is the code around the library."},{"question":"Is compaction a component of the Agent session?","answer":"Part of the Agent session rather than a Compaction component; compaction/ decides cut points and writes summaries, but it keeps nothing, its result counts only once the session appends it, the session decides when to compact and whether to take an extension's session_before_compact result instead, and AgentSession's header lists compaction among what it encapsulates. The agent loop is also stateless yet a component, because library developers run agents with it without the Agent class and it holds the run's working context; no rule says when a stateless part that decides is a component, so the two could also be read alike."},{"question":"What resource does the agent loop work on?","answer":"A new resource, Agent run, rather than the Agent; the loop works on a copy of the transcript and produces messages the Agent records afterwards, so its contract does not work on the Agent directly, though a developer may think of a run as part of the agent."},{"question":"Is runToolCall, which the Agent session calls for nested tool calls, its own capability on the Agent session's boundary with Pi Agent Core?","answer":"A step of Run prompt rather than a capability Run tool call, so that Level 2 boundary keeps its four capabilities; the session calls it only while a tool call of the current run executes (codemode's nested calls, src/core/nested-tool-calls.ts) and records the result on that call's tool result, but the session could also be read as wanting the nested result for itself."},{"question":"Is MCP OAuth's access token a capability for the MCP client or a step of each request?","answer":"A capability, Get access token, with onUnauthorized() as its step, rather than a step of the client's requests to servers; token() is the operation the AuthProvider contract exists for, as the earlier map's Get provider credential is for MCP connections, but the transport calls it only so its requests to the server succeed, and the look-alike test does not say whether that counts as wanting it for itself."}],"cleanupCandidates":[{"name":"pi-ai compatibility entry point","why":"packages/ai/src/compat.ts, legacy-api-aliases.ts and compat/ keep the old global pi-ai API, with the global image API (images.ts, images-api-registry.ts, image-models.ts, providers/images/) that only compat.ts uses; the file calls itself a \"Temporary compatibility entrypoint ... deleted with the coding-agent ModelManager migration\", and coding-agent still imports it (sdk.ts, compaction.ts)."},{"name":"Default stream function fallback","why":"sdk.ts calls setDefaultStreamFn(streamSimple) to \"Preserve the pre-0.81 fallback for extensions that construct Agent instances\" without a stream function (packages/agent/src/stream-fn.ts)."},{"name":"Legacy package names for extensions","why":"Pi maps @mariozechner/* and @sinclair/typebox imports in extensions to its current packages (resource-loader.ts HOST_PROVIDED_EXTENSION_PACKAGES; docs/extensions.md)."},{"name":"pi-ai oauth entry point","why":"packages/ai/src/oauth.ts \"retains only type declarations required by coding-agent extension OAuth compatibility\" (packages/ai/README.md)."},{"name":"Legacy edit tool input","why":"The edit tool still accepts the old top-level oldText and newText arguments (src/core/tools/edit.ts LegacyEditToolInput)."},{"name":"MCP sign-ins under the old key","why":"MCP OAuth state written by older versions under the server URL alone is taken over on load (src/extensions/mcp/oauth.ts storeKeys)."},{"name":"Old MCP exposure names","why":"codemode-deferred and other older exposure names are accepted and replaced on validation (src/core/mcp-servers.ts)."},{"name":"Start-up migrations","why":"src/migrations.ts rewrites old auth, settings, keybindings and session layouts at start, and scripts/migrate-sessions.sh migrates session files by hand."},{"name":"Fallback for old pi-ai builds in ModelRuntime.refresh","why":"model-runtime.ts keeps a fallback for \"Published pi-ai builds before ModelsStore returned void\" so source-mode tests work without rebuilding."},{"name":"OpenAI Codex provider","why":"Described as \"Superseded by Sign in with ChatGPT on the OpenAI provider\" (packages/ai/README.md) but still shipped."},{"name":"Stale path aliases and lint exclusions","why":"tsconfig.json maps @earendil-works/pi-agent-old to packages/agent-old and pi-coding-agent/hooks to src/core/hooks, and biome.json excludes packages/mom/data; none of these folders exists."},{"name":"Leftover experimental folder","why":"src/experimental/source-resolver.ts is the only file left after commit 7472cda0d removed the experimental server stack; it is a dev-time module resolver used by pi-test.sh and tests, not experimental code."}],"excluded":[{"name":"Experimental product line","why":"apps/p2, apps/p2-mac, apps/p3, packages/chord, packages/durable and packages/env are outside the corpus by the caller's choice."},{"name":"Tests and test support","why":"Engineering tooling: packages' test folders, vitest configs and test.sh check the system."},{"name":"Behavioural evals","why":"Engineering tooling: packages/evals measures the coding agent with and without its documentation."},{"name":"Build, packaging and release scripts","why":"Engineering tooling: scripts/, nix, install-lock, binary builds and npm publishing build and ship the system."},{"name":"CI, repository automation and contributors","why":"Engineering tooling: .github workflows, issue templates, the contributor gate in CONTRIBUTING.md and husky hooks work on the repository, not with Pi."},{"name":"Maintainers' Pi resources","why":"Engineering tooling: .pi holds the repository's own prompts, skills and extensions its maintainers use with Pi to work on Pi."},{"name":"Model catalog generation and publishing","why":"Engineering tooling: packages/ai/catalog and scripts/publish-model-catalog.mjs build the catalog that pi.dev serves."},{"name":"Lint, format, type and architecture checks","why":"Engineering tooling, read as evidence: scripts/check-entry-graphs.mjs and check-runtime-deps.mjs state which modules a package may reach."},{"name":"Installing, updating and removing Pi itself","why":"Setting up the system: the installers, `pi update` for Pi, Nix, standalone binaries and running Pi in a container or sandbox (docs/containerization.md) work on Pi, not with it."},{"name":"Pi package gallery","why":"pi.dev lists npm packages with the pi-package keyword; the gallery runs on pi.dev, outside this repository."},{"name":"Update notice and install report","why":"Provider behaviour: Pi asks pi.dev for the latest version and reports installs on its own."},{"name":"Automatic compaction, retries, cache warming and catalog refresh","why":"Provider behaviour done without the user asking; the manual forms are capabilities."},{"name":"Diagnostics","why":"/debug and pi-debug.log, mcp.log, crash logs and start-up timings read the system's own state."},{"name":"Information about Pi itself","why":"/changelog, /hotkeys, --help and --version show Pi's release notes, shortcuts and options rather than work done with it."},{"name":"Extension helpers pi.exec and pi.events","why":"Helpers for extension code (run a process, message other extensions), not capabilities on Pi's resources."},{"name":"Test helpers offered to library users","why":"The pi-ai faux provider, pi-mcp/testing and pi-telemetry's conformance suite help developers test their own code."},{"name":"Publishing sessions to Hugging Face and Slack automation","why":"pi-share-hf and pi-chat, named in the README, live in other repositories."}]}</script>
+<script>
+// Draws a boundary map one open box at a time. Each screen shows who uses the open box, its
+// interfaces, its capabilities, the components inside it, and what it uses; every box lists the
+// resources it keeps. A click lights what the clicked thing connects to and explains it in the
+// panel; Open, at the foot of a box, makes it the open box. With ?still in the address the page
+// draws one screen for a still image, with what the panel would say written under the drawing.
+
+// ---------- the map ----------
+
+const RAW = JSON.parse(document.getElementById("map-data").textContent);
+const params = new URLSearchParams(location.search);
+const STILL = params.has("still");
+if (STILL) document.documentElement.classList.add("still");
+const MODE_WORD = { produces: "creates", mutates: "changes", observes: "reads", reacts: "reacts to" };
+const KIND_WORD = {
+  consumer: "Consumer",
+  provider: "Provider",
+  component: "Component",
+  outside: "Outside service",
+};
+
+function el(tag, attrs = {}, ...children) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v === undefined || v === null || v === false) continue;
+    if (k === "class") e.className = v;
+    else if (k === "html") e.innerHTML = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v);
+  }
+  for (const c of children.flat(3)) if (c !== null && c !== undefined && c !== false) e.append(c);
+  return e;
+}
+
+function svgEl(tag, attrs = {}) {
+  const e = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const [k, v] of Object.entries(attrs)) if (v !== undefined && v !== null) e.setAttribute(k, v);
+  return e;
+}
+
+const escapeHtml = (s) =>
+  s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const inline = (s) =>
+  escapeHtml(s)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+const sentence = (s) => s.replace(/^[a-z]/, (c) => c.toUpperCase());
+const text = (tag, s, cls) => el(tag, { class: cls, html: inline(sentence(s)) });
+const unique = (xs) => [...new Set(xs)];
+
+const nodes = new Map();
+for (const c of RAW.consumers) nodes.set(c.name, { ...c, kind: "consumer", children: [], shared: [], also: [] });
+const addComponent = (c, parent) => {
+  const n = {
+    name: c.name,
+    description: c.description,
+    kind: parent ? "component" : "provider",
+    parent: parent ?? null,
+    resources: c.resources,
+    parts: c.parts,
+    serves: [...(c.serves ?? [])],
+    children: (c.components ?? []).map((k) => k.name),
+    shared: [],
+    also: [],
+  };
+  nodes.set(c.name, n);
+  for (const k of c.components ?? []) addComponent(k, c.name);
+};
+for (const p of RAW.providers) addComponent(p, null);
+for (const s of RAW.outsideServices)
+  nodes.set(s.name, { ...s, kind: "outside", children: [], shared: [], also: [], parts: [] });
+// A component can sit inside a second provider or component at any level.
+const defined = (c) => [c, ...(c.components ?? []).flatMap(defined)];
+for (const p of RAW.providers.flatMap(defined))
+  for (const s of p.sharedComponents ?? []) {
+    nodes.get(p.name).shared.push(s.name);
+    nodes.get(s.name).also.push(p.name);
+    nodes.get(s.name).serves.push(...s.serves);
+  }
+
+const boundaries = RAW.boundaries.map((b) => {
+  const boundary = { ...b, id: `${b.consumer} → ${b.provider}` };
+  boundary.areas = b.areas.map((a) => {
+    const area = { ...a, key: `${b.consumer} › ${a.name}`, boundary };
+    area.capabilities = a.capabilities.map((c) => ({
+      ...c,
+      area,
+      id: `${area.key} › ${c.name}`,
+      via: c.interfaces ?? b.interfaces,
+    }));
+    return area;
+  });
+  return boundary;
+});
+const allAreas = boundaries.flatMap((b) => b.areas);
+const allCapabilities = allAreas.flatMap((a) => a.capabilities);
+const capabilityById = new Map(allCapabilities.map((c) => [c.id, c]));
+const resourceByName = new Map(RAW.resources.map((r) => [r.name, r]));
+const interfaceText = new Map(RAW.interfaces.map((i) => [i.name, i.description]));
+
+const node = (name) => nodes.get(name);
+const incoming = (name) => boundaries.filter((b) => b.provider === name);
+const subtree = (name) => [name, ...node(name).children.flatMap(subtree)];
+const ancestors = (name) => {
+  const p = node(name).parent;
+  return p ? [...ancestors(p), p] : [];
+};
+const handlers = (area) => {
+  const serving = [...nodes.values()]
+    .filter((n) => n.serves?.some((s) => `${s.consumer} › ${s.area}` === area.key))
+    .map((n) => n.name);
+  return serving.length ? serving : [area.boundary.provider];
+};
+// A boundary drawn on a whole component that one of its inner components carries in detail.
+const refinedBy = (b) =>
+  boundaries.find((o) => o !== b && o.provider === b.provider && node(b.consumer).children.includes(o.consumer));
+const capabilitiesThrough = (b, iface) => b.areas.flatMap((a) => a.capabilities).filter((c) => c.via.includes(iface));
+
+// ---------- motion ----------
+
+// Moves things to their new place where the browser can, and just redraws where it cannot.
+const NO_MOTION = STILL || matchMedia("(prefers-reduced-motion: reduce)").matches;
+const cssName = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+function transition(fn) {
+  if (!document.startViewTransition || NO_MOTION || document.visibilityState === "hidden") return fn();
+  const t = document.startViewTransition(fn);
+  // A transition that a quicker click cuts short still runs its update; only the motion is lost.
+  t.ready.catch(() => {});
+  t.updateCallbackDone.catch(() => {});
+  t.finished.catch(() => {});
+}
+
+// ---------- screens ----------
+
+// One open box per screen, in fixed columns: who uses it, its interfaces, its capabilities, its
+// components, and what it uses. Blue dots are the interfaces of the open box only; each box lists
+// the resources it keeps. Lines join who uses the box to its interfaces, its interfaces to its
+// capabilities, and each component to what it depends on; they light with whatever is in focus.
+// All providers, above every open box, shows each provider with the consumers that use it.
+const TOP = "";
+// Keep in step with addressOf in render-map.mjs, which refuses a map where two names share an address.
+const slugOf = (s) => s.normalize("NFC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "");
+const bySlug = new Map([...nodes.keys()].map((n) => [slugOf(n), n]));
+// The page opens on the provider named after the system, when there is one, else on All providers.
+const HOME = RAW.providers.some((p) => p.name === RAW.system.name) ? [RAW.system.name] : [];
+
+let openBox = TOP;
+let trail = []; // the boxes opened from All providers down to the open one, as you came
+const visited = []; // earlier trails, most recent last, for Back
+const memory = new Map(); // a screen's address -> its scroll and selection when it was left
+let selected = null; // the data-key of what is selected
+let current = null; // what the selection lights, from lineage
+let screen; // what the open box shows, from screenOf
+let reg; // what the screen drew, by data-key: the first element drawn for each
+let drawn; // every element drawn with a data-key, as [key, element]; a shared resource is drawn twice
+
+const servedBy = (name) =>
+  allAreas.filter((a) => node(name).serves?.some((s) => `${s.consumer} › ${s.area}` === a.key));
+const actedOn = (g) => unique(g.members.flatMap((a) => a.capabilities.flatMap((c) => c.acts.map((x) => x.resource))));
+const actingOn = (r) => allCapabilities.filter((c) => c.acts.some((a) => a.resource === r));
+// A box and everything in it, components it shares with another provider included.
+const within = (name) => [name, ...[...node(name).children, ...node(name).shared].flatMap(within)];
+// A box opens when its screen has something of its own: components inside it, or capabilities it
+// offers across a boundary of its own. Otherwise its screen would repeat the level above.
+const opens = (name) => {
+  const n = node(name);
+  return n.kind !== "consumer" && (n.children.length + n.shared.length > 0 || incoming(name).some((b) => !refinedBy(b)));
+};
+// Who keeps a resource, leaving out a box when one of its inner components keeps it too.
+const keepersOf = (r) => {
+  const keepers = [...nodes.values()].filter((n) => n.resources?.includes(r)).map((n) => n.name);
+  return keepers.filter((k) => !keepers.some((o) => o !== k && subtree(k).includes(o)));
+};
+const kindClass = (name) => `k-${node(name).kind === "provider" ? "component" : node(name).kind}`;
+
+function screenOf(name) {
+  const top = name === TOP;
+  const n = top ? null : node(name);
+  const into = top ? [] : incoming(name).filter((b) => !refinedBy(b));
+  const reached = top ? [] : into.length ? into.flatMap((b) => b.areas) : servedBy(name);
+  const areas = [];
+  for (const a of reached) {
+    const same = areas.find((g) => g.name === a.name);
+    if (same) same.members.push(a);
+    else areas.push({ name: a.name, type: a.type, members: [a] });
+  }
+  for (const g of areas) {
+    g.ports = unique(g.members.flatMap((a) => a.capabilities.flatMap((c) => c.via)));
+    g.consumers = unique(g.members.map((a) => a.boundary.consumer));
+    // Consumers may reach areas of the same name; each capability is listed once.
+    g.capabilities = g.members
+      .flatMap((a) => a.capabilities)
+      .filter((c, i, all) => all.findIndex((o) => o.name === c.name) === i);
+  }
+  const inner = top ? [] : [...n.children, ...n.shared];
+  const consumers = top ? RAW.consumers.map((c) => c.name) : unique(areas.flatMap((g) => g.consumers));
+  const calls = top ? [] : boundaries.filter((b) => !refinedBy(b) && (b.consumer === name || inner.includes(b.consumer)));
+  // An outside service that a component inside calls sits with the components, in the column after
+  // its callers, so its links stay short; what the open box itself calls sits to the right of it.
+  const outside = unique(calls.filter((b) => inner.includes(b.consumer) && node(b.provider).kind === "outside").map((b) => b.provider));
+  const boxes = top ? RAW.providers.map((p) => p.name) : [...inner, ...outside];
+  const uses = unique(calls.filter((b) => !within(name).includes(b.provider) && !outside.includes(b.provider)).map((b) => b.provider));
+  // Each resource kept inside the open box goes in the box on this screen that holds its keeper.
+  const holder = (k) => boxes.find((b) => subtree(b).includes(k)) ?? (!top && subtree(name).includes(k) ? name : null);
+  const kept = new Map();
+  for (const r of RAW.resources)
+    for (const h of unique(keepersOf(r.name).map(holder)).filter(Boolean)) kept.set(h, [...(kept.get(h) ?? []), r.name]);
+  return {
+    top,
+    consumers,
+    ports: unique(areas.flatMap((g) => g.ports)),
+    areas,
+    through: !top && !into.length ? reached[0]?.boundary.provider : null,
+    columns: top ? [boxes] : columnsOf(boxes),
+    boxes,
+    uses,
+    visible: new Set([...consumers, ...boxes, ...uses]),
+    kept,
+    // What each component, or the open box, depends on among the boxes on this screen.
+    links: calls.filter((b) => boxes.includes(b.provider) || uses.includes(b.provider)),
+  };
+}
+
+function columnsOf(ids) {
+  const depth = new Map();
+  const visit = (id, seen) => {
+    if (depth.has(id)) return depth.get(id);
+    const before = boundaries.filter((b) => b.provider === id && ids.includes(b.consumer) && !seen.has(b.consumer));
+    const d = Math.max(-1, ...before.map((b) => visit(b.consumer, new Set([...seen, id])))) + 1;
+    depth.set(id, d);
+    return d;
+  };
+  ids.forEach((id) => visit(id, new Set([id])));
+  const columns = [];
+  for (const id of ids) (columns[depth.get(id)] ??= []).push(id);
+  return columns.filter(Boolean);
+}
+
+// ---------- what a selection lights ----------
+
+// What leads to the selection and what it leads to, on this screen. A component that is not on the
+// screen lights the box that holds it, which then says which components it stands for.
+function lineage(key) {
+  const s = screen;
+  const keys = new Set([key]);
+  const cut = key.indexOf(":");
+  const kind = key.slice(0, cut);
+  const id = key.slice(cut + 1);
+  // Components to light, with what each does; each lights the box on this screen that holds it.
+  const requests = [];
+  const lightBox = (name, role) => name && requests.push([name, role]);
+  const holders = (name) => (s.visible.has(name) ? [name] : [...s.visible].filter((v) => within(v).includes(name)));
+  const upstream = (g) => {
+    keys.add(`a:${g.name}`);
+    g.ports.forEach((p) => keys.add(`p:${p}`));
+    g.consumers.forEach((c) => keys.add(`b:${c}`));
+  };
+  if (kind === "a") {
+    const g = s.areas.find((x) => x.name === id);
+    if (g) {
+      upstream(g);
+      g.members.flatMap(handlers).forEach((h) => lightBox(h, "handles"));
+      actedOn(g).forEach((r) => keys.add(`r:${r}`));
+    }
+  }
+  if (kind === "c") {
+    const c = capabilityById.get(id);
+    const g = s.areas.find((x) => x.members.includes(c.area));
+    if (g) keys.add(`a:${g.name}`);
+    c.via.filter((p) => s.ports.includes(p)).forEach((p) => keys.add(`p:${p}`));
+    lightBox(c.area.boundary.consumer, "asks");
+    handlers(c.area).forEach((h) => lightBox(h, "handles"));
+    c.acts.forEach((a) => keys.add(`r:${a.resource}`));
+  }
+  if (kind === "p")
+    for (const g of s.areas.filter((x) => x.ports.includes(id))) {
+      keys.add(`a:${g.name}`);
+      g.members.filter((a) => a.boundary.interfaces.includes(id)).forEach((a) => keys.add(`b:${a.boundary.consumer}`));
+    }
+  if (kind === "r") {
+    const caps = actingOn(id);
+    for (const g of s.areas) if (g.members.some((a) => caps.some((c) => c.area === a))) keys.add(`a:${g.name}`);
+    keepersOf(id).forEach((o) => lightBox(o, "keeps"));
+    unique(caps.flatMap((c) => handlers(c.area))).forEach((h) => lightBox(h, "acts"));
+  }
+  if (kind === "b") {
+    const inside = within(id);
+    if (s.consumers.includes(id))
+      for (const g of s.areas.filter((x) => x.consumers.includes(id))) {
+        keys.add(`a:${g.name}`);
+        g.members.filter((a) => a.boundary.consumer === id).forEach((a) => a.capabilities.forEach((c) => c.via.forEach((p) => keys.add(`p:${p}`))));
+      }
+    for (const g of s.areas) if (g.members.some((a) => handlers(a).some((h) => inside.includes(h)))) upstream(g);
+    for (const b of boundaries) {
+      if (refinedBy(b)) continue;
+      for (const [near, far, role] of [
+        [b.provider, b.consumer, "calls"],
+        [b.consumer, b.provider, "called"],
+      ]) {
+        if (!inside.includes(near) || inside.includes(far)) continue;
+        // A call to a component that the other box also contains stays inside both.
+        if (holders(far).some((o) => within(o).includes(near))) continue;
+        lightBox(far, role);
+      }
+    }
+    (s.kept.get(id) ?? []).forEach((r) => keys.add(`r:${r}`));
+  }
+  // A shared component sits in more than one box on the screen: it lights the one already lit, else
+  // the one holding the selection, else the one it is defined in.
+  const home = kind === "r" ? [...s.kept].find(([, rs]) => rs.includes(id))?.[0] : kind === "b" ? id : null;
+  const notes = new Map(); // a lit box -> what the components inside it do, by role
+  const assign = (at, name, role) => {
+    keys.add(`b:${at}`);
+    if (at === name || at === id) return;
+    const roles = notes.get(at) ?? notes.set(at, new Map()).get(at);
+    (roles.get(role) ?? roles.set(role, new Set()).get(role)).add(name);
+  };
+  const later = [];
+  for (const [name, role] of requests) {
+    const c = holders(name);
+    if (c.length === 1) assign(c[0], name, role);
+    else if (c.length > 1) later.push([name, role, c]);
+  }
+  for (const [name, role, c] of later)
+    assign(c.find((v) => keys.has(`b:${v}`)) ?? c.find((v) => v === home) ?? c.find((v) => ancestors(name).includes(v)) ?? c[0], name, role);
+  return { keys, notes };
+}
+
+// What the components inside a lit box do with the selection: "Run controller keeps it; Conversations
+// and Execution kits act on it."
+const VERBS = { keeps: ["keeps it", "keep it"], acts: ["acts on it", "act on it"], handles: ["handles it", "handle it"], calls: ["calls it", "call it"], asks: ["asks for it", "ask for it"] };
+function noteOf(roles) {
+  const keepers = roles.get("keeps") ?? new Set();
+  const parts = [...roles].map(([role, names]) => {
+    const list = [...names].filter((n) => role === "keeps" || !keepers.has(n));
+    if (!list.length) return null;
+    const who = list.length > 1 ? `${list.slice(0, -1).join(", ")} and ${list.at(-1)}` : list[0];
+    return role === "called" ? `It calls ${who}` : `${who} ${VERBS[role][list.length > 1 ? 1 : 0]}`;
+  });
+  return `${parts.filter(Boolean).join("; ")}.`;
+}
+
+// ---------- drawing ----------
+
+const pick = (key) => (event) => {
+  event.stopPropagation();
+  selected = key;
+  render();
+};
+
+const register = (key, e) => {
+  e.dataset.key = key;
+  if (!reg.has(key)) reg.set(key, e);
+  drawn.push([key, e]);
+  return e;
+};
+
+const kindLine = (kind, qualifier) =>
+  el("span", { class: "b-top" }, el("span", { class: "b-kind" }, kind), qualifier && el("span", { class: "b-qual" }, qualifier));
+
+function chips(names) {
+  if (!names.length) return null;
+  return el(
+    "span",
+    { class: "b-chips" },
+    names.map((r) => register(`r:${r}`, el("button", { type: "button", class: "b-chip", onclick: pick(`r:${r}`) }, r))),
+  );
+}
+
+function box(name, where) {
+  const n = node(name);
+  const key = `b:${name}`;
+  const inner = n.children.length + n.shared.length;
+  const shared = where === "inside" && n.also.includes(openBox) ? `Shared with ${n.parent}` : null;
+  const canOpen = opens(name);
+  const enter = (e) => (e.stopPropagation(), go(name));
+  const note = current?.notes.get(name);
+  return register(
+    key,
+    el(
+      "section",
+      { class: `b-box ${kindClass(name)}${n.kind === "provider" ? " provider" : ""}${canOpen ? " opens" : ""}`, onclick: pick(key), ondblclick: canOpen ? enter : null },
+      kindLine(shared ?? KIND_WORD[n.kind]),
+      el("button", { type: "button", class: "b-name", onclick: pick(key) }, name),
+      note && el("span", { class: "b-via" }, noteOf(note)),
+      where === "inside" && chips(screen.kept.get(name) ?? []),
+      canOpen && el("button", { type: "button", class: "b-go", onclick: enter }, el("span", {}, inner ? `Open, ${inner} components` : "Open"), el("span", {}, "›")),
+    ),
+  );
+}
+
+function areaBox(g) {
+  return register(
+    `a:${g.name}`,
+    el(
+      "button",
+      { type: "button", class: "b-box k-capability b-area", onclick: pick(`a:${g.name}`) },
+      kindLine("Capabilities", `${g.type}, ${g.capabilities.length}`),
+      el("span", { class: "b-name" }, g.name),
+    ),
+  );
+}
+
+const zone = (cls, title, ...content) => el("div", { class: `b-zone ${cls}` }, el("h3", {}, title), el("div", { class: "b-zone-body" }, content));
+
+function frame(name) {
+  const n = node(name);
+  const s = screen;
+  const keeps = s.kept.get(name) ?? [];
+  const body = [
+    zone("z-interface", "Interfaces", s.ports.map((iface) => register(`p:${iface}`, el("button", { type: "button", class: "b-port edge", onclick: pick(`p:${iface}`) }, iface)))),
+    zone("z-capability", "Capabilities", s.areas.map(areaBox)),
+    s.columns.length > 0 &&
+      zone("z-component", "Components", el("div", { class: "b-cols" }, s.columns.map((c) => el("div", { class: "b-col b-placed" }, c.map((id) => box(id, "inside")))))),
+  ];
+  return el(
+    "section",
+    { class: `b-frame ${kindClass(name)}` },
+    el(
+      "header",
+      { class: "b-frame-head" },
+      el("span", { class: "b-kind" }, KIND_WORD[n.kind] + (n.also.length ? `, shared with ${n.also.join(", ")}` : "")),
+      el("h2", {}, name),
+      text("p", n.description),
+      s.through && el("p", { class: "b-through" }, `Reached through ${s.through}'s interfaces.`),
+      keeps.length > 0 && el("div", { class: "b-keeps" }, el("span", { class: "b-keeps-label" }, "Keeps"), chips(keeps)),
+    ),
+    el("div", { class: "b-body" }, body),
+  );
+}
+
+// Places absolutely positioned items, each as close as it can to the height it wants its centre at.
+// Items that would overlap form a block, kept in order and centred on what its items want on
+// average, so that several boxes linked to one thing sit around it rather than below it. Returns
+// the height used.
+function settle(items, gap) {
+  const blocks = [...items].sort((a, b) => a.want - b.want).map((it) => ({ items: [it] }));
+  const place = (b) => {
+    let off = 0;
+    const tops = b.items.map((it) => {
+      const want = it.want - it.el.offsetHeight / 2 - off;
+      off += it.el.offsetHeight + gap;
+      return want;
+    });
+    b.height = off - gap;
+    b.top = Math.max(0, avg(tops));
+  };
+  blocks.forEach(place);
+  for (let i = 1; i < blocks.length; ) {
+    const [a, b] = [blocks[i - 1], blocks[i]];
+    if (a.top + a.height + gap <= b.top) i++;
+    else {
+      a.items.push(...b.items);
+      blocks.splice(i, 1);
+      place(a);
+      i = 1;
+    }
+  }
+  for (const b of blocks) {
+    let y = b.top;
+    for (const it of b.items) {
+      it.el.style.top = `${y}px`;
+      y += it.el.offsetHeight + gap;
+    }
+  }
+  const last = blocks.at(-1);
+  return last ? last.top + last.height : 0;
+}
+
+function render() {
+  reg = new Map();
+  drawn = [];
+  screen = screenOf(openBox);
+  const s = screen;
+  current = null;
+  if (selected)
+    try {
+      current = lineage(selected);
+    } catch {
+      selected = null;
+    }
+  const stage = el("div", { class: `b-stage${s.top ? " top" : ""}` });
+  const wires = svgEl("svg", { class: "b-wires" });
+  const left = zone("z-consumer b-left", "Used by", s.consumers.map((c) => box(c, "left")));
+  const middle = s.top ? zone("z-component b-mid", "Providers", el("div", { class: "b-col b-placed" }, s.boxes.map((p) => box(p, "inside")))) : frame(openBox);
+  const right = s.uses.length > 0 && zone("z-uses b-right", "Uses", s.uses.map((u) => box(u, "right")));
+  stage.append(wires, left, middle, ...[right].filter(Boolean));
+  document.getElementById("scroll").replaceChildren(stage);
+  drawNav();
+  if (selected && !reg.has(selected) && !selected.startsWith("c:")) {
+    selected = null;
+    return render();
+  }
+
+  const o = stage.getBoundingClientRect();
+  const mid = (e) => {
+    const r = e.getBoundingClientRect();
+    return { l: r.left - o.left, r: r.right - o.left, t: r.top - o.top, b: r.bottom - o.top, y: (r.top + r.bottom) / 2 - o.top };
+  };
+  const bodyOf = (cls) => stage.querySelector(`.${cls} > .b-zone-body`);
+
+  // Capabilities stack in the order of the interfaces that reach them, each interface sits level
+  // with its capabilities, each component level with the capabilities it handles, and each
+  // consumer level with what it uses. A group linked to one thing is centred on it.
+  if (!s.top) {
+    const first = (g) => Math.min(...g.ports.map((p) => s.ports.indexOf(p)));
+    let y = 0;
+    for (const g of [...s.areas].sort((a, b) => first(a) - first(b))) {
+      const e = reg.get(`a:${g.name}`);
+      e.style.top = `${y}px`;
+      g.y = y + e.offsetHeight / 2;
+      y += e.offsetHeight + 12;
+    }
+    const h = settle(s.ports.map((p) => ({ el: reg.get(`p:${p}`), want: avg(s.areas.filter((g) => g.ports.includes(p)).map((g) => g.y)) })), 6);
+    bodyOf("z-capability").style.height = `${Math.max(y, h)}px`;
+    bodyOf("z-interface").style.height = `${Math.max(y, h)}px`;
+    // A component without capabilities on this screen sits level with what calls it. Columns go
+    // left to right, so callers are already placed.
+    const capTop = mid(bodyOf("z-capability")).t;
+    for (const col of stage.querySelectorAll(".b-cols > .b-col")) {
+      const t = mid(col).t;
+      const items = [...col.children].map((e) => {
+        const inside = subtree(e.dataset.key.slice(2));
+        const served = s.areas.filter((g) => g.members.some((a) => handlers(a).some((x) => inside.includes(x))));
+        const callers = s.links.filter((b) => b.provider === inside[0] && s.boxes.includes(b.consumer)).map((b) => mid(reg.get(`b:${b.consumer}`)).y);
+        const want = served.length ? avg(served.map((g) => capTop + g.y)) : callers.length ? avg(callers) : t;
+        return { el: e, want: want - t };
+      });
+      col.style.height = `${settle(items, 14)}px`;
+    }
+  }
+  const targetsOf = (c) =>
+    unique(
+      s.top
+        ? boundaries.filter((b) => b.consumer === c && s.boxes.includes(b.provider)).map((b) => reg.get(`b:${b.provider}`))
+        : boundaries.filter((b) => b.consumer === c).flatMap((b) => b.interfaces).filter((i) => s.ports.includes(i)).map((i) => reg.get(`p:${i}`)),
+    );
+  const leftBody = bodyOf("b-left");
+  if (s.top) {
+    // Each provider and the consumers that use it form a row, centred on each other.
+    const col = stage.querySelector(".b-mid .b-col");
+    const firstUse = (c) => s.boxes.find((p) => boundaries.some((b) => b.consumer === c && b.provider === p));
+    const rows = [...s.boxes.map((p) => [reg.get(`b:${p}`), s.consumers.filter((c) => firstUse(c) === p)]), [null, s.consumers.filter((c) => !firstUse(c))]];
+    let y = 0;
+    for (const [pe, cs] of rows) {
+      const ces = cs.map((c) => reg.get(`b:${c}`));
+      const ph = pe?.offsetHeight ?? 0;
+      const ch = ces.reduce((n, e) => n + e.offsetHeight + 14, -14);
+      const rh = Math.max(ph, ch);
+      if (rh <= 0) continue;
+      if (pe) pe.style.top = `${y + (rh - ph) / 2}px`;
+      let cy = y + (rh - Math.max(ch, 0)) / 2;
+      for (const e of ces) {
+        e.style.top = `${cy}px`;
+        cy += e.offsetHeight + 14;
+      }
+      y += rh + 28;
+    }
+    col.style.height = leftBody.style.height = `${Math.max(0, y - 28)}px`;
+  } else {
+    const lt = mid(leftBody).t;
+    leftBody.style.height = `${settle(
+      s.consumers.map((c) => {
+        const to = targetsOf(c);
+        return { el: reg.get(`b:${c}`), want: (to.length ? avg(to.map((p) => mid(p).y)) : 0) - lt };
+      }),
+      14,
+    )}px`;
+  }
+  // What the open box uses is centred, as a block, on the open box's body.
+  // Each box to the right sits level with what calls it; the open box calls from its body's middle.
+  if (right) {
+    const body = right.querySelector(".b-zone-body");
+    const rt = mid(body).t;
+    const frameMid = mid(stage.querySelector(".b-body")).y;
+    const items = s.uses.map((u) => {
+      const ys = s.links.filter((b) => b.provider === u).map((b) => (b.consumer === openBox ? frameMid : mid(reg.get(`b:${b.consumer}`)).y));
+      return { el: reg.get(`b:${u}`), want: (ys.length ? avg(ys) : frameMid) - rt };
+    });
+    body.style.height = `${settle(items, 14)}px`;
+  }
+
+  wires.setAttribute("width", stage.scrollWidth);
+  wires.setAttribute("height", stage.scrollHeight);
+  const curve = (a, b) => {
+    const dx = Math.max(20, Math.abs(b[0] - a[0]) / 2);
+    return `M${a[0]},${a[1]} C${a[0] + dx},${a[1]} ${b[0] - dx},${b[1]} ${b[0]},${b[1]}`;
+  };
+  const wire = (from, to, a, b) => wires.append(svgEl("path", { d: curve(a, b), "data-from": from, "data-to": to }));
+  for (const c of s.consumers)
+    for (const t of targetsOf(c)) {
+      const from = mid(reg.get(`b:${c}`));
+      const to = mid(t);
+      wire(`b:${c}`, t.dataset.key, [from.r, from.y], [to.l - (s.top ? 0 : 4), to.y]);
+    }
+  for (const g of s.areas) {
+    const at = mid(reg.get(`a:${g.name}`));
+    for (const p of g.ports) {
+      const from = mid(reg.get(`p:${p}`));
+      wire(`p:${p}`, `a:${g.name}`, [from.r, from.y], [at.l, at.y]);
+    }
+  }
+  // Dependencies, from the right edge of a component, or of the open box, to what it depends on. A
+  // line that passes a column in between goes straight through the nearest gap between its boxes,
+  // so that it never seems to leave from a box it only passes behind.
+  const frameEl = stage.querySelector(".b-frame");
+  const cols = [...stage.querySelectorAll(".b-cols > .b-col")].map((c) => ({ ...mid(c), boxes: [...c.children].map(mid).sort((a, b) => a.t - b.t) }));
+  const colOf = (e) => cols.findIndex((c) => e.l >= c.l - 1 && e.r <= c.r + 1);
+  const gapAt = (c, want) => {
+    const gaps = [[-Infinity, c.boxes[0]?.t ?? Infinity], ...c.boxes.map((x, i) => [x.b, c.boxes[i + 1]?.t ?? Infinity])];
+    const ys = gaps.map(([lo, hi]) => (hi - lo < 40 ? (lo + hi) / 2 : Math.min(Math.max(want, lo + 12), hi - 12)));
+    return ys.reduce((best, y) => (Math.abs(y - want) < Math.abs(best - want) ? y : best));
+  };
+  for (const b of s.links) {
+    const own = b.consumer === openBox;
+    const from = mid(own ? frameEl : reg.get(`b:${b.consumer}`));
+    const to = mid(reg.get(`b:${b.provider}`));
+    const y = own ? Math.min(Math.max(to.y, from.t + 40), from.b - 20) : from.y;
+    const start = own ? -1 : colOf(from);
+    const end = colOf(to) === -1 ? cols.length : colOf(to);
+    let d = "";
+    let at = [from.r, y];
+    for (let k = start + 1; k < end && start !== -1; k++) {
+      const gy = gapAt(cols[k], at[1] + ((to.y - at[1]) * (cols[k].l - at[0])) / Math.max(1, to.l - at[0]));
+      d += `${d ? " " : ""}${curve(at, [cols[k].l - 10, gy])} L${cols[k].r + 10},${gy}`;
+      at = [cols[k].r + 10, gy];
+    }
+    wires.append(svgEl("path", { d: `${d}${d ? " " : ""}${curve(at, [to.l, to.y])}`, "data-from": `b:${b.consumer}`, "data-to": `b:${b.provider}` }));
+  }
+  paint(stage);
+  drawPanel();
+  if (selected && reg.has(selected)) reg.get(selected).scrollIntoView({ block: "nearest", inline: "nearest" });
+  if (STILL) drawLegend(stage);
+}
+
+function paint(stage) {
+  const keys = current?.keys;
+  for (const [key, e] of drawn) {
+    const on = Boolean(keys?.has(key));
+    e.classList.toggle("lit", on);
+    e.classList.toggle("chosen", key === selected);
+    e.classList.toggle("dim", Boolean(keys) && !on);
+  }
+  // A resource in a lit box is part of that box, so it does not fade; it is outlined only when it is
+  // linked to the selection. In the box of a selected resource, the other resources still fade.
+  if (keys)
+    for (const chip of stage.querySelectorAll(".b-chip.dim")) {
+      const box = chip.closest(".b-box");
+      if (!box?.classList.contains("lit")) continue;
+      if (selected.startsWith("r:") && box.querySelector(`[data-key="${CSS.escape(selected)}"]`)) continue;
+      chip.classList.remove("dim");
+    }
+  // A line lights when both its ends are; the open box counts as lit.
+  const end = (k) => keys.has(k) || k === `b:${openBox}`;
+  for (const p of stage.querySelectorAll(".b-wires path")) {
+    const on = Boolean(keys) && end(p.dataset.from) && keys.has(p.dataset.to);
+    p.classList.toggle("lit", on);
+    p.classList.toggle("dim", Boolean(keys) && !on);
+  }
+}
+
+// ---------- the panel: only what the map does not already show ----------
+
+function capabilityList(caps) {
+  return el(
+    "ul",
+    { class: "b-caps" },
+    caps.map((c) =>
+      el(
+        "li",
+        { class: selected === `c:${c.id}` ? "on" : "" },
+        el("button", { type: "button", onclick: pick(`c:${c.id}`) }, c.name),
+        el("span", {}, c.acts.map((a) => `${MODE_WORD[a.mode]} ${a.resource}`).join(", ")),
+      ),
+    ),
+  );
+}
+
+function panelOf(key) {
+  const s = screen;
+  const cut = key.indexOf(":");
+  const kind = key.slice(0, cut);
+  const id = key.slice(cut + 1);
+  const head = (k, cls, title) => [el("span", { class: `b-kind ${cls}` }, k), el("h2", {}, title)];
+  if (kind === "a") {
+    const g = s.areas.find((x) => x.name === id);
+    return [head(`Capabilities, ${g.type}`, "k-capability", g.name), text("p", g.members[0].description), capabilityList(g.capabilities)];
+  }
+  if (kind === "p") {
+    const b = incoming(s.through ?? openBox).find((x) => x.interfaces.includes(id));
+    return [head("Interface", "k-interface", id), text("p", interfaceText.get(id)), b && capabilityList(capabilitiesThrough(b, id))];
+  }
+  if (kind === "c") {
+    const c = capabilityById.get(id);
+    const g = s.areas.find((x) => x.members.includes(c.area));
+    return [
+      g && el("button", { type: "button", class: "b-back", onclick: pick(`a:${g.name}`) }, `‹ ${g.name}`),
+      head("Capability", "k-capability", c.name),
+      el("h3", {}, "Takes"),
+      el("p", {}, c.takes),
+      el("h3", {}, "Gives"),
+      el("p", {}, c.gives),
+    ];
+  }
+  if (kind === "r") {
+    const r = resourceByName.get(id);
+    const hidden = keepersOf(id).flatMap((k) => {
+      const at = [...s.kept].find(([b, rs]) => rs.includes(id) && subtree(b).includes(k))?.[0];
+      return at && at !== k ? [`Kept by ${k}, inside ${at}.`] : [];
+    });
+    return [
+      head("Resource", "k-resource", id),
+      text("p", r.description),
+      hidden.map((t) => el("p", { class: "b-note" }, t)),
+      r.properties?.length > 0 && [el("h3", {}, "Properties"), el("ul", { class: "b-props" }, r.properties.map((x) => el("li", {}, x)))],
+      el("h3", {}, "Capabilities that act on it"),
+      // Two consumers may have the same capability, such as Start a run; list it once.
+      capabilityList(actingOn(id).filter((c, i, all) => all.findIndex((o) => o.name === c.name) === i)),
+    ];
+  }
+  const n = node(id);
+  return [
+    head(KIND_WORD[n.kind], kindClass(id), n.name),
+    n.description && [n.kind === "consumer" ? null : el("h3", {}, "Responsibilities"), text("p", n.description)],
+    opens(id) && id !== openBox && el("button", { type: "button", class: "b-go wide", onclick: () => go(id) }, el("span", {}, `Open ${id}`), el("span", {}, "›")),
+  ];
+}
+
+function drawPanel() {
+  const panel = document.getElementById("panel");
+  panel.hidden = !selected;
+  if (!selected) return;
+  panel.replaceChildren(
+    el("button", { type: "button", class: "b-close", "aria-label": "Close", onclick: clear }, "×"),
+    ...[panelOf(selected)].flat(3).filter(Boolean),
+  );
+}
+
+function clear() {
+  if (!selected) return;
+  selected = null;
+  render();
+}
+
+// ---------- where you are ----------
+
+function drawNav() {
+  const crumbs = [["All providers", 0], ...trail.map((n, i) => [n, i + 1])];
+  document.getElementById("nav").replaceChildren(
+    el("button", { type: "button", class: "b-back-nav", disabled: !visited.length && !trail.length ? "" : null, onclick: back }, "‹ Back"),
+    ...crumbs
+      .flatMap(([label, depth], i) => [
+        i > 0 && el("span", { class: "b-sep" }, "›"),
+        i === crumbs.length - 1 ? el("strong", {}, label) : el("button", { type: "button", onclick: () => navigate(trail.slice(0, depth)) }, label),
+      ])
+      .filter(Boolean),
+  );
+}
+
+// The path to a box when nothing says how you came: its parents, or, for an outside service, the
+// screen that shows a component calling it.
+function trailFor(name) {
+  if (name === TOP) return [];
+  const n = node(name);
+  if (n.kind !== "outside") return [...ancestors(name), name];
+  const caller = boundaries.find((b) => b.provider === name && !refinedBy(b) && nodes.has(b.consumer) && node(b.consumer).kind !== "consumer");
+  if (!caller) return [name];
+  const at = node(caller.consumer).parent;
+  return [...trailFor(at ?? caller.consumer), name];
+}
+
+// Opening a box from the screen it is on adds it to the path you came by; a box elsewhere gets the
+// path trailFor gives it.
+function go(name) {
+  if (name === TOP) return navigate([]);
+  const i = trail.indexOf(name);
+  if (i >= 0) return navigate(trail.slice(0, i + 1));
+  navigate(screen.visible.has(name) || screen.boxes.includes(name) ? [...trail, name] : trailFor(name));
+}
+
+// Back returns to the previous screen as it was left: same scroll, same selection.
+function back() {
+  if (visited.length) navigate(visited.pop(), { remember: false, restore: true });
+  else if (trail.length) navigate(trail.slice(0, -1), { remember: false, restore: true });
+}
+
+// Changes screen. Opening a box grows it into the new screen's frame; going back shrinks the frame
+// into the box it came from. Everything else fades.
+const addressOf = (t) => `#${t.length ? t.map(slugOf).join("/") : "all"}`;
+function navigate(next, { remember = true, fromAddress = false, restore = false } = {}) {
+  const before = trail;
+  if (before.length === next.length && before.every((x, i) => x === next[i])) return;
+  if (remember) visited.push(before);
+  const scroller = document.getElementById("scroll");
+  memory.set(addressOf(before), { left: scroller.scrollLeft, top: scroller.scrollTop, selected });
+  const kept = restore ? memory.get(addressOf(next)) : null;
+  const deeper = next.length > before.length && before.every((x, i) => next[i] === x);
+  const shallower = before.length > next.length && next.every((x, i) => before[i] === x);
+  const frameEl = () => document.querySelector(".b-frame");
+  // Only one element may carry the name at a time; the last landing still has it.
+  for (const e of document.querySelectorAll(".b-frame, .b-box")) e.style.viewTransitionName = "";
+  const grow = deeper ? reg.get(`b:${next[before.length]}`) : shallower ? frameEl() : null;
+  if (grow) grow.style.viewTransitionName = "zoom";
+  // A box on both screens travels from its place on this one to its place on the next, such as a
+  // component that moves from Components to Used by when a component it calls opens.
+  const nextOpen = next.at(-1) ?? TOP;
+  const nextVisible = screenOf(nextOpen).visible;
+  const travellers = [...screen.visible].filter((n) => n !== nextOpen && nextVisible.has(n));
+  const travel = () => {
+    for (const n of travellers) {
+      const e = reg.get(`b:${n}`);
+      if (e) e.style.viewTransitionName = `b-${cssName(n)}`;
+    }
+  };
+  travel();
+  if (!fromAddress) {
+    const hash = addressOf(next);
+    // A sandboxed viewer may refuse to change the address; the screen changes all the same.
+    try {
+      if (decodeURIComponent(location.hash) !== hash) history.pushState(null, "", hash);
+    } catch {}
+  }
+  transition(() => {
+    trail = next;
+    openBox = next.at(-1) ?? TOP;
+    selected = kept?.selected ?? null;
+    render();
+    scroller.scrollTo(kept?.left ?? 0, kept?.top ?? 0);
+    const landing = deeper ? frameEl() : shallower ? reg.get(`b:${before[next.length]}`) : null;
+    if (grow && landing) landing.style.viewTransitionName = "zoom";
+    travel();
+  });
+}
+
+function fromHash() {
+  const parts = decodeURIComponent(location.hash.slice(1)).split("/").filter(Boolean);
+  if (parts[0] === "all") return [];
+  const names = parts.map((p) => bySlug.get(p));
+  if (!names.length || names.some((n) => !n)) return HOME;
+  return names.length === 1 ? trailFor(names[0]) : names;
+}
+
+// ---------- still images ----------
+
+// Every screen once: All providers, then each box that opens, in the order the map lists them.
+const screens = () => [[], ...[...nodes.keys()].filter(opens).map(trailFor)];
+
+// A still image cannot be clicked, so it carries under the drawing what the panel would say about
+// what the screen shows.
+function legendOf(s) {
+  const entry = (name, about) => el("li", { html: inline(`**${name}**: ${sentence(about ?? "")}`) });
+  const section = (title, about, items) =>
+    items.length > 0 && el("section", {}, el("h3", {}, title), about && text("p", about), el("ul", {}, items));
+  const acts = (c) => c.acts.map((a) => `${MODE_WORD[a.mode]} ${a.resource}`).join(", ");
+  return el(
+    "div",
+    { class: "b-legend" },
+    section("On this screen", null, [...s.consumers, ...s.boxes, ...s.uses].map((n) => entry(n, node(n).description))),
+    section("Interfaces", null, s.ports.map((p) => entry(p, interfaceText.get(p)))),
+    s.areas.map((g) =>
+      section(
+        `${g.name} (${g.type})`,
+        g.members[0].description,
+        g.capabilities.map((c) => entry(c.name, `takes ${c.takes}; gives ${c.gives}; ${acts(c)}.`)),
+      ),
+    ),
+    section("Resources", null, unique([...s.kept.values()].flat()).map((r) => entry(r, resourceByName.get(r).description))),
+  );
+}
+
+// Writes the size the image needs, and the addresses of every screen, on the page for shoot-map.mjs.
+function drawLegend(stage) {
+  const legend = legendOf(screen);
+  legend.style.width = `${Math.max(stage.offsetWidth, 1200)}px`;
+  document.querySelector(".b-legend")?.remove();
+  document.querySelector("main").after(legend);
+  const right = Math.max(stage.getBoundingClientRect().right, legend.getBoundingClientRect().right) + 16;
+  const bottom = legend.getBoundingClientRect().bottom + window.scrollY;
+  document.documentElement.dataset.stillSize = `${Math.ceil(right)}x${Math.ceil(bottom)}`;
+  document.documentElement.dataset.screens = screens().map(addressOf).join(" ");
+}
+
+const avg = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
+window.addEventListener("popstate", () => navigate(fromHash(), { fromAddress: true, remember: false, restore: true }));
+document.getElementById("scroll").addEventListener("click", clear);
+document.addEventListener("keydown", (e) => e.key === "Escape" && clear());
+window.addEventListener("resize", () => render());
+trail = fromHash();
+openBox = trail.at(-1) ?? TOP;
+render();
+document.fonts?.ready.then(render);
+</script>
+</body>
+</html>

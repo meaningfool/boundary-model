@@ -1,0 +1,2086 @@
+{
+  "system": {
+    "name": "LangChain",
+    "description": "LangChain is a set of Python libraries for building applications and agents on large language models: one interface to models, tools, prompts, documents and vector stores from many providers, an agent loop with middleware, integration packages for model providers and data services, and kits for the people who write those integrations.",
+    "corpus": {
+      "included": "The repository github.com/langchain-ai/langchain (libs/: langchain-core, langchain, langchain-classic, langchain-text-splitters, langchain-tests, langchain-model-profiles and the partner integration packages; repository and CI configuration) and its version-control history since 2026-05-25, read only.",
+      "excluded": "Dependencies (uv.lock files and third-party packages such as langgraph, langsmith and langchain-community), generated output (openwiki/, written by a scheduled LLM workflow, and the generated data/_profiles.py model profile files), and secrets."
+    },
+    "revision": "9d461bb46a40fcd5673e8d3417dad8b10e731557"
+  },
+  "consumers": [
+    { "name": "Application developer", "description": "A Python developer who builds an application or agent on large language models with LangChain's libraries and integrations, including the authors of frameworks built on them." },
+    { "name": "Integration author", "description": "A maintainer of a LangChain integration package for a model provider or data service, in this repository or their own, who builds it on langchain-core's interfaces, checks it with the standard tests and keeps its model profiles current." }
+  ],
+  "providers": [
+    {
+      "name": "LangChain",
+      "description": "The LangChain libraries as their users see them: one framework installed as several Python packages.",
+      "resources": ["Agent", "Agent thread", "Model", "Message", "Tool", "Prompt template", "Chain", "Run", "Document", "Vector store", "Response cache", "Conversation memory", "Serialized object", "Model profile", "Integration", "Legacy chain", "Legacy agent", "Agent scratchpad", "Evaluation", "Example"],
+      "parts": [
+        { "name": "Integration packages", "why": "Adapters to outside services (libs/partners/*), not components by themselves; each file sits with the component whose contract it fulfils: Models, Tools, Output parsers, Documents and retrieval, or Middleware." }
+      ],
+      "components": [
+        {
+          "name": "Agent framework",
+          "description": "The `langchain` package: builds agents that call tools in a loop, runs their middleware, and picks a provider's model from its name.",
+          "resources": ["Agent", "Agent thread"],
+          "serves": [{ "consumer": "Application developer", "area": "Build LLM apps and agents" }],
+          "parts": [
+            { "name": "MCP adapter", "why": "An adapter to MCP servers (langchain/mcp/): it lists a server's tools, wraps them as LangChain tools and turns the server's questions into agent interrupts." },
+            { "name": "Re-export modules", "why": "langchain/messages, tools and rate_limiters only pass on names from langchain-core and LangGraph; part of the package interface." }
+          ],
+          "components": [
+            {
+              "name": "Agent loop",
+              "description": "Builds and runs an agent's graph: the model step, the tools step, the routes between them and the structured response.",
+              "resources": ["Agent", "Agent thread"],
+              "serves": [{ "consumer": "Application developer", "area": "Build LLM apps and agents" }],
+              "parts": [
+                { "name": "Structured output strategies", "why": "Tool and provider strategies with their parsers (agents/structured_output.py); the factory picks, runs and retries them, so they do not decide alone." },
+                { "name": "Run-stream transformers", "why": "Present nested agents and internal calls in the run stream (_subagent_transformer.py, internal_call_transformer.py); part of the interface." },
+                { "name": "Trace policy", "why": "Configuration of how middleware steps are traced (middleware/_trace_policy.py)." }
+              ]
+            },
+            {
+              "name": "Middleware",
+              "description": "Hooks that run before, around and after each model call, tool call and agent run, such as summarizing, redacting personal data, pausing for human review, retrying, limiting and running a shell.",
+              "resources": ["Agent thread"],
+              "serves": [{ "consumer": "Application developer", "area": "Build LLM apps and agents" }],
+              "parts": [
+                { "name": "Middleware contract and decorators", "why": "AgentMiddleware and the before_model, wrap_model_call and other decorators (middleware/types.py): the contract every variant fulfils." },
+                { "name": "Built-in middleware", "why": "Variants of AgentMiddleware (summarization, human in the loop, PII, shell tool, todo list, model and tool limits, retries, fallbacks, router, tool selection, context editing, file search, auto mode)." },
+                { "name": "Integration middleware", "why": "Variants of AgentMiddleware shipped by integration packages (Anthropic prompt caching and server tools, OpenAI moderation, auto mode and router, Fireworks prompt caching, TypeSafe auto mode and router)." },
+                { "name": "Execution policies", "why": "Adapters that start the shell middleware's shell on the host, in Docker or in a Codex CLI sandbox (middleware/_execution.py)." },
+                { "name": "Shared helpers", "why": "Redaction rules and retry helpers used by several variants (_redaction.py, _retry.py)." }
+              ]
+            },
+            {
+              "name": "Model initializer",
+              "description": "Turns a model name such as \"openai:gpt-5.5\" into the matching integration's chat or embedding model, optionally reconfigurable at run time.",
+              "resources": ["Model"],
+              "serves": [{ "consumer": "Application developer", "area": "Build LLM apps and agents" }],
+              "parts": [
+                { "name": "Chat model initializer", "why": "init_chat_model with its provider table and name inference (chat_models/base.py); one variant of the operation." },
+                { "name": "Embeddings initializer", "why": "init_embeddings with its own provider table (embeddings/base.py); the other variant." }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Core abstractions",
+          "description": "The `langchain-core` package: the standard interfaces every other package implements or calls, and the machinery that runs, traces, caches and saves them.",
+          "resources": ["Model", "Message", "Tool", "Prompt template", "Chain", "Run", "Document", "Vector store", "Response cache", "Conversation memory", "Serialized object", "Model profile", "Example"],
+          "serves": [
+            { "consumer": "Application developer", "area": "Build LLM apps and agents" },
+            { "consumer": "Application developer", "area": "Observe runs" },
+            { "consumer": "Application developer", "area": "Cache model responses" },
+            { "consumer": "Application developer", "area": "Save and load objects" },
+            { "consumer": "Integration author", "area": "Build integrations" }
+          ],
+          "parts": [
+            { "name": "Messages", "why": "The shared message and content-block types with per-provider format translators and conversion helpers (messages/); vocabulary every part passes around, keeping no state beyond a table of translators." },
+            { "name": "Key-value and chat-history stores", "why": "Storage contracts with in-memory stores (stores.py, chat_history.py), used by the message-history wrapper and by langchain-classic." },
+            { "name": "Shared helpers", "why": "Libraries: deprecation decorators, lazy imports, an SSRF-safe HTTP client, JSON, pydantic and string helpers, global settings (_api/, _security/, utils/, globals.py and others)." },
+            { "name": "Legacy schemas", "why": "Backwards-compatibility types and deprecated loaders (agents.py, chat_loaders.py, chat_sessions.py, prompts/loading.py)." }
+          ],
+          "components": [
+            {
+              "name": "Runnable runtime",
+              "description": "Composes steps into chains and runs them: in sequence, side by side, by branch, with retries, fallbacks and run-time configuration, batched or streamed.",
+              "resources": ["Chain", "Conversation memory"],
+              "serves": [{ "consumer": "Application developer", "area": "Build LLM apps and agents" }],
+              "parts": [
+                { "name": "Composition primitives", "why": "Variants of Runnable: sequence, parallel, lambda, binding, branch, router, fallbacks, retry, configurable, passthrough (runnables/base.py and siblings)." },
+                { "name": "Config propagation", "why": "Shared machinery every variant uses to pass callbacks, tags, metadata and limits down (runnables/config.py)." },
+                { "name": "Graph drawing", "why": "Presents a chain's structure as ASCII, Mermaid or PNG (graph*.py); part of the interface." },
+                { "name": "Message-history wrapper", "why": "A Runnable variant that loads and saves a session's messages around a chain (runnables/history.py)." }
+              ]
+            },
+            {
+              "name": "Run tracing",
+              "description": "Records every execution of a chain, model, tool and retriever as a run, passes its events to handlers and sends traces to LangSmith.",
+              "resources": ["Run"],
+              "serves": [
+                { "consumer": "Application developer", "area": "Observe runs" },
+                { "consumer": "Classic chains", "area": "Build on core abstractions" }
+              ],
+              "parts": [],
+              "components": [
+                {
+                  "name": "Callback manager",
+                  "description": "Decides which handlers receive each run event, with which parent run, tags and metadata, and adds tracers from the environment.",
+                  "resources": ["Run"],
+                  "serves": [
+                    { "consumer": "Models", "area": "Record run" },
+                    { "consumer": "Tools", "area": "Record run" },
+                    { "consumer": "Documents and retrieval", "area": "Record run" },
+                    { "consumer": "Runnable runtime", "area": "Record runs" }
+                  ],
+                  "parts": [
+                    { "name": "Run managers", "why": "The per-run objects through which a step reports its events (callbacks/manager.py)." },
+                    { "name": "Tracing context", "why": "Context managers and hooks that switch tracing on and collect runs (tracers/context.py)." }
+                  ]
+                },
+                {
+                  "name": "Tracers and handlers",
+                  "description": "The handlers that receive run events: tracers that keep the run tree and send it to LangSmith or stream it, and handlers that print, write or count tokens.",
+                  "resources": ["Run"],
+                  "serves": [
+                    { "consumer": "Models", "area": "Record run" },
+                    { "consumer": "Tools", "area": "Record run" },
+                    { "consumer": "Documents and retrieval", "area": "Record run" },
+                    { "consumer": "Runnable runtime", "area": "Record runs" }
+                  ],
+                  "parts": [
+                    { "name": "Handler contract", "why": "BaseCallbackHandler and its async form (callbacks/base.py): the contract every variant fulfils." },
+                    { "name": "LangSmith tracer", "why": "A variant that exports runs to LangSmith (tracers/langchain.py); an adapter to that service." },
+                    { "name": "Event and log stream tracers", "why": "Variants behind astream_events and astream_log (tracers/event_stream.py, log_stream.py)." },
+                    { "name": "Console, file and usage handlers", "why": "Variants that print, write to a file or add up token usage (callbacks/stdout.py, file.py, usage.py, tracers/stdout.py)." },
+                    { "name": "Listeners, collectors and evaluator handler", "why": "Variants that call listeners, collect runs or run evaluators on finished runs (root_listeners.py, run_collector.py, evaluation.py)." }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Models",
+              "description": "The standard way to call a chat, completion, embedding or decision model of any provider: the call path with cache, rate limit, callbacks, streaming and standard content, and the provider adapters that plug into it.",
+              "resources": ["Model", "Message", "Response cache", "Model profile"],
+              "serves": [
+                { "consumer": "Application developer", "area": "Build LLM apps and agents" },
+                { "consumer": "Application developer", "area": "Cache model responses" },
+                { "consumer": "Integration author", "area": "Build integrations" },
+                { "consumer": "Agent framework", "area": "Call models and tools" },
+                { "consumer": "Classic chains", "area": "Build on core abstractions" },
+                { "consumer": "Standard tests", "area": "Exercise integrations" }
+              ],
+              "parts": [
+                { "name": "Chat and completion call paths", "why": "BaseChatModel and BaseLLM (language_models/); they share the BaseLanguageModel base and one response cache, so they form the component's core rather than two components." },
+                { "name": "Response cache", "why": "Storage the call paths alone write (caches.py)." },
+                { "name": "Rate limiter", "why": "A limit a model waits on before each call (rate_limiters.py)." },
+                { "name": "Embeddings and decision contracts", "why": "Thin bases over adapters (embeddings/, decisions/)." },
+                { "name": "Stream protocol bridge", "why": "Converts chunk streams into protocol events (language_models/_compat_bridge.py, chat_model_stream.py)." },
+                { "name": "Profile type and test doubles", "why": "The ModelProfile type and fake models for tests (model_profile.py, fake*.py)." },
+                { "name": "Provider model adapters", "why": "The chat, completion, embedding and decision models of the integration packages: adapters to each provider's API." }
+              ]
+            },
+            {
+              "name": "Tools",
+              "description": "Turns functions into tools a model can call, checks a tool call's arguments, runs the tool and returns its result or error as a tool message.",
+              "resources": ["Tool", "Message"],
+              "serves": [
+                { "consumer": "Application developer", "area": "Build LLM apps and agents" },
+                { "consumer": "Integration author", "area": "Build integrations" },
+                { "consumer": "Agent framework", "area": "Call models and tools" },
+                { "consumer": "Classic chains", "area": "Build on core abstractions" },
+                { "consumer": "Standard tests", "area": "Exercise integrations" }
+              ],
+              "parts": [
+                { "name": "Tool variants", "why": "StructuredTool, Tool and the retriever tool (tools/structured.py, simple.py, retriever.py)." },
+                { "name": "Tool factory and rendering", "why": "The @tool decorator builds variants; render.py presents tools as text (tools/convert.py, render.py)." },
+                { "name": "Schema conversion", "why": "Describes tools and schemas to models in the function-calling format (utils/function_calling.py)." },
+                { "name": "Integration tools", "why": "Adapters to search and model services (Exa, Perplexity, OpenAI custom tools)." }
+              ]
+            },
+            {
+              "name": "Prompts",
+              "description": "Prompt templates that render variables into text or messages, and the example selectors that choose which examples a few-shot prompt shows.",
+              "resources": ["Prompt template", "Example"],
+              "serves": [
+                { "consumer": "Application developer", "area": "Build LLM apps and agents" },
+                { "consumer": "Classic chains", "area": "Build on core abstractions" }
+              ],
+              "parts": [
+                { "name": "Prompt loading", "why": "Deprecated loading of prompts from files and the old GitHub hub (prompts/loading.py)." }
+              ],
+              "components": [
+                {
+                  "name": "Prompt templates",
+                  "description": "Templates for text, chat messages, few-shot examples, images and structured output, rendered with f-strings, mustache or sandboxed Jinja2.",
+                  "resources": ["Prompt template"],
+                  "serves": [
+                    { "consumer": "Application developer", "area": "Build LLM apps and agents" },
+                    { "consumer": "Classic chains", "area": "Build on core abstractions" }
+                  ],
+                  "parts": [
+                    { "name": "Template variants", "why": "Variants of BasePromptTemplate (prompt.py, chat.py, few_shot.py, image.py, dict.py, structured.py)." },
+                    { "name": "Formatting engines", "why": "The f-string, mustache and Jinja2 formatters (string.py, utils/mustache.py)." }
+                  ]
+                },
+                {
+                  "name": "Example selectors",
+                  "description": "Keep a set of examples and pick the ones that suit an input, by length or by similarity.",
+                  "resources": ["Example"],
+                  "serves": [{ "consumer": "Application developer", "area": "Build LLM apps and agents" }],
+                  "parts": [
+                    { "name": "Length-based selector", "why": "A variant that fits examples into a length budget (length_based.py)." },
+                    { "name": "Similarity selectors", "why": "Variants that keep examples in a vector store and pick the most similar or most diverse (semantic_similarity.py)." }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Output parsers",
+              "description": "Parse a model's text or tool calls into structured data, also while it streams.",
+              "resources": ["Message"],
+              "serves": [
+                { "consumer": "Application developer", "area": "Build LLM apps and agents" },
+                { "consumer": "Classic chains", "area": "Build on core abstractions" }
+              ],
+              "parts": [
+                { "name": "Parser variants", "why": "Variants of BaseOutputParser: string, JSON, Pydantic, XML, list, OpenAI functions and tools (output_parsers/)." },
+                { "name": "Integration parsers", "why": "Variants shipped by integration packages (OpenAI, Anthropic, Perplexity)." }
+              ]
+            },
+            {
+              "name": "Documents and retrieval",
+              "description": "Documents, the loaders that make them, the vector stores that keep them with their vectors, and the retrievers that find them for a query.",
+              "resources": ["Document", "Vector store"],
+              "serves": [
+                { "consumer": "Application developer", "area": "Build LLM apps and agents" },
+                { "consumer": "Integration author", "area": "Build integrations" },
+                { "consumer": "Classic chains", "area": "Build on core abstractions" },
+                { "consumer": "Standard tests", "area": "Exercise integrations" }
+              ],
+              "parts": [
+                { "name": "Vector stores", "why": "VectorStore, the in-memory store and index, similarity and diversity search, and the vector store retriever (vectorstores/, indexing/in_memory.py): the part that keeps state." },
+                { "name": "Retriever contract", "why": "BaseRetriever (retrievers.py): a thin base whose variants are here, in langchain-classic or in adapters." },
+                { "name": "Loader contracts and LangSmith loader", "why": "BaseLoader, blob loaders and parsers, and the adapter that loads LangSmith dataset examples (document_loaders/)." },
+                { "name": "Document types and compressor contract", "why": "Document, Blob and the document compressor and transformer contracts (documents/)." },
+                { "name": "Reranker contract and query language", "why": "Contracts used by langchain-classic's rerankers and self-querying retriever (cross_encoders.py, structured_query.py)." },
+                { "name": "Integration stores, retrievers and rerankers", "why": "Adapters to Chroma, Qdrant, Exa, Perplexity search and Fireworks rerank." }
+              ]
+            },
+            {
+              "name": "Indexing",
+              "description": "Syncs documents from a source into a vector store without duplicates, keeping a record of what it indexed so it can skip, update or delete.",
+              "resources": [],
+              "serves": [{ "consumer": "Application developer", "area": "Build LLM apps and agents" }],
+              "parts": [
+                { "name": "Sync decision", "why": "index and aindex (indexing/api.py): the decision-maker." },
+                { "name": "Record manager", "why": "Storage of what was indexed and when (RecordManager, InMemoryRecordManager in indexing/base.py)." },
+                { "name": "Document-index contract", "why": "DocumentIndex, a destination implemented by Documents and retrieval (indexing/base.py)." }
+              ]
+            },
+            {
+              "name": "Serialization",
+              "description": "Saves LangChain objects as JSON without their secrets and loads them back, only for the classes allowed.",
+              "resources": ["Serialized object"],
+              "serves": [
+                { "consumer": "Application developer", "area": "Save and load objects" },
+                { "consumer": "Standard tests", "area": "Exercise integrations" }
+              ],
+              "parts": [
+                { "name": "Writer", "why": "Serializable.to_json, dumpd and dumps (load/serializable.py, dump.py)." },
+                { "name": "Reader", "why": "load and loads with allowed objects (load/load.py)." },
+                { "name": "Allowlist and validation", "why": "The class paths that may be loaded and the payload checks (load/mapping.py, _validation.py)." }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Text splitters",
+          "description": "The `langchain-text-splitters` package: cuts text and documents into chunks by characters, tokens, sentences, code structure, headers or JSON structure.",
+          "resources": ["Document"],
+          "serves": [{ "consumer": "Application developer", "area": "Build LLM apps and agents" }],
+          "parts": [
+            { "name": "Splitter contract", "why": "TextSplitter with the shared logic that merges pieces into chunks (base.py)." },
+            { "name": "Character and code splitters", "why": "Variants of TextSplitter for characters and programming or markup languages (character.py, python.py, latex.py, markdown.py, jsx.py)." },
+            { "name": "Header and structure splitters", "why": "Variants that split by Markdown or HTML headers and sections, or JSON structure (markdown.py, html.py, json.py)." },
+            { "name": "Sentence and token splitters", "why": "Variants that cut by sentences or tokens with NLTK, spaCy, KoNLPy or sentence-transformers (nltk.py, spacy.py, konlpy.py, sentence_transformers.py)." }
+          ]
+        },
+        {
+          "name": "Classic chains",
+          "description": "The `langchain-classic` package: the legacy chains, agents, memory, retrievers, output parsers and evaluators kept for existing applications.",
+          "resources": ["Legacy chain", "Legacy agent", "Agent scratchpad", "Conversation memory", "Evaluation"],
+          "serves": [{ "consumer": "Application developer", "area": "Keep using classic chains" }],
+          "parts": [
+            { "name": "Stores and record manager", "why": "Storage: file and encoder-backed key-value stores, the SQL record manager for core's indexing, and cache-backed embeddings (storage/, indexes/_sql_record_manager.py, embeddings/cache.py)." },
+            { "name": "Index creator", "why": "VectorstoreIndexCreator only wires a loader, splitter, embeddings and vector store with a QA chain (indexes/vectorstore.py)." },
+            { "name": "Hub client", "why": "A deprecated adapter to LangSmith's prompt hub (hub.py, runnables/hub.py)." },
+            { "name": "Legacy model initializer", "why": "An older copy of init_chat_model and init_embeddings (chat_models/base.py, embeddings/base.py)." },
+            { "name": "Callback handlers", "why": "A few variants of core's callback handler contract (callbacks/)." },
+            { "name": "Import shims and pass-through modules", "why": "843 files that forward old import paths to langchain_community and 278 that re-export other modules." },
+            { "name": "Library helpers", "why": "Helpers such as _api/, utils/, env.py and model_laboratory.py." }
+          ],
+          "components": [
+            {
+              "name": "Legacy chains",
+              "description": "Chains such as retrieval QA, conversational retrieval, summarize, document combining, routing, SQL and API chains, and the newer retrieval-chain constructors.",
+              "resources": ["Legacy chain"],
+              "serves": [{ "consumer": "Application developer", "area": "Keep using classic chains" }],
+              "parts": [
+                { "name": "Chain contract", "why": "Chain (chains/base.py): the contract every variant fulfils." },
+                { "name": "Chain variants", "why": "LLMChain, document-combining, QA, routing, SQL, API, math and other chains (chains/)." },
+                { "name": "Chain constructors", "why": "create_retrieval_chain and similar functions that build runnables (chains/retrieval.py, history_aware_retriever.py, combine_documents/)." },
+                { "name": "Browser crawler", "why": "An adapter that drives a browser with Playwright for the natbot chain (chains/natbot/crawler.py)." }
+              ]
+            },
+            {
+              "name": "Legacy agents",
+              "description": "The classic agent executor and the agent types it runs, such as ReAct, structured chat and tool calling agents.",
+              "resources": ["Legacy agent", "Agent scratchpad"],
+              "serves": [{ "consumer": "Application developer", "area": "Keep using classic chains" }],
+              "parts": [
+                { "name": "Agent initializer", "why": "initialize_agent and load_agent only look up a class by name and are deprecated (agents/initialize.py, loading.py)." },
+                { "name": "Toolkits", "why": "Mostly import shims and stubs that point to other packages (agents/agent_toolkits/)." }
+              ],
+              "components": [
+                {
+                  "name": "Agent executor",
+                  "description": "Runs the legacy plan and act loop: asks the agent for the next step, runs the tool, and stops at the answer or a limit.",
+                  "resources": ["Legacy agent", "Agent scratchpad"],
+                  "serves": [{ "consumer": "Application developer", "area": "Keep using classic chains" }],
+                  "parts": [
+                    { "name": "Executor loop", "why": "AgentExecutor (agents/agent.py), with the agent contracts it calls defined in the same file." },
+                    { "name": "Step iterator", "why": "AgentExecutorIterator, which runs the same loop one step at a time (agents/agent_iterator.py)." }
+                  ]
+                },
+                {
+                  "name": "Agent types",
+                  "description": "The agents that decide the next action from the steps so far, each with its prompt, output parser and scratchpad format.",
+                  "resources": ["Agent scratchpad"],
+                  "serves": [{ "consumer": "Application developer", "area": "Keep using classic chains" }],
+                  "parts": [
+                    { "name": "Agent variants", "why": "ReAct, MRKL, chat, conversational, structured chat, JSON chat, XML, OpenAI functions and tools, tool calling, self-ask and OpenAI assistant agents (agents/*/)." },
+                    { "name": "Agent output parsers", "why": "Parse model output into an action or a final answer (agents/output_parsers/)." },
+                    { "name": "Scratchpad formatters", "why": "Format the steps so far into text or messages (agents/format_scratchpad/)." }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Memory",
+              "description": "Keeps what a chain remembers of earlier turns: the messages, a window of them, a summary, or facts about entities.",
+              "resources": ["Conversation memory"],
+              "serves": [{ "consumer": "Application developer", "area": "Keep using classic chains" }],
+              "parts": [
+                { "name": "Memory variants", "why": "Variants of BaseMemory: buffer, window, token buffer, summary, summary buffer, entity, vector store and combined memory (memory/)." },
+                { "name": "Entity stores", "why": "Storage adapters for entity facts in memory, Redis, Upstash Redis or SQLite (memory/entity.py)." }
+              ]
+            },
+            {
+              "name": "Evaluation",
+              "description": "Scores a model or chain output: by criteria, QA correctness, embedding or string distance, exact or regex match, pairwise comparison or agent trajectory.",
+              "resources": ["Evaluation"],
+              "serves": [{ "consumer": "Application developer", "area": "Keep using classic chains" }],
+              "parts": [
+                { "name": "Evaluator contracts", "why": "StringEvaluator, PairwiseStringEvaluator and AgentTrajectoryEvaluator (evaluation/schema.py), held in one registry." },
+                { "name": "Evaluator variants", "why": "criteria/, qa/, embedding_distance/, string_distance/, exact_match/, regex_match/, scoring/, comparison/, agents/, parsing/." },
+                { "name": "Evaluator loader", "why": "load_evaluator only looks a name up in the registry (evaluation/loading.py)." }
+              ]
+            },
+            {
+              "name": "Dataset runner",
+              "description": "Runs a chain or model over every example of a LangSmith dataset and records the evaluators' feedback on a test project.",
+              "resources": [],
+              "serves": [{ "consumer": "Application developer", "area": "Keep using classic chains" }],
+              "parts": [
+                { "name": "Runner", "why": "run_on_dataset and arun_on_dataset (smith/evaluation/runner_utils.py)." },
+                { "name": "Evaluation config and run evaluator adapter", "why": "RunEvalConfig and the wrapper that applies string evaluators to runs (config.py, string_run_evaluator.py)." },
+                { "name": "Helpers", "why": "Project names and progress display (name_generation.py, progress.py)." }
+              ]
+            },
+            {
+              "name": "Classic retrievers",
+              "description": "Retrievers built on others: multi-query, parent-document, ensemble, self-query, contextual compression and time-weighted retrievers, with their document compressors.",
+              "resources": ["Document"],
+              "serves": [
+                { "consumer": "Application developer", "area": "Keep using classic chains" },
+                { "consumer": "Application developer", "area": "Build LLM apps and agents" }
+              ],
+              "parts": [],
+              "components": [
+                {
+                  "name": "Retriever variants",
+                  "description": "Retrievers that find documents in their own way: several generated queries, parent documents behind child chunks, rank fusion, self-built filters, compression or recency.",
+                  "resources": ["Document"],
+                  "serves": [
+                    { "consumer": "Application developer", "area": "Keep using classic chains" },
+                    { "consumer": "Application developer", "area": "Build LLM apps and agents" }
+                  ],
+                  "parts": [
+                    { "name": "Multi-query and rephrase", "why": "Variants that ask a model for other phrasings of the query (multi_query.py, re_phraser.py)." },
+                    { "name": "Parent-document and multi-vector", "why": "Variants that return parent documents, kept in a key-value store, for matching child chunks (parent_document_retriever.py, multi_vector.py)." },
+                    { "name": "Ensemble, merger, time-weighted", "why": "Variants that fuse rankings, merge retrievers or weigh recency (ensemble.py, merger_retriever.py, time_weighted_retriever.py)." },
+                    { "name": "Self-query and contextual compression", "why": "Variants that build a filtered query or compress results (self_query/base.py, contextual_compression.py)." }
+                  ]
+                },
+                {
+                  "name": "Document compressors",
+                  "description": "Cut down retrieved documents for a query: extract the relevant part, filter by a model or by similarity, or rerank.",
+                  "resources": ["Document"],
+                  "serves": [{ "consumer": "Application developer", "area": "Keep using classic chains" }],
+                  "parts": [
+                    { "name": "Model extract and filter", "why": "Variants that ask a model what to keep (chain_extract.py, chain_filter.py)." },
+                    { "name": "Embeddings filter and rerankers", "why": "Variants that filter by similarity or rerank with a cross-encoder or a model (embeddings_filter.py, cross_encoder_rerank.py, listwise_rerank.py)." },
+                    { "name": "Compressor pipeline", "why": "Chains compressors and transformers in order (base.py)." }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Classic output parsers",
+              "description": "Output parsers that repair or interpret model output: retry and fix with a model, regex, enum, datetime, boolean, YAML and combined parsers.",
+              "resources": [],
+              "serves": [{ "consumer": "Application developer", "area": "Keep using classic chains" }],
+              "parts": [
+                { "name": "Retry and fix parsers", "why": "Variants that ask a model to correct output that failed to parse (retry.py, fix.py)." },
+                { "name": "Other parser variants", "why": "Structured, regex, enum, datetime, boolean, YAML, combining and pandas parsers (output_parsers/)." }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Standard tests",
+          "description": "The `langchain-tests` package: suites of standard checks an integration author runs against a chat model, embeddings, tool, vector store, retriever, cache, store, indexer or sandbox.",
+          "resources": [],
+          "serves": [{ "consumer": "Integration author", "area": "Build integrations" }],
+          "parts": [
+            { "name": "Suite contract", "why": "BaseStandardTests (base.py): the contract every suite fulfils." },
+            { "name": "Unit suites", "why": "Variants that need no network (unit_tests/)." },
+            { "name": "Integration suites", "why": "Variants that call the live service or recorded responses (integration_tests/)." },
+            { "name": "Recording and CI helpers", "why": "Cassette fixtures and a pytest plugin that forwards CI LangSmith tags (conftest.py, _langsmith_plugin.py, utils/)." }
+          ]
+        },
+        {
+          "name": "Model profile refresher",
+          "description": "The `langchain-profiles` command: downloads model capability data from models.dev, merges a package's own additions and writes the package's profile data.",
+          "resources": ["Model profile"],
+          "serves": [{ "consumer": "Integration author", "area": "Keep model profiles current" }],
+          "parts": [
+            { "name": "Refresh command", "why": "Fetches, merges and writes the profile data (cli.py)." },
+            { "name": "Summary command", "why": "Renders the changes as Markdown (_summary.py); presentation." }
+          ]
+        }
+      ]
+    }
+  ],
+  "outsideServices": [
+    { "name": "OpenAI", "description": "OpenAI's API for chat, completion, embedding, classification and moderation models, and its Assistants API.", "resources": ["Hosted model", "Assistant thread"] },
+    { "name": "Azure OpenAI", "description": "OpenAI models hosted on Microsoft Azure.", "resources": ["Hosted model"] },
+    { "name": "ChatGPT", "description": "The ChatGPT Codex backend, reached with a ChatGPT subscription sign-in.", "resources": ["Hosted model"] },
+    { "name": "Anthropic", "description": "Anthropic's API for Claude models.", "resources": ["Hosted model"] },
+    { "name": "Groq", "description": "Groq's API for hosted open models.", "resources": ["Hosted model"] },
+    { "name": "Mistral AI", "description": "Mistral AI's API for chat and embedding models.", "resources": ["Hosted model"] },
+    { "name": "Fireworks AI", "description": "Fireworks AI's API for chat, completion, embedding and rerank models.", "resources": ["Hosted model"] },
+    { "name": "DeepSeek", "description": "DeepSeek's API for its chat models.", "resources": ["Hosted model"] },
+    { "name": "xAI", "description": "xAI's API for Grok models.", "resources": ["Hosted model"] },
+    { "name": "OpenRouter", "description": "OpenRouter's API that routes to many providers' models.", "resources": ["Hosted model"] },
+    { "name": "Perplexity", "description": "Perplexity's API for search-backed chat models, embeddings and web search.", "resources": ["Hosted model", "Web index"] },
+    { "name": "Hugging Face", "description": "Hugging Face's inference API and endpoints for hosted models.", "resources": ["Hosted model"] },
+    { "name": "Ollama", "description": "An Ollama server, usually on the developer's machine, that serves open models.", "resources": ["Hosted model"] },
+    { "name": "Nomic", "description": "Nomic's API for embedding models.", "resources": ["Hosted model"] },
+    { "name": "Exa", "description": "Exa's web search API.", "resources": ["Web index"] },
+    { "name": "Chroma", "description": "A Chroma vector database, in process, on a server or in Chroma Cloud.", "resources": ["Vector collection"] },
+    { "name": "Qdrant", "description": "A Qdrant vector database, local, on a server or in Qdrant Cloud.", "resources": ["Vector collection"] },
+    { "name": "TypeSafe", "description": "TypeSafe's API for hosted classifiers.", "resources": ["Hosted model"] },
+    { "name": "LangSmith", "description": "LangChain's hosted platform for traces, datasets, the prompt hub and an LLM gateway.", "resources": ["Trace", "Dataset", "Hub prompt", "Hosted model"] },
+    { "name": "mermaid.ink", "description": "A public service that renders Mermaid diagrams as images.", "resources": ["Diagram"] },
+    { "name": "MCP servers", "description": "Servers that offer tools over the Model Context Protocol, local or remote.", "resources": ["MCP tool"] },
+    { "name": "Shell sandbox", "description": "The host shell, a Docker container or a Codex CLI sandbox in which the shell middleware runs commands.", "resources": ["Shell session"] },
+    { "name": "Web sites and HTTP APIs", "description": "Any web page or HTTP API the developer points a splitter, crawler or OpenAPI chain at.", "resources": ["Web resource"] },
+    { "name": "Elasticsearch", "description": "An Elasticsearch cluster queried by a classic chain.", "resources": ["Search index"] },
+    { "name": "SQL database", "description": "A SQL database (such as PostgreSQL or SQLite) that keeps index records or entity facts.", "resources": ["Database table"] },
+    { "name": "Redis", "description": "A Redis or Upstash Redis store that keeps entity facts for classic memory.", "resources": ["Key-value entry"] },
+    { "name": "models.dev", "description": "A public catalog of models and their capabilities.", "resources": ["Model catalog"] }
+  ],
+  "resources": [
+    { "name": "Agent", "description": "An agent built from a model, tools, a system prompt and middleware, which calls tools in a loop until it can answer.", "properties": ["model", "tools", "system prompt", "middleware", "response format", "name"] },
+    { "name": "Agent thread", "description": "The saved state of one conversation with an agent: its messages, structured response, pending interrupts and middleware state.", "properties": ["thread id", "messages", "structured response", "pending interrupts", "todo list", "call counts"] },
+    { "name": "Model", "description": "A configured model from a provider: a chat, completion, embedding or decision model.", "properties": ["provider", "model name", "profile", "bound tools", "structured output schema", "rate limiter", "cache setting"] },
+    { "name": "Message", "description": "A message in a conversation, from the user, the model, a tool or the system, with its content blocks, tool calls and token usage.", "properties": ["role", "id", "content blocks", "tool calls", "usage metadata", "response metadata"] },
+    { "name": "Tool", "description": "A function a model can call, with a name, a description and an argument schema.", "properties": ["name", "description", "argument schema", "error handling"] },
+    { "name": "Prompt template", "description": "A template that turns input variables into the text or messages sent to a model.", "properties": ["input variables", "template format", "partial variables"] },
+    { "name": "Chain", "description": "A runnable: one step, or steps composed in sequence, side by side, by branch or with fallbacks, that can be invoked, batched and streamed.", "properties": ["input schema", "output schema", "graph", "run config"] },
+    { "name": "Run", "description": "One execution of a chain, model, tool, retriever or agent, with its inputs, outputs, error, timing and child runs.", "properties": ["run id", "parent run", "tags", "metadata", "token usage", "error"] },
+    { "name": "Document", "description": "A piece of text or other content with metadata, loaded from a source, split into chunks, stored and retrieved.", "properties": ["id", "page content", "metadata"] },
+    { "name": "Vector store", "description": "A searchable collection of documents with their vectors, kept in memory or by a vector database.", "properties": ["embedding model", "distance", "filter"] },
+    { "name": "Response cache", "description": "Stored model responses, keyed by the prompt and the model's settings, reused for identical calls." },
+    { "name": "Conversation memory", "description": "What a chain remembers of earlier turns of a session: the messages, a summary, or facts about entities.", "properties": ["session id", "messages", "summary", "entities"] },
+    { "name": "Serialized object", "description": "The JSON form of a LangChain object, such as a prompt, chain, message or model settings, which can be stored and loaded back.", "properties": ["class path", "arguments", "secret placeholders"] },
+    { "name": "Model profile", "description": "The capabilities an integration declares for one of its models: context window, input and output types, tool calling and structured output.", "properties": ["max input tokens", "max output tokens", "input modalities", "tool calling", "structured output"] },
+    { "name": "Integration", "description": "A class that adapts one provider's model or service to a LangChain interface, such as a chat model, embeddings, vector store, retriever or tool.", "properties": ["base class", "supported features"] },
+    { "name": "Legacy chain", "description": "A chain from langchain-classic, configured with its prompts, model, memory and inputs.", "properties": ["input keys", "output keys", "memory"] },
+    { "name": "Legacy agent", "description": "An agent made with langchain-classic's constructors and run by its agent executor, with its tools and limits.", "properties": ["tools", "max iterations", "early stopping method", "intermediate steps"] },
+    { "name": "Agent scratchpad", "description": "The actions a legacy agent has taken in the current run and what each tool returned.", "properties": ["actions", "observations"] },
+    { "name": "Evaluation", "description": "A score, value and reasoning that an evaluator gives one output, optionally against a reference or another output.", "properties": ["key", "score", "value", "reasoning"] },
+    { "name": "Example", "description": "An input and output pair that a few-shot prompt can show the model.", "properties": ["input", "output"] },
+    { "name": "Hosted model", "description": "A model served by a provider, which generates replies, vectors, classifications or rankings on request.", "properties": ["model name"] },
+    { "name": "Web index", "description": "A search service's index of web pages." },
+    { "name": "Vector collection", "description": "A collection of vectors with their documents and metadata in a vector database." },
+    { "name": "Trace", "description": "A run tree recorded in a LangSmith project, with its feedback.", "properties": ["project", "runs", "feedback"] },
+    { "name": "Dataset", "description": "A set of examples kept in LangSmith for testing and evaluation.", "properties": ["examples"] },
+    { "name": "Hub prompt", "description": "A prompt saved in LangSmith's prompt hub, with its versions.", "properties": ["owner", "name", "commit"] },
+    { "name": "Diagram", "description": "An image rendered from a Mermaid description." },
+    { "name": "MCP tool", "description": "A tool an MCP server offers, with its name, description and input schema." },
+    { "name": "Shell session", "description": "A persistent shell in which commands run, with its working directory and environment." },
+    { "name": "Web resource", "description": "A web page or HTTP API operation reached by URL." },
+    { "name": "Assistant thread", "description": "A conversation thread with an assistant on OpenAI's Assistants API, with its runs." },
+    { "name": "Search index", "description": "An Elasticsearch index of records." },
+    { "name": "Database table", "description": "A table of rows in a SQL database." },
+    { "name": "Key-value entry", "description": "A value stored under a key in Redis." },
+    { "name": "Model catalog", "description": "models.dev's list of providers and models with their capabilities and limits." }
+  ],
+  "interfaces": [
+    { "name": "langchain package", "description": "The `langchain` Python package: create_agent, middleware, init_chat_model, init_embeddings and the MCP adapter." },
+    { "name": "langchain-core package", "description": "The `langchain-core` Python package: models, messages, tools, prompts, runnables, documents, vector stores, callbacks and serialization." },
+    { "name": "langchain-classic package", "description": "The `langchain-classic` Python package: legacy chains, agents, memory, retrievers, evaluators and old import paths." },
+    { "name": "langchain-text-splitters package", "description": "The `langchain-text-splitters` Python package of text splitters." },
+    { "name": "integration packages", "description": "The provider packages, such as langchain-openai, langchain-anthropic, langchain-ollama and langchain-chroma." },
+    { "name": "langchain-tests package", "description": "The `langchain-tests` Python package of pytest base classes for standard tests." },
+    { "name": "langchain-profiles command", "description": "The `langchain-profiles` command line tool, with refresh and summarize commands." },
+    { "name": "langchain-core public API", "description": "The base classes and functions langchain-core exports, as other LangChain packages import them, together with the internal helpers those packages share: deprecation decorators (_api), the SSRF-safe HTTP client (_security) and the LangSmith gateway settings (utils/_gateway.py)." },
+    { "name": "text splitter API", "description": "The splitter classes langchain-text-splitters exports, with split_text and split_documents." },
+    { "name": "OpenAI API", "description": "OpenAI's HTTP API through the openai SDK, with OPENAI_API_KEY." },
+    { "name": "Azure OpenAI API", "description": "Azure OpenAI's HTTP API through the openai SDK, with an Azure endpoint and key or token." },
+    { "name": "ChatGPT Codex backend", "description": "ChatGPT's Codex backend at chatgpt.com, with tokens from an OAuth sign-in at auth.openai.com." },
+    { "name": "Anthropic API", "description": "Anthropic's Messages API through the anthropic SDK, with ANTHROPIC_API_KEY." },
+    { "name": "Groq API", "description": "Groq's API through the groq SDK, with GROQ_API_KEY." },
+    { "name": "Mistral AI API", "description": "Mistral AI's HTTP API, with MISTRAL_API_KEY." },
+    { "name": "Fireworks AI API", "description": "Fireworks AI's API through its SDK, with FIREWORKS_API_KEY." },
+    { "name": "DeepSeek API", "description": "DeepSeek's OpenAI-compatible API, with DEEPSEEK_API_KEY." },
+    { "name": "xAI API", "description": "xAI's OpenAI-compatible API, with XAI_API_KEY." },
+    { "name": "OpenRouter API", "description": "OpenRouter's API through its SDK, with OPENROUTER_API_KEY." },
+    { "name": "Perplexity API", "description": "Perplexity's API through its SDK, with PERPLEXITY_API_KEY." },
+    { "name": "Hugging Face Inference API", "description": "Hugging Face's inference API and endpoints through huggingface-hub, with HUGGINGFACEHUB_API_TOKEN." },
+    { "name": "Ollama API", "description": "An Ollama server's API through the ollama SDK." },
+    { "name": "Nomic API", "description": "Nomic's API through the nomic SDK, with NOMIC_API_KEY." },
+    { "name": "Exa API", "description": "Exa's search API through exa-py, with EXA_API_KEY." },
+    { "name": "Chroma client", "description": "The chromadb client, in process or connected to a Chroma server." },
+    { "name": "Qdrant client", "description": "The qdrant-client library, local or connected to a Qdrant server, with QDRANT_API_KEY." },
+    { "name": "TypeSafe API", "description": "TypeSafe's HTTP API, with TYPESAFE_API_KEY." },
+    { "name": "LangSmith API", "description": "LangSmith's API through the langsmith SDK, with LANGSMITH_API_KEY; tracing is switched on by LANGSMITH_TRACING." },
+    { "name": "LangSmith LLM gateway", "description": "LangSmith's OpenAI-compatible gateway that proxies model calls, set by LANGSMITH_GATEWAY." },
+    { "name": "mermaid.ink API", "description": "mermaid.ink's public rendering endpoint." },
+    { "name": "MCP protocol", "description": "The Model Context Protocol over stdio or HTTP, through fastmcp." },
+    { "name": "shell subprocess", "description": "A shell process started on the host, with docker, or with the codex command." },
+    { "name": "HTTP", "description": "Plain HTTP requests, through core's SSRF-safe client, requests, or a Playwright browser." },
+    { "name": "Elasticsearch API", "description": "Elasticsearch's API through the elasticsearch client." },
+    { "name": "SQL connection", "description": "A database connection through SQLAlchemy or sqlite3." },
+    { "name": "Redis protocol", "description": "Redis through the redis or upstash-redis client." },
+    { "name": "models.dev API", "description": "The JSON catalog at models.dev/api.json." },
+    { "name": "middleware hooks", "description": "The AgentMiddleware hooks: before_agent, before_model, wrap_model_call, after_model, wrap_tool_call, after_agent." },
+    { "name": "init_chat_model", "description": "The init_chat_model and init_embeddings functions of the `langchain` package, and the private _attempt_infer_model_provider that middleware also calls." },
+    { "name": "callback manager", "description": "CallbackManager.configure and the run managers' on_*_start, on_*_end and on_*_error methods, plus the streaming-handler protocol (the private tracers/_streaming.py) that lets tracers receive a stream as it is produced." },
+    { "name": "Runnable composition", "description": "RunnableSequence, RunnableMap, RunnablePassthrough and the | operator." },
+    { "name": "output parser contract", "description": "BaseOutputParser's parse and parse_result, and the tool-call parsers." },
+    { "name": "tool schema conversion", "description": "convert_to_openai_tool and convert_to_openai_function." },
+    { "name": "serialization functions", "description": "dumpd, dumps, load and loads." },
+    { "name": "embeddings contract", "description": "Embeddings.embed_documents and embed_query." },
+    { "name": "vector store contract", "description": "VectorStore's add_documents, add_texts, delete and search methods, and DocumentIndex.upsert." },
+    { "name": "retriever contract", "description": "BaseRetriever.invoke and ainvoke." },
+    { "name": "memory contract", "description": "BaseMemory's load_memory_variables, save_context and clear." },
+    { "name": "Chain contract", "description": "Chain's invoke, run and predict, as LLMChain offers them." },
+    { "name": "query constructor", "description": "load_query_constructor_runnable of the classic chains." },
+    { "name": "evaluator loader", "description": "load_evaluator and the evaluators' evaluate_strings." },
+    { "name": "callback handler contract", "description": "BaseCallbackHandler's on_chain_start, on_llm_new_token, on_tool_end and other event methods." },
+    { "name": "example selector contract", "description": "BaseExampleSelector's select_examples and add_example." },
+    { "name": "agent planning contract", "description": "The classic agents' plan and aplan, returning an action or a final answer." },
+    { "name": "document compressor contract", "description": "BaseDocumentCompressor.compress_documents." }
+  ],
+  "places": [
+    { "place": "Tests", "kind": "tooling", "paths": ["libs/**/tests/**"] },
+    { "place": "Generated output", "kind": "excluded", "paths": ["openwiki/**", "**/data/_profiles.py"] },
+    { "place": "Dependency locks", "kind": "excluded", "paths": ["**/uv.lock"] },
+    { "place": "Licenses and citation", "kind": "excluded", "paths": ["LICENSE", "CITATION.cff", "libs/*/LICENSE", "libs/partners/*/LICENSE"] },
+    { "place": "Repository and CI tooling", "kind": "tooling", "paths": [".github/**", ".devcontainer/**", ".vscode/**", ".pre-commit-config.yaml", ".editorconfig", ".gitattributes", ".gitignore", ".dockerignore", ".markdownlint.json", ".mcp.json", "AGENTS.md", "libs/Makefile", "libs/README.md", "libs/partners/Makefile", "libs/partners/README.md"] },
+    { "place": "Package build and lint tooling", "kind": "tooling", "paths": ["libs/*/Makefile", "libs/*/pyproject.toml", "libs/*/scripts/**", "libs/*/extended_testing_deps.txt", "libs/langchain/.dockerignore", "libs/langchain/.flake8", "libs/langchain/dev.Dockerfile", "libs/partners/*/Makefile", "libs/partners/*/pyproject.toml", "libs/partners/*/scripts/**", "libs/partners/*/.gitignore"] },
+    { "place": "langchain package", "kind": "interface", "paths": ["README.md", "libs/langchain_v1/README.md", "libs/langchain_v1/examples/**", "libs/langchain_v1/langchain/__init__.py", "libs/langchain_v1/langchain/py.typed", "libs/langchain_v1/langchain/messages/**", "libs/langchain_v1/langchain/tools/**", "libs/langchain_v1/langchain/rate_limiters/**"] },
+    { "place": "langchain-core package", "kind": "interface", "paths": ["libs/core/README.md"] },
+    { "place": "langchain-classic package", "kind": "interface", "paths": ["libs/langchain/README.md"] },
+    { "place": "langchain-text-splitters package", "kind": "interface", "paths": ["libs/text-splitters/README.md"] },
+    { "place": "integration packages", "kind": "interface", "paths": ["libs/partners/*/README.md"] },
+    { "place": "langchain-tests package", "kind": "interface", "paths": ["libs/standard-tests/README.md"] },
+    { "place": "langchain-profiles command", "kind": "interface", "paths": ["libs/model-profiles/README.md"] },
+    { "place": "Agent framework", "kind": "component", "paths": ["libs/langchain_v1/langchain/mcp/**"] },
+    { "place": "Agent loop", "kind": "component", "paths": ["libs/langchain_v1/langchain/agents/*.py", "libs/langchain_v1/langchain/agents/middleware/_trace_policy.py", "libs/langchain_v1/langchain/agents/middleware/internal_call_transformer.py"] },
+    { "place": "Middleware", "kind": "component", "paths": ["libs/langchain_v1/langchain/agents/middleware/**", "libs/partners/anthropic/langchain_anthropic/middleware/**", "libs/partners/openai/langchain_openai/middleware/**", "libs/partners/fireworks/langchain_fireworks/middleware/**", "libs/partners/typesafe/langchain_typesafe/experimental/**"] },
+    { "place": "Model initializer", "kind": "component", "paths": ["libs/langchain_v1/langchain/chat_models/**", "libs/langchain_v1/langchain/embeddings/**"] },
+    { "place": "Agent framework compatibility re-exports", "kind": "cleanup", "paths": ["libs/langchain_v1/langchain/tools/tool_node.py"] },
+    { "place": "Runnable runtime", "kind": "component", "paths": ["libs/core/langchain_core/runnables/**"] },
+    { "place": "Callback manager", "kind": "component", "paths": ["libs/core/langchain_core/callbacks/manager.py", "libs/core/langchain_core/tracers/context.py"] },
+    { "place": "Tracers and handlers", "kind": "component", "paths": ["libs/core/langchain_core/callbacks/**", "libs/core/langchain_core/tracers/**"] },
+    { "place": "Models", "kind": "component", "paths": ["libs/core/langchain_core/language_models/**", "libs/core/langchain_core/outputs/**", "libs/core/langchain_core/caches.py", "libs/core/langchain_core/rate_limiters.py", "libs/core/langchain_core/embeddings/**", "libs/core/langchain_core/decisions/**", "libs/partners/anthropic/langchain_anthropic/**", "libs/partners/deepseek/langchain_deepseek/**", "libs/partners/fireworks/langchain_fireworks/**", "libs/partners/groq/langchain_groq/**", "libs/partners/huggingface/langchain_huggingface/**", "libs/partners/mistralai/langchain_mistralai/**", "libs/partners/nomic/langchain_nomic/**", "libs/partners/ollama/langchain_ollama/**", "libs/partners/openai/langchain_openai/**", "libs/partners/openrouter/langchain_openrouter/**", "libs/partners/perplexity/langchain_perplexity/**", "libs/partners/typesafe/langchain_typesafe/**", "libs/partners/xai/langchain_xai/**"] },
+    { "place": "Tools", "kind": "component", "paths": ["libs/core/langchain_core/tools/**", "libs/core/langchain_core/utils/function_calling.py", "libs/partners/exa/langchain_exa/tools.py", "libs/partners/perplexity/langchain_perplexity/tools.py", "libs/partners/openai/langchain_openai/tools/**"] },
+    { "place": "Prompt templates", "kind": "component", "paths": ["libs/core/langchain_core/prompts/**", "libs/core/langchain_core/prompt_values.py"] },
+    { "place": "Example selectors", "kind": "component", "paths": ["libs/core/langchain_core/example_selectors/**"] },
+    { "place": "Output parsers", "kind": "component", "paths": ["libs/core/langchain_core/output_parsers/**", "libs/partners/openai/langchain_openai/output_parsers/**", "libs/partners/anthropic/langchain_anthropic/output_parsers.py", "libs/partners/perplexity/langchain_perplexity/output_parsers.py"] },
+    { "place": "Documents and retrieval", "kind": "component", "paths": ["libs/core/langchain_core/documents/**", "libs/core/langchain_core/document_loaders/**", "libs/core/langchain_core/vectorstores/**", "libs/core/langchain_core/retrievers.py", "libs/core/langchain_core/indexing/in_memory.py", "libs/core/langchain_core/cross_encoders.py", "libs/core/langchain_core/structured_query.py", "libs/partners/chroma/langchain_chroma/**", "libs/partners/qdrant/langchain_qdrant/**", "libs/partners/exa/langchain_exa/**", "libs/partners/perplexity/langchain_perplexity/retrievers.py", "libs/partners/fireworks/langchain_fireworks/rerank.py"] },
+    { "place": "Indexing", "kind": "component", "paths": ["libs/core/langchain_core/indexing/**"] },
+    { "place": "Serialization", "kind": "component", "paths": ["libs/core/langchain_core/load/**"] },
+    { "place": "Message types", "kind": "library", "paths": ["libs/core/langchain_core/messages/**"] },
+    { "place": "Storage contracts", "kind": "library", "paths": ["libs/core/langchain_core/stores.py", "libs/core/langchain_core/chat_history.py"] },
+    { "place": "Core shared libraries", "kind": "library", "paths": ["libs/core/langchain_core/_api/**", "libs/core/langchain_core/_import_utils.py", "libs/core/langchain_core/_security/**", "libs/core/langchain_core/utils/**", "libs/core/langchain_core/env.py", "libs/core/langchain_core/globals.py", "libs/core/langchain_core/sys_info.py", "libs/core/langchain_core/version.py", "libs/core/langchain_core/exceptions.py", "libs/core/langchain_core/__init__.py", "libs/core/langchain_core/py.typed"] },
+    { "place": "Core legacy schemas", "kind": "cleanup", "paths": ["libs/core/langchain_core/agents.py", "libs/core/langchain_core/chat_loaders.py", "libs/core/langchain_core/chat_sessions.py", "libs/core/langchain_core/prompts/loading.py"] },
+    { "place": "Text splitters", "kind": "component", "paths": ["libs/text-splitters/langchain_text_splitters/**"] },
+    { "place": "Classic chains", "kind": "component", "paths": ["libs/langchain/langchain_classic/storage/**", "libs/langchain/langchain_classic/indexes/**", "libs/langchain/langchain_classic/embeddings/cache.py", "libs/langchain/langchain_classic/callbacks/**"] },
+    { "place": "Legacy chains", "kind": "component", "paths": ["libs/langchain/langchain_classic/chains/**"] },
+    { "place": "Agent executor", "kind": "component", "paths": ["libs/langchain/langchain_classic/agents/agent.py", "libs/langchain/langchain_classic/agents/agent_iterator.py"] },
+    { "place": "Agent types", "kind": "component", "paths": ["libs/langchain/langchain_classic/agents/**", "libs/langchain/langchain_classic/agents/agent_toolkits/conversational_retrieval/**"] },
+    { "place": "Memory", "kind": "component", "paths": ["libs/langchain/langchain_classic/memory/**", "libs/langchain/langchain_classic/base_memory.py"] },
+    { "place": "Evaluation", "kind": "component", "paths": ["libs/langchain/langchain_classic/evaluation/**"] },
+    { "place": "Dataset runner", "kind": "component", "paths": ["libs/langchain/langchain_classic/smith/**"] },
+    { "place": "Retriever variants", "kind": "component", "paths": ["libs/langchain/langchain_classic/retrievers/**"] },
+    { "place": "Document compressors", "kind": "component", "paths": ["libs/langchain/langchain_classic/retrievers/document_compressors/**"] },
+    { "place": "Classic output parsers", "kind": "component", "paths": ["libs/langchain/langchain_classic/output_parsers/**"] },
+    { "place": "Classic library helpers", "kind": "library", "paths": ["libs/langchain/langchain_classic/_api/**", "libs/langchain/langchain_classic/utils/**", "libs/langchain/langchain_classic/env.py", "libs/langchain/langchain_classic/model_laboratory.py", "libs/langchain/langchain_classic/runnables/**", "libs/langchain/langchain_classic/py.typed"] },
+    { "place": "Classic import shims and pass-through modules", "kind": "cleanup", "paths": ["libs/langchain/langchain_classic/__init__.py", "libs/langchain/langchain_classic/adapters/**", "libs/langchain/langchain_classic/chat_loaders/**", "libs/langchain/langchain_classic/chat_models/**", "libs/langchain/langchain_classic/docstore/**", "libs/langchain/langchain_classic/document_loaders/**", "libs/langchain/langchain_classic/document_transformers/**", "libs/langchain/langchain_classic/embeddings/**", "libs/langchain/langchain_classic/graphs/**", "libs/langchain/langchain_classic/llms/**", "libs/langchain/langchain_classic/load/**", "libs/langchain/langchain_classic/prompts/**", "libs/langchain/langchain_classic/schema/**", "libs/langchain/langchain_classic/tools/**", "libs/langchain/langchain_classic/utilities/**", "libs/langchain/langchain_classic/vectorstores/**", "libs/langchain/langchain_classic/agents/agent_toolkits/**", "libs/langchain/langchain_classic/agents/initialize.py", "libs/langchain/langchain_classic/agents/loading.py", "libs/langchain/langchain_classic/indexes/_api.py", "libs/langchain/langchain_classic/indexes/graph.py", "libs/langchain/langchain_classic/hub.py", "libs/langchain/langchain_classic/runnables/hub.py", "libs/langchain/langchain_classic/base_language.py", "libs/langchain/langchain_classic/cache.py", "libs/langchain/langchain_classic/example_generator.py", "libs/langchain/langchain_classic/formatting.py", "libs/langchain/langchain_classic/globals.py", "libs/langchain/langchain_classic/input.py", "libs/langchain/langchain_classic/python.py", "libs/langchain/langchain_classic/requests.py", "libs/langchain/langchain_classic/serpapi.py", "libs/langchain/langchain_classic/sql_database.py", "libs/langchain/langchain_classic/text_splitter.py"] },
+    { "place": "Standard tests", "kind": "component", "paths": ["libs/standard-tests/langchain_tests/**"] },
+    { "place": "Model profile refresher", "kind": "component", "paths": ["libs/model-profiles/langchain_model_profiles/**"] }
+  ],
+  "boundaries": [
+    {
+      "consumer": "Application developer",
+      "provider": "LangChain",
+      "interfaces": ["langchain package", "langchain-core package", "langchain-classic package", "langchain-text-splitters package", "integration packages"],
+      "areas": [
+        {
+          "name": "Build LLM apps and agents",
+          "type": "core",
+          "description": "Create and run agents, call any provider's models, define tools, write prompts, compose chains and retrieve from documents.",
+          "capabilities": [
+            { "name": "Create agent", "takes": "a model or a \"provider:model\" name, tools, a system prompt, middleware and an optional response format", "gives": "an agent ready to run", "acts": [{ "mode": "produces", "resource": "Agent" }], "interfaces": ["langchain package"] },
+            { "name": "Run agent", "takes": "input messages, a thread id and runtime context", "gives": "the final messages and structured response, or a stream of steps and tokens", "acts": [{ "mode": "mutates", "resource": "Agent thread" }, { "mode": "produces", "resource": "Message" }], "interfaces": ["langchain package"] },
+            { "name": "Resume paused agent", "takes": "decisions on the tool calls waiting for review (approve, edit, reject or respond), or answers to an MCP server's questions", "gives": "the run continued from where it paused", "acts": [{ "mode": "mutates", "resource": "Agent thread" }], "interfaces": ["langchain package"] },
+            { "name": "Choose model", "takes": "a \"provider:model\" name, or an integration's class, with settings such as temperature, rate limiter and cache", "gives": "a model client for that provider, with its profile", "acts": [{ "mode": "produces", "resource": "Model" }], "interfaces": ["langchain package", "integration packages"] },
+            { "name": "Call chat model", "takes": "messages, and optionally tools the model may call", "gives": "an AI message, or a stream of chunks, with content blocks, tool calls and token usage", "acts": [{ "mode": "produces", "resource": "Message" }], "interfaces": ["langchain-core package", "integration packages"] },
+            { "name": "Get structured output", "takes": "messages and a schema (a Pydantic model, a typed dict or a JSON schema)", "gives": "an object that matches the schema", "acts": [{ "mode": "produces", "resource": "Message" }], "interfaces": ["langchain package", "langchain-core package", "integration packages"] },
+            { "name": "Embed text", "takes": "texts or a query", "gives": "one vector per text", "acts": [{ "mode": "produces", "resource": "Model" }], "interfaces": ["langchain package", "langchain-core package", "integration packages"] },
+            { "name": "Define tool", "takes": "a function, or a schema, with a name and description", "gives": "a tool a model can call, with its argument schema", "acts": [{ "mode": "produces", "resource": "Tool" }], "interfaces": ["langchain package", "langchain-core package", "integration packages"] },
+            { "name": "Use MCP server tools", "takes": "the URL or command of one or more MCP servers", "gives": "the servers' tools as LangChain tools", "acts": [{ "mode": "produces", "resource": "Tool" }], "interfaces": ["langchain package"] },
+            { "name": "Build prompt template", "takes": "a template string or messages with variables, optionally with examples", "gives": "a prompt template that renders text or messages", "acts": [{ "mode": "produces", "resource": "Prompt template" }], "interfaces": ["langchain-core package"] },
+            { "name": "Compose chain", "takes": "steps: prompts, models, parsers, retrievers, tools and functions", "gives": "a chain that runs them in sequence, side by side, by branch, with retries or with fallbacks", "acts": [{ "mode": "produces", "resource": "Chain" }], "interfaces": ["langchain-core package"] },
+            { "name": "Run chain", "takes": "a chain and its input, or a batch of inputs", "gives": "the output, the batch's outputs, or a stream of output chunks", "acts": [{ "mode": "produces", "resource": "Chain" }], "interfaces": ["langchain-core package"] },
+            { "name": "Draw chain", "takes": "a chain", "gives": "its graph as ASCII art, Mermaid text or a PNG image", "acts": [{ "mode": "observes", "resource": "Chain" }], "interfaces": ["langchain-core package"] },
+            { "name": "Parse model output", "takes": "a model's output and a parser (JSON, Pydantic, XML, list and others)", "gives": "structured data, also while the output streams", "acts": [{ "mode": "observes", "resource": "Message" }], "interfaces": ["langchain-core package", "langchain-classic package", "integration packages"] },
+            { "name": "Load documents", "takes": "a source, through a document loader", "gives": "documents with their metadata", "acts": [{ "mode": "produces", "resource": "Document" }], "interfaces": ["langchain-core package", "langchain-classic package"] },
+            { "name": "Split documents", "takes": "documents or text, with a chunk size and overlap, or a format such as Markdown, HTML, JSON or code", "gives": "chunk documents", "acts": [{ "mode": "produces", "resource": "Document" }], "interfaces": ["langchain-text-splitters package"] },
+            { "name": "Add documents to vector store", "takes": "documents and optional ids", "gives": "the ids of the stored documents", "acts": [{ "mode": "mutates", "resource": "Vector store" }], "interfaces": ["langchain-core package", "integration packages"] },
+            { "name": "Search vector store", "takes": "a query, a number of results, and optionally a filter or a diversity setting", "gives": "the most similar documents, with scores", "acts": [{ "mode": "observes", "resource": "Vector store" }], "interfaces": ["langchain-core package", "integration packages"] },
+            { "name": "Retrieve documents", "takes": "a query", "gives": "the relevant documents, from a vector store, a search service or a classic retriever", "acts": [{ "mode": "observes", "resource": "Vector store" }, { "mode": "produces", "resource": "Document" }], "interfaces": ["langchain-core package", "langchain-classic package", "integration packages"] },
+            { "name": "Sync documents into vector store", "takes": "documents or a loader, a record manager and a cleanup mode", "gives": "the number of documents added, updated, skipped and deleted", "acts": [{ "mode": "mutates", "resource": "Vector store" }], "interfaces": ["langchain-core package", "langchain-classic package"] }
+          ]
+        },
+        {
+          "name": "Observe runs",
+          "type": "supporting",
+          "description": "Follow what each model, tool, retriever, chain and agent call does, in code or in LangSmith.",
+          "capabilities": [
+            { "name": "Follow run events", "takes": "callback handlers, or a request to stream events", "gives": "start, token, end and error events for every step, with token usage", "acts": [{ "mode": "observes", "resource": "Run" }], "interfaces": ["langchain-core package"] },
+            { "name": "Trace runs to LangSmith", "takes": "LangSmith settings in the environment, or a tracing context", "gives": "every run recorded as a trace in a LangSmith project", "acts": [{ "mode": "produces", "resource": "Run" }], "interfaces": ["langchain-core package"] }
+          ]
+        },
+        {
+          "name": "Cache model responses",
+          "type": "supporting",
+          "description": "Skip repeated identical model calls with a response cache.",
+          "capabilities": [
+            { "name": "Cache model responses", "takes": "a cache, set for all models or for one", "gives": "the stored response when an identical call repeats", "acts": [{ "mode": "mutates", "resource": "Response cache" }], "interfaces": ["langchain-core package"] }
+          ]
+        },
+        {
+          "name": "Save and load objects",
+          "type": "supporting",
+          "description": "Store prompts, chains, messages and model settings as JSON and rebuild them later.",
+          "capabilities": [
+            { "name": "Save object", "takes": "a prompt, chain, message or model", "gives": "its JSON form, with secrets left out", "acts": [{ "mode": "produces", "resource": "Serialized object" }], "interfaces": ["langchain-core package"] },
+            { "name": "Load object", "takes": "a saved JSON form and the classes allowed", "gives": "the object rebuilt", "acts": [{ "mode": "observes", "resource": "Serialized object" }], "interfaces": ["langchain-core package"] }
+          ]
+        },
+        {
+          "name": "Keep using classic chains",
+          "type": "supporting",
+          "description": "Run the legacy chains, agents, memory and evaluators that langchain-classic keeps for existing applications.",
+          "capabilities": [
+            { "name": "Run legacy chain", "takes": "a classic chain (retrieval QA, conversational retrieval, summarize, document combining, routing, SQL or API chain) and its inputs", "gives": "the chain's outputs", "acts": [{ "mode": "produces", "resource": "Legacy chain" }], "interfaces": ["langchain-classic package"] },
+            { "name": "Remember conversation", "takes": "a memory attached to a chain, or a chat history for a session", "gives": "earlier turns, a summary or known entities added to each new prompt", "acts": [{ "mode": "mutates", "resource": "Conversation memory" }], "interfaces": ["langchain-classic package", "langchain-core package"] },
+            { "name": "Run legacy agent", "takes": "an agent made with a classic constructor, its tools and an input", "gives": "the final answer and the intermediate steps", "acts": [{ "mode": "produces", "resource": "Legacy agent" }], "interfaces": ["langchain-classic package"] },
+            { "name": "Evaluate output", "takes": "a prediction, an optional reference and input, and an evaluator name or criteria", "gives": "a score, a value and reasoning", "acts": [{ "mode": "produces", "resource": "Evaluation" }], "interfaces": ["langchain-classic package"] },
+            { "name": "Evaluate on dataset", "takes": "a chain or model, the name of a LangSmith dataset and evaluators", "gives": "a test project with each example's result and feedback", "acts": [{ "mode": "produces", "resource": "Evaluation" }], "interfaces": ["langchain-classic package"] },
+            { "name": "Pull prompt from hub", "takes": "the name of a prompt in LangSmith's hub", "gives": "the prompt template", "acts": [{ "mode": "produces", "resource": "Prompt template" }], "interfaces": ["langchain-classic package"] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "README.md", "shows": "LangChain as a framework for agents and LLM apps; the quickstart calls init_chat_model(\"openai:gpt-5.5\").invoke" },
+        { "path": "libs/langchain_v1/langchain/agents/factory.py", "shows": "create_agent's parameters: model, tools, system_prompt, middleware, response_format, checkpointer, store, interrupts" },
+        { "path": "libs/langchain_v1/langchain/agents/middleware/human_in_the_loop.py", "shows": "tool calls paused for review and resumed with approve, edit, reject or respond decisions" },
+        { "path": "libs/langchain_v1/langchain/chat_models/base.py", "shows": "init_chat_model and its table of providers" },
+        { "path": "libs/langchain_v1/langchain/mcp/adapter.py", "shows": "MCPAdapter.list_tools turning an MCP server's tools into LangChain tools" },
+        { "path": "libs/core/langchain_core/language_models/chat_models.py", "shows": "BaseChatModel invoke, stream, batch, bind_tools and with_structured_output" },
+        { "path": "libs/core/langchain_core/tools/convert.py", "shows": "the @tool decorator that turns functions into tools" },
+        { "path": "libs/core/langchain_core/prompts/chat.py", "shows": "ChatPromptTemplate" },
+        { "path": "libs/core/langchain_core/runnables/base.py", "shows": "Runnable composition, invoke, batch, stream and astream_events" },
+        { "path": "libs/core/langchain_core/vectorstores/base.py", "shows": "VectorStore add_documents, similarity_search, max_marginal_relevance_search and as_retriever" },
+        { "path": "libs/core/langchain_core/indexing/api.py", "shows": "index() returning added, updated, skipped and deleted counts" },
+        { "path": "libs/text-splitters/langchain_text_splitters/character.py", "shows": "RecursiveCharacterTextSplitter" },
+        { "path": "libs/core/langchain_core/tracers/langchain.py", "shows": "LangChainTracer sending runs to LangSmith" },
+        { "path": "libs/core/langchain_core/caches.py", "shows": "BaseCache and InMemoryCache for model responses" },
+        { "path": "libs/core/langchain_core/load/load.py", "shows": "loads with allowed_objects" },
+        { "path": "libs/langchain/README.md", "shows": "langchain-classic as legacy chains, community re-exports, indexing API and deprecated functionality" },
+        { "path": "libs/langchain/langchain_classic/chains/base.py", "shows": "the classic Chain contract with memory" },
+        { "path": "libs/langchain/langchain_classic/evaluation/loading.py", "shows": "load_evaluator and the evaluator registry" },
+        { "path": "libs/langchain/langchain_classic/smith/evaluation/runner_utils.py", "shows": "run_on_dataset over a LangSmith dataset" },
+        { "path": "libs/langchain/langchain_classic/hub.py", "shows": "hub pull and push, deprecated" }
+      ]
+    },
+    {
+      "consumer": "Integration author",
+      "provider": "LangChain",
+      "interfaces": ["langchain-core package", "langchain-tests package", "langchain-profiles command"],
+      "areas": [
+        {
+          "name": "Build integrations",
+          "type": "core",
+          "description": "Make a provider's model or service usable everywhere in LangChain and check that it behaves to standard.",
+          "capabilities": [
+            { "name": "Implement integration", "takes": "the provider's calls written into a base class's required methods (_generate and _stream for chat models, embed_documents and embed_query for embeddings, add_texts and similarity_search for vector stores, _get_relevant_documents for retrievers, _run for tools)", "gives": "a class with LangChain's standard behaviour: invoke, stream, batch, callbacks, caching, tool binding, structured output and standard content blocks", "acts": [{ "mode": "produces", "resource": "Integration" }], "interfaces": ["langchain-core package"] },
+            { "name": "Run standard tests", "takes": "the integration class, its constructor parameters and the features it supports", "gives": "a pass, a fail or an expected failure for each standard behaviour, against the live service or recorded responses", "acts": [{ "mode": "observes", "resource": "Integration" }], "interfaces": ["langchain-tests package"] }
+          ]
+        },
+        {
+          "name": "Keep model profiles current",
+          "type": "supporting",
+          "description": "Refresh the capability data an integration publishes for each of its models.",
+          "capabilities": [
+            { "name": "Refresh model profiles", "takes": "a provider id and the package's data folder with its augmentations", "gives": "regenerated profile data for every model of that provider", "acts": [{ "mode": "mutates", "resource": "Model profile" }], "interfaces": ["langchain-profiles command"] },
+            { "name": "Summarize profile changes", "takes": "the profile data before and after a refresh", "gives": "a Markdown summary of new, removed and changed models", "acts": [{ "mode": "observes", "resource": "Model profile" }], "interfaces": ["langchain-profiles command"] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/core/README.md", "shows": "any provider can implement the required interface and be used across the ecosystem" },
+        { "path": "libs/core/langchain_core/language_models/chat_models.py", "shows": "BaseChatModel's abstract _generate and optional _stream around the shared call path" },
+        { "path": "libs/core/langchain_core/messages/block_translators/__init__.py", "shows": "register_translator, through which an integration adds standard content blocks for its provider" },
+        { "path": "libs/standard-tests/README.md", "shows": "subclassing ChatModelUnitTests and ChatModelIntegrationTests with fixtures" },
+        { "path": "libs/standard-tests/langchain_tests/integration_tests/chat_models.py", "shows": "the standard chat model checks" },
+        { "path": "libs/model-profiles/README.md", "shows": "langchain-profiles refresh --provider --data-dir, from models.dev with augmentations" },
+        { "path": "libs/model-profiles/langchain_model_profiles/cli.py", "shows": "the refresh and summarize commands" },
+        { "path": "AGENTS.md", "shows": "refreshing profiles for a partner in an external repository" }
+      ]
+    },
+    {
+      "consumer": "Agent framework",
+      "provider": "Core abstractions",
+      "interfaces": ["langchain-core public API"],
+      "areas": [
+        {
+          "name": "Call models and tools",
+          "type": "core",
+          "description": "Use chat models, decision models, tools and messages through LangChain's standard interfaces while an agent runs.",
+          "capabilities": [
+            { "name": "Create model", "takes": "an integration's class, a model name and settings", "gives": "a configured chat or embedding model", "acts": [{ "mode": "produces", "resource": "Model" }] },
+            { "name": "Call chat model", "takes": "messages and the tools the model may call", "gives": "an AI message with content blocks, tool calls and usage", "acts": [{ "mode": "produces", "resource": "Message" }] },
+            { "name": "Run tool", "takes": "a tool call from the model", "gives": "a tool message with the result, an artifact or the error", "acts": [{ "mode": "produces", "resource": "Message" }] },
+            { "name": "Ask decision model", "takes": "a question and the content to judge", "gives": "a typed answer (a choice, a score or yes or no) with its confidence", "acts": [{ "mode": "produces", "resource": "Model" }] },
+            { "name": "Define tool", "takes": "a function, or an MCP tool's schema", "gives": "a LangChain tool", "acts": [{ "mode": "produces", "resource": "Tool" }] },
+            { "name": "Trim messages", "takes": "messages and a token budget", "gives": "the messages that fit", "acts": [{ "mode": "observes", "resource": "Message" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/langchain_v1/langchain/agents/factory.py", "shows": "imports BaseChatModel, messages and BaseTool; binds tools to the model and calls it" },
+        { "path": "libs/langchain_v1/langchain/agents/middleware/summarization.py", "shows": "trim_messages, count_tokens_approximately and a model call" },
+        { "path": "libs/langchain_v1/langchain/agents/middleware/auto_mode.py", "shows": "BaseDecisionModel.invoke with risk questions" },
+        { "path": "libs/langchain_v1/langchain/mcp/tools.py", "shows": "MCP tools built as StructuredTool" },
+        { "path": "libs/langchain_v1/langchain/chat_models/base.py", "shows": "_get_chat_model_creator importing an integration module and calling its class" },
+        { "path": "libs/core/langchain_core/tools/base.py", "shows": "BaseTool.invoke with a tool call" },
+        { "path": "libs/core/langchain_core/decisions/base.py", "shows": "BaseDecisionModel.invoke" }
+      ]
+    },
+    {
+      "consumer": "Classic chains",
+      "provider": "Core abstractions",
+      "interfaces": ["langchain-core public API"],
+      "areas": [
+        {
+          "name": "Build on core abstractions",
+          "type": "core",
+          "description": "Run classic chains, agents, memory and retrievers on core's models, prompts, parsers, retrievers, stores, tools and callbacks.",
+          "capabilities": [
+            { "name": "Call chat model", "takes": "a prompt or messages", "gives": "the model's reply", "acts": [{ "mode": "produces", "resource": "Message" }] },
+            { "name": "Embed text", "takes": "texts or a query", "gives": "their vectors", "acts": [{ "mode": "produces", "resource": "Model" }] },
+            { "name": "Render prompt", "takes": "a prompt template and its variables", "gives": "the text or messages", "acts": [{ "mode": "observes", "resource": "Prompt template" }] },
+            { "name": "Parse output", "takes": "a model's output", "gives": "structured data, or an agent action", "acts": [{ "mode": "observes", "resource": "Message" }] },
+            { "name": "Retrieve documents", "takes": "a query", "gives": "the relevant documents", "acts": [{ "mode": "observes", "resource": "Vector store" }] },
+            { "name": "Add documents", "takes": "documents", "gives": "their ids in the store", "acts": [{ "mode": "mutates", "resource": "Vector store" }] },
+            { "name": "Search documents", "takes": "a query and a number of results", "gives": "the most similar documents", "acts": [{ "mode": "observes", "resource": "Vector store" }] },
+            { "name": "Run tool", "takes": "a tool and its input", "gives": "the tool's result", "acts": [{ "mode": "produces", "resource": "Message" }] },
+            { "name": "Record run", "takes": "a chain's start, its end or its error", "gives": "the run recorded for callbacks and tracers", "acts": [{ "mode": "produces", "resource": "Run" }] },
+            { "name": "Keep chat history", "takes": "a session's new messages", "gives": "the stored history of the session", "acts": [{ "mode": "mutates", "resource": "Conversation memory" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/langchain/langchain_classic/chains/llm.py", "shows": "LLMChain calling generate_prompt on a model with a prompt and parser" },
+        { "path": "libs/langchain/langchain_classic/chains/base.py", "shows": "Chain configuring the callback manager and memory" },
+        { "path": "libs/langchain/langchain_classic/chains/retrieval_qa/base.py", "shows": "a chain calling a retriever" },
+        { "path": "libs/langchain/langchain_classic/agents/agent.py", "shows": "the executor running tools" },
+        { "path": "libs/langchain/langchain_classic/memory/chat_memory.py", "shows": "memory keeping messages in a BaseChatMessageHistory" },
+        { "path": "libs/langchain/langchain_classic/retrievers/parent_document_retriever.py", "shows": "adding documents to a vector store and a key-value store" },
+        { "path": "libs/langchain/langchain_classic/evaluation/embedding_distance/base.py", "shows": "embeddings used to score outputs" }
+      ]
+    },
+    {
+      "consumer": "Standard tests",
+      "provider": "Core abstractions",
+      "interfaces": ["langchain-core public API"],
+      "areas": [
+        {
+          "name": "Exercise integrations",
+          "type": "core",
+          "description": "Call the integration under test through core's interfaces and check what comes back.",
+          "capabilities": [
+            { "name": "Call chat model", "takes": "messages, tools and settings from the suite", "gives": "the integration's reply, whole, streamed or batched", "acts": [{ "mode": "produces", "resource": "Message" }] },
+            { "name": "Get structured output", "takes": "messages and a schema", "gives": "an object that matches the schema", "acts": [{ "mode": "produces", "resource": "Message" }] },
+            { "name": "Embed text", "takes": "texts or a query", "gives": "their vectors", "acts": [{ "mode": "produces", "resource": "Model" }] },
+            { "name": "Add documents", "takes": "documents with ids", "gives": "the stored ids", "acts": [{ "mode": "mutates", "resource": "Vector store" }] },
+            { "name": "Search documents", "takes": "a query", "gives": "the most similar documents", "acts": [{ "mode": "observes", "resource": "Vector store" }] },
+            { "name": "Retrieve documents", "takes": "a query", "gives": "the relevant documents", "acts": [{ "mode": "observes", "resource": "Vector store" }] },
+            { "name": "Run tool", "takes": "a tool call", "gives": "a tool message", "acts": [{ "mode": "produces", "resource": "Message" }] },
+            { "name": "Save object", "takes": "the integration's object", "gives": "its JSON form", "acts": [{ "mode": "produces", "resource": "Serialized object" }] },
+            { "name": "Use response cache", "takes": "prompts, model settings and generations", "gives": "the entries stored, looked up and cleared", "acts": [{ "mode": "mutates", "resource": "Response cache" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/standard-tests/langchain_tests/integration_tests/chat_models.py", "shows": "invoke, stream, batch, bind_tools and with_structured_output checks" },
+        { "path": "libs/standard-tests/langchain_tests/unit_tests/chat_models.py", "shows": "construction and serialization checks" },
+        { "path": "libs/standard-tests/langchain_tests/integration_tests/embeddings.py", "shows": "embed_documents and embed_query checks" },
+        { "path": "libs/standard-tests/langchain_tests/integration_tests/vectorstores.py", "shows": "add, search, get and delete checks" },
+        { "path": "libs/standard-tests/langchain_tests/integration_tests/retrievers.py", "shows": "retriever invoke checks" },
+        { "path": "libs/standard-tests/langchain_tests/integration_tests/tools.py", "shows": "tool invoke with a tool call" },
+        { "path": "libs/standard-tests/langchain_tests/integration_tests/cache.py", "shows": "lookup, update and clear checks on a cache" }
+      ]
+    },
+    {
+      "consumer": "Classic chains",
+      "provider": "Text splitters",
+      "interfaces": ["text splitter API"],
+      "areas": [
+        {
+          "name": "Split documents",
+          "type": "core",
+          "description": "Cut documents into chunks for retrievers, document-combining chains and the index creator.",
+          "capabilities": [
+            { "name": "Split documents", "takes": "documents or text with a chunk size and overlap", "gives": "chunk documents", "acts": [{ "mode": "produces", "resource": "Document" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/langchain/langchain_classic/retrievers/parent_document_retriever.py", "shows": "child_splitter.split_documents" },
+        { "path": "libs/langchain/langchain_classic/indexes/vectorstore.py", "shows": "RecursiveCharacterTextSplitter as the default splitter" },
+        { "path": "libs/text-splitters/langchain_text_splitters/base.py", "shows": "TextSplitter.split_documents and split_text" }
+      ]
+    },
+    {
+      "consumer": "Core abstractions",
+      "provider": "Text splitters",
+      "interfaces": ["text splitter API"],
+      "areas": [
+        {
+          "name": "Split documents",
+          "type": "core",
+          "description": "Cut loaded documents, or message text, into chunks.",
+          "capabilities": [
+            { "name": "Split documents", "takes": "loaded documents or a message's text", "gives": "chunk documents or text pieces", "acts": [{ "mode": "produces", "resource": "Document" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/core/langchain_core/document_loaders/base.py", "shows": "load_and_split defaulting to RecursiveCharacterTextSplitter" },
+        { "path": "libs/core/langchain_core/messages/utils.py", "shows": "trim_messages accepting a TextSplitter" }
+      ]
+    },
+    {
+      "consumer": "Core abstractions",
+      "provider": "OpenAI",
+      "interfaces": ["OpenAI API"],
+      "areas": [
+        {
+          "name": "Call hosted models",
+          "type": "core",
+          "description": "Get replies, vectors and classifications from OpenAI's models through the OpenAI integration.",
+          "capabilities": [
+            { "name": "Generate response", "takes": "messages, tools and settings", "gives": "the model's reply, whole or streamed", "acts": [{ "mode": "produces", "resource": "Hosted model" }] },
+            { "name": "Embed text", "takes": "texts", "gives": "their vectors", "acts": [{ "mode": "produces", "resource": "Hosted model" }] },
+            { "name": "Classify content", "takes": "a question and the content", "gives": "a typed answer with its probability", "acts": [{ "mode": "produces", "resource": "Hosted model" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/partners/openai/langchain_openai/chat_models/base.py", "shows": "ChatOpenAI calling the chat and responses endpoints with OPENAI_API_KEY" },
+        { "path": "libs/partners/openai/langchain_openai/embeddings/base.py", "shows": "OpenAIEmbeddings" },
+        { "path": "libs/partners/openai/langchain_openai/decisions/classifier.py", "shows": "OpenAIClassifier, a decision model" }
+      ]
+    },
+    {
+      "consumer": "Core abstractions",
+      "provider": "Azure OpenAI",
+      "interfaces": ["Azure OpenAI API"],
+      "areas": [
+        {
+          "name": "Call hosted models",
+          "type": "core",
+          "description": "Get replies and vectors from OpenAI models deployed on Azure.",
+          "capabilities": [
+            { "name": "Generate response", "takes": "messages, tools and settings", "gives": "the model's reply, whole or streamed", "acts": [{ "mode": "produces", "resource": "Hosted model" }] },
+            { "name": "Embed text", "takes": "texts", "gives": "their vectors", "acts": [{ "mode": "produces", "resource": "Hosted model" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/partners/openai/langchain_openai/chat_models/azure.py", "shows": "AzureChatOpenAI with AZURE_OPENAI_ENDPOINT" },
+        { "path": "libs/partners/openai/langchain_openai/embeddings/azure.py", "shows": "AzureOpenAIEmbeddings" }
+      ]
+    },
+    {
+      "consumer": "Core abstractions",
+      "provider": "ChatGPT",
+      "interfaces": ["ChatGPT Codex backend"],
+      "areas": [
+        {
+          "name": "Generate response",
+          "type": "core",
+          "description": "Get replies from the Codex models of a ChatGPT subscription (experimental, not exported).",
+          "capabilities": [
+            { "name": "Generate response", "takes": "messages and settings, with the subscription's sign-in tokens", "gives": "the model's reply", "acts": [{ "mode": "produces", "resource": "Hosted model" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/partners/openai/langchain_openai/chat_models/codex.py", "shows": "the private _ChatOpenAICodex model" },
+        { "path": "libs/partners/openai/langchain_openai/chatgpt_oauth.py", "shows": "OAuth sign-in against auth.openai.com and token refresh" }
+      ]
+    },
+    {
+      "consumer": "Core abstractions",
+      "provider": "Anthropic",
+      "interfaces": ["Anthropic API"],
+      "areas": [
+        {
+          "name": "Generate response",
+          "type": "core",
+          "description": "Get replies from Claude models.",
+          "capabilities": [
+            { "name": "Generate response", "takes": "messages, tools and settings", "gives": "the model's reply, whole or streamed", "acts": [{ "mode": "produces", "resource": "Hosted model" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/partners/anthropic/langchain_anthropic/chat_models.py", "shows": "ChatAnthropic with ANTHROPIC_API_KEY" },
+        { "path": "libs/partners/anthropic/langchain_anthropic/llms.py", "shows": "AnthropicLLM" }
+      ]
+    },
+    {
+      "consumer": "Core abstractions",
+      "provider": "Groq",
+      "interfaces": ["Groq API"],
+      "areas": [
+        {
+          "name": "Generate response",
+          "type": "core",
+          "description": "Get replies from models hosted by Groq.",
+          "capabilities": [
+            { "name": "Generate response", "takes": "messages, tools and settings", "gives": "the model's reply, whole or streamed", "acts": [{ "mode": "produces", "resource": "Hosted model" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/partners/groq/langchain_groq/chat_models.py", "shows": "ChatGroq with GROQ_API_KEY" }
+      ]
+    },
+    {
+      "consumer": "Core abstractions",
+      "provider": "Mistral AI",
+      "interfaces": ["Mistral AI API"],
+      "areas": [
+        {
+          "name": "Call hosted models",
+          "type": "core",
+          "description": "Get replies and vectors from Mistral AI's models.",
+          "capabilities": [
+            { "name": "Generate response", "takes": "messages, tools and settings", "gives": "the model's reply, whole or streamed", "acts": [{ "mode": "produces", "resource": "Hosted model" }] },
+            { "name": "Embed text", "takes": "texts", "gives": "their vectors", "acts": [{ "mode": "produces", "resource": "Hosted model" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/partners/mistralai/langchain_mistralai/chat_models.py", "shows": "ChatMistralAI with MISTRAL_API_KEY" },
+        { "path": "libs/partners/mistralai/langchain_mistralai/embeddings.py", "shows": "MistralAIEmbeddings" }
+      ]
+    },
+    {
+      "consumer": "Core abstractions",
+      "provider": "Fireworks AI",
+      "interfaces": ["Fireworks AI API"],
+      "areas": [
+        {
+          "name": "Call hosted models",
+          "type": "core",
+          "description": "Get replies, vectors and rankings from Fireworks AI's models.",
+          "capabilities": [
+            { "name": "Generate response", "takes": "messages or a prompt, tools and settings", "gives": "the model's reply, whole or streamed", "acts": [{ "mode": "produces", "resource": "Hosted model" }] },
+            { "name": "Embed text", "takes": "texts", "gives": "their vectors", "acts": [{ "mode": "produces", "resource": "Hosted model" }] },
+            { "name": "Rerank documents", "takes": "a query and documents", "gives": "the documents ordered by relevance", "acts": [{ "mode": "produces", "resource": "Hosted model" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/partners/fireworks/langchain_fireworks/chat_models.py", "shows": "ChatFireworks with FIREWORKS_API_KEY" },
+        { "path": "libs/partners/fireworks/langchain_fireworks/embeddings.py", "shows": "FireworksEmbeddings" },
+        { "path": "libs/partners/fireworks/langchain_fireworks/rerank.py", "shows": "FireworksRerank, a document compressor" }
+      ]
+    },
+    {
+      "consumer": "Core abstractions",
+      "provider": "DeepSeek",
+      "interfaces": ["DeepSeek API"],
+      "areas": [
+        {
+          "name": "Generate response",
+          "type": "core",
+          "description": "Get replies from DeepSeek's models.",
+          "capabilities": [
+            { "name": "Generate response", "takes": "messages, tools and settings", "gives": "the model's reply, whole or streamed", "acts": [{ "mode": "produces", "resource": "Hosted model" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/partners/deepseek/langchain_deepseek/chat_models.py", "shows": "ChatDeepSeek on langchain-openai's base with DEEPSEEK_API_KEY" }
+      ]
+    },
+    {
+      "consumer": "Core abstractions",
+      "provider": "xAI",
+      "interfaces": ["xAI API"],
+      "areas": [
+        {
+          "name": "Generate response",
+          "type": "core",
+          "description": "Get replies from Grok models.",
+          "capabilities": [
+            { "name": "Generate response", "takes": "messages, tools and settings", "gives": "the model's reply, whole or streamed", "acts": [{ "mode": "produces", "resource": "Hosted model" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/partners/xai/langchain_xai/chat_models.py", "shows": "ChatXAI with XAI_API_KEY" }
+      ]
+    },
+    {
+      "consumer": "Core abstractions",
+      "provider": "OpenRouter",
+      "interfaces": ["OpenRouter API"],
+      "areas": [
+        {
+          "name": "Generate response",
+          "type": "core",
+          "description": "Get replies from models that OpenRouter routes to.",
+          "capabilities": [
+            { "name": "Generate response", "takes": "messages, tools and settings", "gives": "the model's reply, whole or streamed", "acts": [{ "mode": "produces", "resource": "Hosted model" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/partners/openrouter/langchain_openrouter/chat_models.py", "shows": "ChatOpenRouter with OPENROUTER_API_KEY" }
+      ]
+    },
+    {
+      "consumer": "Core abstractions",
+      "provider": "Perplexity",
+      "interfaces": ["Perplexity API"],
+      "areas": [
+        {
+          "name": "Call hosted models",
+          "type": "core",
+          "description": "Get search-backed replies and vectors from Perplexity's models.",
+          "capabilities": [
+            { "name": "Generate response", "takes": "messages and settings, including web search options", "gives": "the model's reply with its citations", "acts": [{ "mode": "produces", "resource": "Hosted model" }] },
+            { "name": "Embed text", "takes": "texts", "gives": "their vectors", "acts": [{ "mode": "produces", "resource": "Hosted model" }] }
+          ]
+        },
+        {
+          "name": "Search the web",
+          "type": "supporting",
+          "description": "Search the web without a model reply, for the Perplexity retriever and tool.",
+          "capabilities": [
+            { "name": "Search the web", "takes": "a query", "gives": "web results with their text", "acts": [{ "mode": "observes", "resource": "Web index" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/partners/perplexity/langchain_perplexity/chat_models.py", "shows": "ChatPerplexity with PERPLEXITY_API_KEY" },
+        { "path": "libs/partners/perplexity/langchain_perplexity/embeddings.py", "shows": "PerplexityEmbeddings" },
+        { "path": "libs/partners/perplexity/langchain_perplexity/retrievers.py", "shows": "PerplexitySearchRetriever" }
+      ]
+    },
+    {
+      "consumer": "Core abstractions",
+      "provider": "Hugging Face",
+      "interfaces": ["Hugging Face Inference API"],
+      "areas": [
+        {
+          "name": "Call hosted models",
+          "type": "core",
+          "description": "Get replies and vectors from models on Hugging Face's inference service or endpoints.",
+          "capabilities": [
+            { "name": "Generate response", "takes": "messages or a prompt and settings", "gives": "the model's reply, whole or streamed", "acts": [{ "mode": "produces", "resource": "Hosted model" }] },
+            { "name": "Embed text", "takes": "texts", "gives": "their vectors", "acts": [{ "mode": "produces", "resource": "Hosted model" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/partners/huggingface/langchain_huggingface/llms/huggingface_endpoint.py", "shows": "HuggingFaceEndpoint with HUGGINGFACEHUB_API_TOKEN" },
+        { "path": "libs/partners/huggingface/langchain_huggingface/embeddings/huggingface_endpoint.py", "shows": "HuggingFaceEndpointEmbeddings" },
+        { "path": "libs/partners/huggingface/langchain_huggingface/chat_models/huggingface.py", "shows": "ChatHuggingFace" }
+      ]
+    },
+    {
+      "consumer": "Core abstractions",
+      "provider": "Ollama",
+      "interfaces": ["Ollama API"],
+      "areas": [
+        {
+          "name": "Call hosted models",
+          "type": "core",
+          "description": "Get replies and vectors from open models served by Ollama.",
+          "capabilities": [
+            { "name": "Generate response", "takes": "messages or a prompt, tools and settings", "gives": "the model's reply, whole or streamed", "acts": [{ "mode": "produces", "resource": "Hosted model" }] },
+            { "name": "Embed text", "takes": "texts", "gives": "their vectors", "acts": [{ "mode": "produces", "resource": "Hosted model" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/partners/ollama/langchain_ollama/chat_models.py", "shows": "ChatOllama" },
+        { "path": "libs/partners/ollama/langchain_ollama/embeddings.py", "shows": "OllamaEmbeddings" }
+      ]
+    },
+    {
+      "consumer": "Core abstractions",
+      "provider": "Nomic",
+      "interfaces": ["Nomic API"],
+      "areas": [
+        {
+          "name": "Embed text",
+          "type": "core",
+          "description": "Get vectors from Nomic's embedding models.",
+          "capabilities": [
+            { "name": "Embed text", "takes": "texts or images", "gives": "their vectors", "acts": [{ "mode": "produces", "resource": "Hosted model" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/partners/nomic/langchain_nomic/embeddings.py", "shows": "NomicEmbeddings with NOMIC_API_KEY" }
+      ]
+    },
+    {
+      "consumer": "Core abstractions",
+      "provider": "Exa",
+      "interfaces": ["Exa API"],
+      "areas": [
+        {
+          "name": "Search the web",
+          "type": "core",
+          "description": "Find web pages for the Exa retriever and tools.",
+          "capabilities": [
+            { "name": "Search the web", "takes": "a query and content options", "gives": "matching pages with text and highlights", "acts": [{ "mode": "observes", "resource": "Web index" }] },
+            { "name": "Find similar pages", "takes": "a URL", "gives": "pages similar to it", "acts": [{ "mode": "observes", "resource": "Web index" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/partners/exa/langchain_exa/retrievers.py", "shows": "ExaSearchRetriever with EXA_API_KEY" },
+        { "path": "libs/partners/exa/langchain_exa/tools.py", "shows": "ExaSearchResults and ExaFindSimilarResults" }
+      ]
+    },
+    {
+      "consumer": "Core abstractions",
+      "provider": "Chroma",
+      "interfaces": ["Chroma client"],
+      "areas": [
+        {
+          "name": "Store and search vectors",
+          "type": "core",
+          "description": "Keep a vector store's documents and vectors in a Chroma collection.",
+          "capabilities": [
+            { "name": "Store vectors", "takes": "documents with their vectors, ids and metadata", "gives": "the stored ids", "acts": [{ "mode": "mutates", "resource": "Vector collection" }] },
+            { "name": "Search vectors", "takes": "a query vector, a number of results and a filter", "gives": "the nearest documents with distances", "acts": [{ "mode": "observes", "resource": "Vector collection" }] },
+            { "name": "Delete vectors", "takes": "ids or a filter", "gives": "the collection without them", "acts": [{ "mode": "mutates", "resource": "Vector collection" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/partners/chroma/langchain_chroma/vectorstores.py", "shows": "Chroma vector store over a chromadb collection" }
+      ]
+    },
+    {
+      "consumer": "Core abstractions",
+      "provider": "Qdrant",
+      "interfaces": ["Qdrant client"],
+      "areas": [
+        {
+          "name": "Store and search vectors",
+          "type": "core",
+          "description": "Keep a vector store's documents and dense or sparse vectors in a Qdrant collection.",
+          "capabilities": [
+            { "name": "Store vectors", "takes": "documents with their vectors, ids and metadata", "gives": "the stored ids", "acts": [{ "mode": "mutates", "resource": "Vector collection" }] },
+            { "name": "Search vectors", "takes": "a dense, sparse or hybrid query, a number of results and a filter", "gives": "the nearest documents with scores", "acts": [{ "mode": "observes", "resource": "Vector collection" }] },
+            { "name": "Delete vectors", "takes": "ids", "gives": "the collection without them", "acts": [{ "mode": "mutates", "resource": "Vector collection" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/partners/qdrant/langchain_qdrant/qdrant.py", "shows": "QdrantVectorStore with dense, sparse and hybrid retrieval modes" },
+        { "path": "libs/partners/qdrant/langchain_qdrant/vectorstores.py", "shows": "the older Qdrant vector store" }
+      ]
+    },
+    {
+      "consumer": "Core abstractions",
+      "provider": "TypeSafe",
+      "interfaces": ["TypeSafe API"],
+      "areas": [
+        {
+          "name": "Classify content",
+          "type": "core",
+          "description": "Get typed answers about text, images and state from TypeSafe's classifiers.",
+          "capabilities": [
+            { "name": "Classify content", "takes": "questions and the content (text, images or state)", "gives": "typed answers with probabilities", "acts": [{ "mode": "produces", "resource": "Hosted model" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/partners/typesafe/langchain_typesafe/classifier.py", "shows": "TypeSafeClassifier, a BaseDecisionModel" },
+        { "path": "libs/partners/typesafe/langchain_typesafe/client.py", "shows": "the HTTP client with TYPESAFE_API_KEY" }
+      ]
+    },
+    {
+      "consumer": "Core abstractions",
+      "provider": "LangSmith",
+      "interfaces": ["LangSmith API", "LangSmith LLM gateway"],
+      "areas": [
+        {
+          "name": "Record traces",
+          "type": "core",
+          "description": "Send every run to a LangSmith project as a trace.",
+          "capabilities": [
+            { "name": "Record traces", "takes": "finished and updated runs, with tags and metadata", "gives": "traces in the project", "acts": [{ "mode": "produces", "resource": "Trace" }], "interfaces": ["LangSmith API"] }
+          ]
+        },
+        {
+          "name": "Load dataset examples",
+          "type": "supporting",
+          "description": "Read a dataset's examples as documents.",
+          "capabilities": [
+            { "name": "Load dataset examples", "takes": "a dataset name or id and filters", "gives": "the examples as documents", "acts": [{ "mode": "observes", "resource": "Dataset" }], "interfaces": ["LangSmith API"] }
+          ]
+        },
+        {
+          "name": "Call model through gateway",
+          "type": "supporting",
+          "description": "Reach a provider's model through LangSmith's gateway instead of the provider directly.",
+          "capabilities": [
+            { "name": "Call model through gateway", "takes": "a model call with the gateway's key", "gives": "the provider's reply with gateway metadata", "acts": [{ "mode": "produces", "resource": "Hosted model" }], "interfaces": ["LangSmith LLM gateway"] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/core/langchain_core/tracers/langchain.py", "shows": "LangChainTracer posting and patching runs through the langsmith client" },
+        { "path": "libs/core/langchain_core/document_loaders/langsmith.py", "shows": "LangSmithLoader reading dataset examples" },
+        { "path": "libs/core/langchain_core/utils/_gateway.py", "shows": "LANGSMITH_GATEWAY settings used by the chat integrations" }
+      ]
+    },
+    {
+      "consumer": "Core abstractions",
+      "provider": "mermaid.ink",
+      "interfaces": ["mermaid.ink API"],
+      "areas": [
+        {
+          "name": "Render diagram",
+          "type": "core",
+          "description": "Turn a chain's Mermaid description into an image.",
+          "capabilities": [
+            { "name": "Render diagram", "takes": "Mermaid text", "gives": "a PNG image", "acts": [{ "mode": "produces", "resource": "Diagram" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/core/langchain_core/runnables/graph_mermaid.py", "shows": "draw_mermaid_png using the public mermaid.ink server by default" }
+      ]
+    },
+    {
+      "consumer": "Agent framework",
+      "provider": "MCP servers",
+      "interfaces": ["MCP protocol"],
+      "areas": [
+        {
+          "name": "Use MCP tools",
+          "type": "core",
+          "description": "List an MCP server's tools and call them for an agent.",
+          "capabilities": [
+            { "name": "List tools", "takes": "a server's URL or command", "gives": "its tools with their schemas", "acts": [{ "mode": "observes", "resource": "MCP tool" }] },
+            { "name": "Call tool", "takes": "a tool and its arguments", "gives": "the tool's result, or the server's questions for the user", "acts": [{ "mode": "produces", "resource": "MCP tool" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/langchain_v1/langchain/mcp/adapter.py", "shows": "MCPAdapter and list_tools through fastmcp" },
+        { "path": "libs/langchain_v1/langchain/mcp/tools.py", "shows": "call_tool and result conversion" },
+        { "path": "libs/langchain_v1/langchain/mcp/elicitation.py", "shows": "a server's elicitation requests turned into interrupts" }
+      ]
+    },
+    {
+      "consumer": "Agent framework",
+      "provider": "Shell sandbox",
+      "interfaces": ["shell subprocess"],
+      "areas": [
+        {
+          "name": "Run command",
+          "type": "core",
+          "description": "Run an agent's shell commands on the host, in Docker or in a Codex sandbox.",
+          "capabilities": [
+            { "name": "Run command", "takes": "a command", "gives": "its output and exit code, in a shell that keeps its state", "acts": [{ "mode": "mutates", "resource": "Shell session" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/langchain_v1/langchain/agents/middleware/_execution.py", "shows": "HostExecutionPolicy, DockerExecutionPolicy and CodexSandboxExecutionPolicy starting the shell" },
+        { "path": "libs/langchain_v1/langchain/agents/middleware/shell_tool.py", "shows": "ShellToolMiddleware and its persistent session" }
+      ]
+    },
+    {
+      "consumer": "Agent framework",
+      "provider": "OpenAI",
+      "interfaces": ["OpenAI API"],
+      "areas": [
+        {
+          "name": "Moderate content",
+          "type": "core",
+          "description": "Check an agent's inputs and outputs with OpenAI's moderation models.",
+          "capabilities": [
+            { "name": "Moderate content", "takes": "text from messages", "gives": "whether it is flagged, and the categories", "acts": [{ "mode": "produces", "resource": "Hosted model" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/partners/openai/langchain_openai/middleware/openai_moderation.py", "shows": "OpenAIModerationMiddleware calling moderations.create" }
+      ]
+    },
+    {
+      "consumer": "Agent framework",
+      "provider": "LangSmith",
+      "interfaces": ["LangSmith API"],
+      "areas": [
+        {
+          "name": "Record traces",
+          "type": "core",
+          "description": "Add middleware steps to the agent's trace.",
+          "capabilities": [
+            { "name": "Record traces", "takes": "middleware hook calls", "gives": "spans in the agent's trace", "acts": [{ "mode": "produces", "resource": "Trace" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/langchain_v1/langchain/agents/factory.py", "shows": "langsmith traceable wrapping wrap_model_call and wrap_tool_call" }
+      ]
+    },
+    {
+      "consumer": "Text splitters",
+      "provider": "Web sites and HTTP APIs",
+      "interfaces": ["HTTP"],
+      "areas": [
+        {
+          "name": "Fetch page",
+          "type": "core",
+          "description": "Get a page to split it by its HTML headers.",
+          "capabilities": [
+            { "name": "Fetch page", "takes": "a URL", "gives": "the page's HTML", "acts": [{ "mode": "observes", "resource": "Web resource" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/text-splitters/langchain_text_splitters/html.py", "shows": "split_text_from_url through ssrf_safe_client" }
+      ]
+    },
+    {
+      "consumer": "Classic chains",
+      "provider": "LangSmith",
+      "interfaces": ["LangSmith API"],
+      "areas": [
+        {
+          "name": "Run tests on dataset",
+          "type": "core",
+          "description": "Run a chain over a LangSmith dataset and record the results and feedback.",
+          "capabilities": [
+            { "name": "Run tests on dataset", "takes": "a dataset name, a test project name and evaluator settings", "gives": "the dataset's examples and a test project holding each run and its feedback", "acts": [{ "mode": "observes", "resource": "Dataset" }, { "mode": "produces", "resource": "Trace" }] }
+          ]
+        },
+        {
+          "name": "Use hub prompts",
+          "type": "supporting",
+          "description": "Pull and push prompts in LangSmith's hub (deprecated).",
+          "capabilities": [
+            { "name": "Pull hub prompt", "takes": "a prompt's name and version", "gives": "the prompt", "acts": [{ "mode": "observes", "resource": "Hub prompt" }] },
+            { "name": "Push hub prompt", "takes": "a prompt and its name", "gives": "the new version's URL", "acts": [{ "mode": "mutates", "resource": "Hub prompt" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/langchain/langchain_classic/smith/evaluation/runner_utils.py", "shows": "run_on_dataset with a langsmith Client" },
+        { "path": "libs/langchain/langchain_classic/hub.py", "shows": "push and pull through the LangSmith client, deprecated" }
+      ]
+    },
+    {
+      "consumer": "Classic chains",
+      "provider": "OpenAI",
+      "interfaces": ["OpenAI API"],
+      "areas": [
+        {
+          "name": "Use OpenAI services",
+          "type": "core",
+          "description": "Run OpenAI assistants and moderate text for classic agents and chains.",
+          "capabilities": [
+            { "name": "Run assistant", "takes": "an assistant, a thread and a message", "gives": "the run's output or the tool calls it requires", "acts": [{ "mode": "mutates", "resource": "Assistant thread" }] },
+            { "name": "Moderate content", "takes": "text", "gives": "whether it is flagged", "acts": [{ "mode": "produces", "resource": "Hosted model" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/langchain/langchain_classic/agents/openai_assistant/base.py", "shows": "OpenAIAssistantRunnable on the Assistants API" },
+        { "path": "libs/langchain/langchain_classic/chains/moderation.py", "shows": "OpenAIModerationChain" }
+      ]
+    },
+    {
+      "consumer": "Classic chains",
+      "provider": "Elasticsearch",
+      "interfaces": ["Elasticsearch API"],
+      "areas": [
+        {
+          "name": "Query search index",
+          "type": "core",
+          "description": "Answer questions from an Elasticsearch index with a model-written query.",
+          "capabilities": [
+            { "name": "Query search index", "takes": "a query the model wrote", "gives": "the matching records", "acts": [{ "mode": "observes", "resource": "Search index" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/langchain/langchain_classic/chains/elasticsearch_database/base.py", "shows": "ElasticsearchDatabaseChain with an Elasticsearch client" }
+      ]
+    },
+    {
+      "consumer": "Classic chains",
+      "provider": "Web sites and HTTP APIs",
+      "interfaces": ["HTTP"],
+      "areas": [
+        {
+          "name": "Use web pages and APIs",
+          "type": "core",
+          "description": "Browse pages and call HTTP APIs for classic chains.",
+          "capabilities": [
+            { "name": "Browse page", "takes": "a URL and browser actions", "gives": "the page's visible elements", "acts": [{ "mode": "observes", "resource": "Web resource" }] },
+            { "name": "Call HTTP API", "takes": "an operation from an OpenAPI spec and its arguments", "gives": "the API's response", "acts": [{ "mode": "produces", "resource": "Web resource" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/langchain/langchain_classic/chains/natbot/crawler.py", "shows": "a Playwright browser crawler" },
+        { "path": "libs/langchain/langchain_classic/chains/openai_functions/openapi.py", "shows": "calls to OpenAPI operations with requests" }
+      ]
+    },
+    {
+      "consumer": "Classic chains",
+      "provider": "SQL database",
+      "interfaces": ["SQL connection"],
+      "areas": [
+        {
+          "name": "Use SQL databases",
+          "type": "core",
+          "description": "Keep index records and entity facts in a SQL database, and read a database's schema to write queries for it.",
+          "capabilities": [
+            { "name": "Keep records", "takes": "keys with times, or entity facts", "gives": "stored rows that can be listed, checked and deleted", "acts": [{ "mode": "mutates", "resource": "Database table" }] },
+            { "name": "Read table schema", "takes": "the names of the tables to use", "gives": "their definitions and sample rows, for a model to write a SQL query", "acts": [{ "mode": "observes", "resource": "Database table" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/langchain/langchain_classic/indexes/_sql_record_manager.py", "shows": "SQLRecordManager over SQLAlchemy" },
+        { "path": "libs/langchain/langchain_classic/chains/sql_database/query.py", "shows": "create_sql_query_chain reading the database's dialect and table information" },
+        { "path": "libs/langchain/langchain_classic/memory/entity.py", "shows": "SQLiteEntityStore" }
+      ]
+    },
+    {
+      "consumer": "Classic chains",
+      "provider": "Redis",
+      "interfaces": ["Redis protocol"],
+      "areas": [
+        {
+          "name": "Keep entity facts",
+          "type": "core",
+          "description": "Keep entity memory's facts in Redis or Upstash Redis.",
+          "capabilities": [
+            { "name": "Keep entity facts", "takes": "an entity's name and facts", "gives": "the stored facts, with an expiry", "acts": [{ "mode": "mutates", "resource": "Key-value entry" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/langchain/langchain_classic/memory/entity.py", "shows": "RedisEntityStore and UpstashRedisEntityStore" }
+      ]
+    },
+    {
+      "consumer": "Model profile refresher",
+      "provider": "models.dev",
+      "interfaces": ["models.dev API"],
+      "areas": [
+        {
+          "name": "Fetch model catalog",
+          "type": "core",
+          "description": "Download the catalog the profiles are built from.",
+          "capabilities": [
+            { "name": "Fetch model catalog", "takes": "nothing", "gives": "every provider's models with their capabilities and limits", "acts": [{ "mode": "observes", "resource": "Model catalog" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/model-profiles/langchain_model_profiles/cli.py", "shows": "refresh downloading https://models.dev/api.json" }
+      ]
+    },
+    {
+      "consumer": "Agent loop",
+      "provider": "Middleware",
+      "interfaces": ["middleware hooks"],
+      "areas": [
+        {
+          "name": "Run middleware hooks",
+          "type": "core",
+          "description": "Let each middleware change the agent's state, its model calls and its tool calls at fixed points of the loop.",
+          "capabilities": [
+            { "name": "Adjust agent state", "takes": "the thread's state before or after the agent run or a model call", "gives": "state updates, or a jump to the model, the tools or the end", "acts": [{ "mode": "mutates", "resource": "Agent thread" }] },
+            { "name": "Handle model call", "takes": "the model request (model, messages, tools, system prompt) and the next handler", "gives": "the model's response, changed or replaced", "acts": [{ "mode": "mutates", "resource": "Agent thread" }] },
+            { "name": "Handle tool call", "takes": "a tool call request and the next handler", "gives": "the tool message, or a command for the graph", "acts": [{ "mode": "mutates", "resource": "Agent thread" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/langchain_v1/langchain/agents/middleware/types.py", "shows": "AgentMiddleware with before_agent, before_model, wrap_model_call, after_model, wrap_tool_call, after_agent and state_schema" },
+        { "path": "libs/langchain_v1/langchain/agents/factory.py", "shows": "_chain_model_call_handlers and _chain_tool_call_wrappers composing the hooks" }
+      ]
+    },
+    {
+      "consumer": "Agent loop",
+      "provider": "Model initializer",
+      "interfaces": ["init_chat_model"],
+      "areas": [
+        {
+          "name": "Resolve model",
+          "type": "core",
+          "description": "Get a chat model from the name given to create_agent.",
+          "capabilities": [
+            { "name": "Resolve model", "takes": "a \"provider:model\" or model name and settings", "gives": "a chat model of the matching integration", "acts": [{ "mode": "produces", "resource": "Model" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/langchain_v1/langchain/agents/factory.py", "shows": "from langchain.chat_models import init_chat_model" },
+        { "path": "libs/langchain_v1/langchain/chat_models/base.py", "shows": "init_chat_model, _BUILTIN_PROVIDERS and _attempt_infer_model_provider" }
+      ]
+    },
+    {
+      "consumer": "Middleware",
+      "provider": "Model initializer",
+      "interfaces": ["init_chat_model"],
+      "areas": [
+        {
+          "name": "Resolve models",
+          "type": "core",
+          "description": "Get the models a middleware is configured with by name: fallbacks, routes, summarizers, tool selectors and emulators.",
+          "capabilities": [
+            { "name": "Resolve model", "takes": "a \"provider:model\" or model name", "gives": "a chat model of the matching integration", "acts": [{ "mode": "produces", "resource": "Model" }] },
+            { "name": "Infer model provider", "takes": "a model name", "gives": "the provider it belongs to, used to choose provider-side tool search", "acts": [{ "mode": "observes", "resource": "Model" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/langchain_v1/langchain/agents/middleware/model_fallback.py", "shows": "init_chat_model for fallback models" },
+        { "path": "libs/langchain_v1/langchain/agents/middleware/provider_tool_search.py", "shows": "imports the private _attempt_infer_model_provider of chat_models/base.py" },
+        { "path": "libs/langchain_v1/langchain/agents/middleware/summarization.py", "shows": "init_chat_model for the summarizing model" },
+        { "path": "libs/langchain_v1/langchain/agents/middleware/tool_selection.py", "shows": "init_chat_model for the selecting model" }
+      ]
+    },
+    {
+      "consumer": "Models",
+      "provider": "Run tracing",
+      "interfaces": ["callback manager"],
+      "areas": [
+        {
+          "name": "Record run",
+          "type": "core",
+          "description": "Report each model call as a run.",
+          "capabilities": [
+            { "name": "Record run", "takes": "a model call's start, its tokens, its end or its error", "gives": "the run recorded and passed to every handler", "acts": [{ "mode": "produces", "resource": "Run" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/core/langchain_core/language_models/chat_models.py", "shows": "CallbackManager.configure and on_chat_model_start, on_llm_new_token, on_llm_end" },
+        { "path": "libs/core/langchain_core/callbacks/manager.py", "shows": "CallbackManagerForLLMRun" }
+      ]
+    },
+    {
+      "consumer": "Tools",
+      "provider": "Run tracing",
+      "interfaces": ["callback manager"],
+      "areas": [
+        {
+          "name": "Record run",
+          "type": "core",
+          "description": "Report each tool call as a run.",
+          "capabilities": [
+            { "name": "Record run", "takes": "a tool call's start, its end or its error", "gives": "the run recorded and passed to every handler", "acts": [{ "mode": "produces", "resource": "Run" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/core/langchain_core/tools/base.py", "shows": "on_tool_start, on_tool_end and on_tool_error through the callback manager" }
+      ]
+    },
+    {
+      "consumer": "Documents and retrieval",
+      "provider": "Run tracing",
+      "interfaces": ["callback manager"],
+      "areas": [
+        {
+          "name": "Record run",
+          "type": "core",
+          "description": "Report each retrieval as a run.",
+          "capabilities": [
+            { "name": "Record run", "takes": "a retrieval's start, its documents or its error", "gives": "the run recorded and passed to every handler", "acts": [{ "mode": "produces", "resource": "Run" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/core/langchain_core/retrievers.py", "shows": "BaseRetriever.invoke configuring the callback manager and on_retriever_start" }
+      ]
+    },
+    {
+      "consumer": "Runnable runtime",
+      "provider": "Run tracing",
+      "interfaces": ["callback manager"],
+      "areas": [
+        {
+          "name": "Record runs",
+          "type": "core",
+          "description": "Report each chain step as a run and stream the runs' events.",
+          "capabilities": [
+            { "name": "Record run", "takes": "a chain step's start, its end or its error", "gives": "the run recorded and passed to every handler", "acts": [{ "mode": "produces", "resource": "Run" }] },
+            { "name": "Stream run events", "takes": "a run started with an event or log stream", "gives": "start, stream and end events for every nested step", "acts": [{ "mode": "observes", "resource": "Run" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/core/langchain_core/runnables/base.py", "shows": "on_chain_start and on_chain_end through the callback manager; astream_events and astream_log through the event and log stream tracers" },
+        { "path": "libs/core/langchain_core/runnables/config.py", "shows": "get_callback_manager_for_config" },
+        { "path": "libs/core/langchain_core/tracers/event_stream.py", "shows": "the event-stream tracer behind astream_events" }
+      ]
+    },
+    {
+      "consumer": "Models",
+      "provider": "Runnable runtime",
+      "interfaces": ["Runnable composition"],
+      "areas": [
+        {
+          "name": "Compose chain",
+          "type": "core",
+          "description": "Build the chains behind structured output and tool binding.",
+          "capabilities": [
+            { "name": "Compose chain", "takes": "the bound model and a parser", "gives": "a chain that calls the model and parses its reply", "acts": [{ "mode": "produces", "resource": "Chain" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/core/langchain_core/language_models/chat_models.py", "shows": "with_structured_output composing RunnableMap and RunnablePassthrough with a parser" }
+      ]
+    },
+    {
+      "consumer": "Models",
+      "provider": "Output parsers",
+      "interfaces": ["output parser contract"],
+      "areas": [
+        {
+          "name": "Parse output",
+          "type": "core",
+          "description": "Turn a model's tool calls into the structured output's object.",
+          "capabilities": [
+            { "name": "Parse output", "takes": "an AI message with tool calls", "gives": "the schema's object or a dict", "acts": [{ "mode": "observes", "resource": "Message" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/core/langchain_core/language_models/chat_models.py", "shows": "imports PydanticToolsParser and JsonOutputKeyToolsParser" },
+        { "path": "libs/core/langchain_core/output_parsers/openai_tools.py", "shows": "the tool-call parsers" }
+      ]
+    },
+    {
+      "consumer": "Models",
+      "provider": "Tools",
+      "interfaces": ["tool schema conversion"],
+      "areas": [
+        {
+          "name": "Describe tool",
+          "type": "core",
+          "description": "Describe tools and schemas to a model when binding them.",
+          "capabilities": [
+            { "name": "Describe tool", "takes": "a tool, a function or a schema", "gives": "its JSON description in the function-calling format", "acts": [{ "mode": "observes", "resource": "Tool" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/core/langchain_core/language_models/chat_models.py", "shows": "imports convert_to_openai_tool" },
+        { "path": "libs/core/langchain_core/utils/function_calling.py", "shows": "convert_to_openai_tool" }
+      ]
+    },
+    {
+      "consumer": "Models",
+      "provider": "Serialization",
+      "interfaces": ["serialization functions"],
+      "areas": [
+        {
+          "name": "Save object",
+          "type": "core",
+          "description": "Turn a model's settings and inputs into JSON for cache keys and run records.",
+          "capabilities": [
+            { "name": "Save object", "takes": "a model or its inputs", "gives": "their JSON form without secrets", "acts": [{ "mode": "produces", "resource": "Serialized object" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/core/langchain_core/language_models/chat_models.py", "shows": "from langchain_core.load import dumpd, dumps" },
+        { "path": "libs/core/langchain_core/load/dump.py", "shows": "dumpd and dumps" }
+      ]
+    },
+    {
+      "consumer": "Run tracing",
+      "provider": "Serialization",
+      "interfaces": ["serialization functions"],
+      "areas": [
+        {
+          "name": "Save object",
+          "type": "core",
+          "description": "Turn a run's step and inputs into JSON for the run record.",
+          "capabilities": [
+            { "name": "Save object", "takes": "the step that ran and its inputs", "gives": "their JSON form without secrets", "acts": [{ "mode": "produces", "resource": "Serialized object" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/core/langchain_core/tracers/core.py", "shows": "from langchain_core.load import dumpd" },
+        { "path": "libs/core/langchain_core/tracers/langchain.py", "shows": "dumpd on run inputs" }
+      ]
+    },
+    {
+      "consumer": "Prompts",
+      "provider": "Serialization",
+      "interfaces": ["serialization functions"],
+      "areas": [
+        {
+          "name": "Save object",
+          "type": "core",
+          "description": "Turn a prompt into JSON when it is saved.",
+          "capabilities": [
+            { "name": "Save object", "takes": "a prompt template", "gives": "its JSON form", "acts": [{ "mode": "produces", "resource": "Serialized object" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/core/langchain_core/prompts/base.py", "shows": "from langchain_core.load import dumpd" }
+      ]
+    },
+    {
+      "consumer": "Documents and retrieval",
+      "provider": "Models",
+      "interfaces": ["embeddings contract"],
+      "areas": [
+        {
+          "name": "Embed text",
+          "type": "core",
+          "description": "Turn documents and queries into vectors for storing and searching.",
+          "capabilities": [
+            { "name": "Embed text", "takes": "documents' text or a query", "gives": "their vectors", "acts": [{ "mode": "produces", "resource": "Model" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/core/langchain_core/vectorstores/in_memory.py", "shows": "embedding.embed_documents and embed_query" },
+        { "path": "libs/core/langchain_core/embeddings/embeddings.py", "shows": "the Embeddings contract" }
+      ]
+    },
+    {
+      "consumer": "Indexing",
+      "provider": "Documents and retrieval",
+      "interfaces": ["vector store contract"],
+      "areas": [
+        {
+          "name": "Change stored documents",
+          "type": "core",
+          "description": "Write the documents a sync decided to add and remove those it decided to delete.",
+          "capabilities": [
+            { "name": "Add documents", "takes": "documents with their ids", "gives": "the stored ids", "acts": [{ "mode": "mutates", "resource": "Vector store" }] },
+            { "name": "Delete documents", "takes": "ids", "gives": "whether they were deleted", "acts": [{ "mode": "mutates", "resource": "Vector store" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/core/langchain_core/indexing/api.py", "shows": "destination.add_documents, destination.upsert and destination.delete" },
+        { "path": "libs/core/langchain_core/vectorstores/base.py", "shows": "VectorStore.add_documents and delete" }
+      ]
+    },
+    {
+      "consumer": "Tools",
+      "provider": "Documents and retrieval",
+      "interfaces": ["retriever contract"],
+      "areas": [
+        {
+          "name": "Retrieve documents",
+          "type": "core",
+          "description": "Fetch documents for a retriever tool's query.",
+          "capabilities": [
+            { "name": "Retrieve documents", "takes": "the tool's query", "gives": "the relevant documents", "acts": [{ "mode": "observes", "resource": "Vector store" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/core/langchain_core/tools/retriever.py", "shows": "retriever.invoke in create_retriever_tool" },
+        { "path": "libs/core/langchain_core/retrievers.py", "shows": "BaseRetriever.invoke" }
+      ]
+    },
+    {
+      "consumer": "Prompts",
+      "provider": "Documents and retrieval",
+      "interfaces": ["vector store contract"],
+      "areas": [
+        {
+          "name": "Store and search examples",
+          "type": "core",
+          "description": "Keep few-shot examples in a vector store and find the most similar ones.",
+          "capabilities": [
+            { "name": "Add documents", "takes": "examples as texts with metadata", "gives": "their ids", "acts": [{ "mode": "mutates", "resource": "Vector store" }] },
+            { "name": "Search documents", "takes": "the input as a query and a number of examples", "gives": "the most similar or most diverse examples", "acts": [{ "mode": "observes", "resource": "Vector store" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/core/langchain_core/example_selectors/semantic_similarity.py", "shows": "vectorstore.add_texts, similarity_search and max_marginal_relevance_search" }
+      ]
+    },
+    {
+      "consumer": "Legacy chains",
+      "provider": "Memory",
+      "interfaces": ["memory contract"],
+      "areas": [
+        {
+          "name": "Use memory",
+          "type": "core",
+          "description": "Add what is remembered to a chain's inputs and save each turn.",
+          "capabilities": [
+            { "name": "Load memory", "takes": "the chain's inputs", "gives": "the remembered context to add to the prompt", "acts": [{ "mode": "observes", "resource": "Conversation memory" }] },
+            { "name": "Save turn", "takes": "the chain's inputs and outputs", "gives": "the memory updated", "acts": [{ "mode": "mutates", "resource": "Conversation memory" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/langchain/langchain_classic/chains/base.py", "shows": "self.memory.load_memory_variables and save_context" },
+        { "path": "libs/langchain/langchain_classic/base_memory.py", "shows": "BaseMemory" }
+      ]
+    },
+    {
+      "consumer": "Legacy agents",
+      "provider": "Legacy chains",
+      "interfaces": ["Chain contract"],
+      "areas": [
+        {
+          "name": "Run chain",
+          "type": "core",
+          "description": "Ask the agent's model through its LLM chain.",
+          "capabilities": [
+            { "name": "Run chain", "takes": "the chain's inputs (the question and the scratchpad)", "gives": "the chain's output text", "acts": [{ "mode": "produces", "resource": "Legacy chain" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/langchain/langchain_classic/agents/agent.py", "shows": "Agent.llm_chain: LLMChain and llm_chain.run" },
+        { "path": "libs/langchain/langchain_classic/chains/llm.py", "shows": "LLMChain" }
+      ]
+    },
+    {
+      "consumer": "Classic retrievers",
+      "provider": "Legacy chains",
+      "interfaces": ["query constructor"],
+      "areas": [
+        {
+          "name": "Build query constructor",
+          "type": "core",
+          "description": "Get a chain that turns a question into a query with filters for the self-querying retriever.",
+          "capabilities": [
+            { "name": "Build query constructor", "takes": "a model, a description of the documents and their metadata fields", "gives": "a chain that turns a question into a query with filters", "acts": [{ "mode": "produces", "resource": "Legacy chain" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/langchain/langchain_classic/retrievers/self_query/base.py", "shows": "load_query_constructor_runnable" },
+        { "path": "libs/langchain/langchain_classic/chains/query_constructor/base.py", "shows": "the query constructor" }
+      ]
+    },
+    {
+      "consumer": "Dataset runner",
+      "provider": "Evaluation",
+      "interfaces": ["evaluator loader"],
+      "areas": [
+        {
+          "name": "Score output",
+          "type": "core",
+          "description": "Load the configured evaluators and score each example's run.",
+          "capabilities": [
+            { "name": "Score output", "takes": "a prediction, an optional reference and the input", "gives": "a score, a value and reasoning", "acts": [{ "mode": "produces", "resource": "Evaluation" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/langchain/langchain_classic/smith/evaluation/runner_utils.py", "shows": "load_evaluator for each configured evaluator" },
+        { "path": "libs/langchain/langchain_classic/evaluation/schema.py", "shows": "StringEvaluator.evaluate_strings" }
+      ]
+    },
+    {
+      "consumer": "Callback manager",
+      "provider": "Tracers and handlers",
+      "interfaces": ["callback handler contract"],
+      "areas": [
+        {
+          "name": "Handle run event",
+          "type": "core",
+          "description": "Pass each run event to every handler chosen for the run.",
+          "capabilities": [
+            { "name": "Handle run event", "takes": "an event of a run (start, token, end, error or custom)", "gives": "the handler's update: the run tree, a printed line, a streamed event or a usage total", "acts": [{ "mode": "mutates", "resource": "Run" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/core/langchain_core/callbacks/manager.py", "shows": "handle_event calling getattr(handler, event_name)" },
+        { "path": "libs/core/langchain_core/callbacks/base.py", "shows": "BaseCallbackHandler's event methods" },
+        { "path": "libs/core/langchain_core/tracers/base.py", "shows": "BaseTracer updating the run tree" }
+      ]
+    },
+    {
+      "consumer": "Prompt templates",
+      "provider": "Example selectors",
+      "interfaces": ["example selector contract"],
+      "areas": [
+        {
+          "name": "Select examples",
+          "type": "core",
+          "description": "Choose the examples a few-shot prompt shows for an input.",
+          "capabilities": [
+            { "name": "Select examples", "takes": "the prompt's input variables", "gives": "the examples to include", "acts": [{ "mode": "observes", "resource": "Example" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/core/langchain_core/prompts/few_shot.py", "shows": "self.example_selector.select_examples" },
+        { "path": "libs/core/langchain_core/example_selectors/base.py", "shows": "BaseExampleSelector.select_examples and add_example" }
+      ]
+    },
+    {
+      "consumer": "Agent executor",
+      "provider": "Agent types",
+      "interfaces": ["agent planning contract"],
+      "areas": [
+        {
+          "name": "Plan next step",
+          "type": "core",
+          "description": "Ask the agent what to do next from the steps so far.",
+          "capabilities": [
+            { "name": "Plan next step", "takes": "the input and the steps taken so far", "gives": "the next tool action, or the final answer", "acts": [{ "mode": "observes", "resource": "Agent scratchpad" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/langchain/langchain_classic/agents/agent.py", "shows": "AgentExecutor calling self._action_agent.plan and aplan; BaseSingleActionAgent.plan" }
+      ]
+    },
+    {
+      "consumer": "Retriever variants",
+      "provider": "Document compressors",
+      "interfaces": ["document compressor contract"],
+      "areas": [
+        {
+          "name": "Compress documents",
+          "type": "core",
+          "description": "Cut down the documents a base retriever found for a query.",
+          "capabilities": [
+            { "name": "Compress documents", "takes": "documents and the query", "gives": "the documents kept, cut down or reordered", "acts": [{ "mode": "produces", "resource": "Document" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "libs/langchain/langchain_classic/retrievers/contextual_compression.py", "shows": "self.base_compressor.compress_documents" },
+        { "path": "libs/core/langchain_core/documents/compressor.py", "shows": "BaseDocumentCompressor" }
+      ]
+    }
+  ],
+  "questions": [
+    { "question": "Are frameworks built on langchain-core, such as LangGraph and Deep Agents, a consumer of their own?", "answer": "Merged into Application developer rather than a separate consumer; the corpus shows them using the same models, messages, tools and runnables, with no goal of their own, and no rule says when a framework author's goals diverge from an app developer's." },
+    { "question": "Is LangChain one provider, or are langchain-classic, langchain-tests and langchain-profiles separate products?", "answer": "One provider, LangChain, rather than four; none has its own deployment or data, and users install them as parts of one framework, but each is a separate distribution with its own consumers, which the rule on separate products leaves open." },
+    { "question": "Where do the partner integration packages belong?", "answer": "Placed by contract, rather than as a component of their own: their model, store, retriever, tool and parser adapters sit with the core component whose contract they fulfil, and their middleware with Middleware; the brief applies the adapter rule to them, but the variants rule could also make them one component with variants, separate from core's call path." },
+    { "question": "Should langchain-classic's retrievers and output parsers be grouped with core's retriever and parser variants?", "answer": "Kept inside Classic chains, rather than moved into core's components; they are variants of core contracts, but they live in a separate, versioned package used only through classic import paths, and the variants rule does not say whether it crosses package seams." },
+    { "question": "Is Messages a component?", "answer": "Treated as shared vocabulary (a library), rather than a component; it owns a translator registry that integrations write to, but its translators are per-provider format adapters and every part passes messages around, so no single decision belongs to it." },
+    { "question": "Does the retriever contract deserve its own component?", "answer": "Grouped with vector stores in Documents and retrieval, rather than its own component; the base class is thin and its main variant, the vector store retriever, lives in the vector store module." },
+    { "question": "Are embeddings and decision models separate from chat models?", "answer": "Placed with Models, rather than as their own components; their contracts are thin bases over provider adapters, and the same integration packages implement all three kinds." },
+    { "question": "Is the profiles CLI a tool for integration authors or engineering tooling?", "answer": "A component serving Integration author, rather than tooling; it is published on PyPI and the docs show it run on external packages, though LangChain's own CI also runs it on this repository." },
+    { "question": "Are the generated model profile files part of the corpus?", "answer": "Excluded as generated output (data/_profiles.py), rather than placed with Models; their content is consumer-visible as Model.profile, but they are written by the refresher, not by hand." },
+    { "question": "How should import shims inside classic's component folders be placed?", "answer": "Placed with the folder's component (for example the shims in chains/, agents/, retrievers/, memory/ and callbacks/), rather than listed one by one as cleanup; whole shim folders are placed as cleanup. About 195 shim files sit in mixed folders." },
+    { "question": "Is retrieval part of the developer's core area?", "answer": "In the core area, rather than a supporting area; retrieval-augmented apps come for it, though agent builders may skip it." },
+    { "question": "Do in-process objects count as resources kept by a library?", "answer": "Yes, rather than finding no resources; LangChain keeps no server state, so agents, threads, models, vector stores and caches are held in the developer's process or in stores the developer supplies, and are modelled as the resources the developer recognizes." },
+    { "question": "Are classic's three evaluator contracts one component?", "answer": "One component, rather than three; string, pairwise and trajectory evaluators share a base mixin and one registry that loads them by name." },
+    { "question": "Are local programs outside services?", "answer": "Ollama servers, the shell sandbox (host shell, Docker, Codex CLI) and Playwright browsers are modelled as outside services, rather than as libraries; they run as separate processes the code talks to." },
+    { "question": "Is LangGraph an outside service, a component or a library?", "answer": "A library the Agent framework builds its graph and checkpointing on, rather than an outside service or a component; it is a dependency outside the corpus, imported in process." },
+    { "question": "How are the calls that reach past a component's public contract settled?", "answer": "Each is named in the interface it uses, rather than drawn as a separate boundary or ignored: integrations, the model initializer and the HTML splitter import core's private gateway, SSRF and deprecation helpers (named in langchain-core public API); models and runnables import the private streaming-handler protocol of tracers (named in callback manager); provider tool search imports the model initializer's private provider inference (named in init_chat_model and given its own capability). Three smaller reaches stay as they are: the LangSmith loader uses tracers/_compat.py, an OpenAI adapter uses tools/base._stringify, and classic's embedding-distance evaluator uses vectorstores/utils._cosine_similarity; classic's indexes/_api.py is a cleanup candidate. No rule says whether shared private helpers between packages of one repository are part of the contract." },
+    { "question": "Do the text splitters need a boundary with Core abstractions?", "answer": "No, rather than adding one; they build core's Document objects, fulfil its document transformer contract and use its SSRF-safe client, but call no operation on a core component's state." },
+    { "question": "Is a saved JSON form a resource or a representation?", "answer": "A resource (Serialized object), rather than a representation of the object it came from; developers store it, load it back with an allowlist, and the format carries its own class path and secret placeholders." },
+    { "question": "What resource does a stateless renderer keep?", "answer": "Diagram, the rendered image, rather than leaving mermaid.ink's capability with no resource; the service keeps no state, and the image is closer to an output." },
+    { "question": "What does running a chain act on?", "answer": "Run chain, Run legacy chain and Run legacy agent are written as producing from the chain or agent, rather than producing a Run; the run is recorded by Run tracing, and the consumer wants the output, not the record." }
+  ],
+  "cleanupCandidates": [
+    { "name": "Classic import shims", "why": "843 files in langchain-classic call create_importer to forward old import paths to langchain_community with deprecation warnings (libs/langchain/langchain_classic/_api/module_import.py)." },
+    { "name": "Classic pass-through modules", "why": "278 files in langchain-classic define nothing and re-export other modules, such as schema/, which re-exports langchain-core." },
+    { "name": "Deprecated classic chains, agents and memory", "why": "34 chain files, 15 agent files and 8 memory files are marked @deprecated with removal in 2.0.0, with create_agent or runnables as the alternative." },
+    { "name": "Classic hub client", "why": "hub.push and hub.pull are deprecated since 1.0.6 in favour of the LangSmith SDK (libs/langchain/langchain_classic/hub.py)." },
+    { "name": "Classic model initializer copies", "why": "langchain_classic/chat_models/base.py and embeddings/base.py repeat init_chat_model and init_embeddings, now in the langchain package." },
+    { "name": "Classic agent initializer and loader", "why": "initialize_agent and load_agent are deprecated (agents/initialize.py, loading.py)." },
+    { "name": "Classic agent toolkit stubs", "why": "agents/agent_toolkits/csv, pandas, python, spark and xorbits only say the agents moved to langchain_experimental." },
+    { "name": "Classic indexing test bridge", "why": "indexes/_api.py re-exports private helpers of langchain-core's indexing 'to avoid changing unit tests during a migration'." },
+    { "name": "Core agent schema", "why": "langchain_core/agents.py says its schema definitions are provided for backwards compatibility." },
+    { "name": "Core prompt loading", "why": "load_prompt and load_prompt_from_config are deprecated, and loading from the old GitHub hub is no longer supported (langchain_core/prompts/loading.py)." },
+    { "name": "Core chat loaders and sessions", "why": "chat_loaders.py and chat_sessions.py are contracts whose only implementations are outside this repository." },
+    { "name": "Agent framework tool node re-exports", "why": "langchain/tools/tool_node.py is 'included for backwards compat imports' of LangGraph's tool node." },
+    { "name": "Stream protocol compatibility bridge", "why": "langchain_core/language_models/_compat_bridge.py converts message-chunk streams into the newer protocol events; a bridge between two streaming formats." },
+    { "name": "Output-version converters in integrations", "why": "_compat.py modules in the OpenAI, Fireworks, Groq, Anthropic and Ollama packages convert between the v0 and v1 message formats chosen by output_version." }
+  ],
+  "excluded": [
+    { "name": "LangChain contributors and maintainers", "why": "They work on the system itself (developing, testing and releasing the monorepo); engineering tooling, left out." },
+    { "name": "CI workflows, scripts and repository settings", "why": "Engineering tooling (.github/, .devcontainer/, .vscode/, pre-commit, Makefiles), left out; read as evidence only." },
+    { "name": "Package build, lint and import checks", "why": "Engineering tooling (pyproject.toml, scripts/lint_imports.sh, scripts/check_imports.py, ruff rules); their import rules were used as evidence of seams." },
+    { "name": "Tests and recorded responses", "why": "Engineering tooling (libs/**/tests/**, VCR cassettes)." },
+    { "name": "Agent and contributor instructions", "why": "AGENTS.md and .mcp.json guide contributors and their agents; read as evidence only." },
+    { "name": "LangChain's own refresh of model profiles and use of the standard tests in CI", "why": "The refresh_model_profiles workflow and the partners' own test suites work on this repository; engineering tooling. The same tools for external integration authors are modelled." },
+    { "name": "Generated wiki (openwiki/)", "why": "Generated output of a scheduled LLM workflow; outside the corpus." },
+    { "name": "Generated model profile data", "why": "data/_profiles.py files are written by langchain-profiles; generated output." },
+    { "name": "Dependency locks", "why": "uv.lock files list dependencies; outside the corpus." },
+    { "name": "Licenses and citation", "why": "Legal and citation metadata, not part of what the system offers." },
+    { "name": "Rate limiting", "why": "Provider behavior: a model waits on its rate limiter before each call; a setting of Model, not a capability." },
+    { "name": "Protection against server-side request forgery", "why": "Provider behavior of the HTTP clients (langchain_core/_security/), not something the consumer does." },
+    { "name": "Deprecation and beta warnings", "why": "Provider behavior on import or call (langchain_core/_api/)." },
+    { "name": "Retries, fallbacks and limits inside model and tool calls", "why": "What middleware and runnables do on the consumer's behalf; configured when creating an agent or composing a chain." },
+    { "name": "Tracing of LangSmith CI tags in langchain-tests", "why": "A pytest plugin for GitHub Actions runs (_langsmith_plugin.py); CI tooling." }
+  ]
+}

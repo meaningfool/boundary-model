@@ -1,0 +1,1005 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Boundary model page 01</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<!--
+  PROTOTYPE, throwaway. Draft of the five pages of the boundary model site
+  (meaningfool/boundary-model#7), in the chosen shell. Pages switch on the hash:
+  #what, #model, #how, #install, #example. Text is a draft for review.
+-->
+<style>
+/* Layout: numbered pages in the left sidebar, the current page's sections on the right; figures sit in the text column. */
+:root {
+  --bg: #ffffff; --fg: #111111; --fg2: #666666; --fg3: #888888; --fg4: #aaaaaa;
+  --line: #ebebeb; --line2: #d4d4d4; --panel: #fafafa; --skel: #efefef;
+  --inv-bg: #111111; --inv-fg: #ffffff;
+  --sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b0b0b; --fg: #ededed; --fg2: #a3a3a3; --fg3: #858585; --fg4: #5f5f5f;
+    --line: #222222; --line2: #383838; --panel: #121212; --skel: #1c1c1c;
+    --inv-bg: #ededed; --inv-fg: #0b0b0b; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0b0b0b; --fg: #ededed; --fg2: #a3a3a3; --fg3: #858585; --fg4: #5f5f5f;
+  --line: #222222; --line2: #383838; --panel: #121212; --skel: #1c1c1c;
+  --inv-bg: #ededed; --inv-fg: #0b0b0b; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 16px; line-height: 1.5; letter-spacing: -0.011em; -webkit-font-smoothing: antialiased; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--bg); }
+a { color: inherit; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; border-radius: 4px; }
+ul, ol { margin: 0; padding: 0; list-style: none; }
+p { margin: 0; }
+code { font-family: var(--mono); font-size: 0.88em; }
+.dim { color: var(--fg4); }
+.klab { display: block; font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg3); margin-bottom: 4px; }
+.skill { font-family: var(--mono); font-size: 0.88em; color: var(--fg); text-decoration: underline; text-decoration-color: var(--line2); text-underline-offset: 3px; }
+.ilink { color: var(--fg); text-decoration: underline; text-decoration-color: var(--line2); text-underline-offset: 3px; }
+.tag { display: inline-block; font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.05em; line-height: 14px; padding: 0 4px; border: 1px solid var(--line2); border-radius: 3px; color: var(--fg); margin-right: 6px; vertical-align: 1px; }
+.tag.cut { border-style: dashed; color: var(--fg2); }
+
+/* shell */
+.shell { max-width: 1240px; margin: 0 auto; display: grid; grid-template-columns: 240px minmax(0, 1fr); }
+.side { position: sticky; top: env(safe-area-inset-top, 0px); height: 100vh; overflow-y: auto; padding: 32px 24px 24px; border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 26px; }
+.logo { display: inline-flex; align-items: center; gap: 9px; text-decoration: none; font-weight: 600; font-size: 15px; letter-spacing: -0.02em; }
+.logo svg { width: 20px; height: 20px; flex: none; }
+.pages { display: grid; gap: 2px; }
+.pages a { display: flex; gap: 12px; align-items: baseline; font-size: 14px; line-height: 1.45; color: var(--fg2); text-decoration: none; padding: 5px 0 5px 12px; border-left: 1px solid transparent; }
+.pages a:hover { color: var(--fg); }
+.pages a[aria-current="page"] { color: var(--fg); font-weight: 500; border-left-color: var(--fg); }
+.pages .n { font-family: var(--mono); font-size: 11px; color: var(--fg4); flex: none; width: 2ch; }
+.pages a[aria-current="page"] .n { color: var(--fg); }
+.side-foot { margin-top: auto; border-top: 1px solid var(--line); padding-top: 16px; display: grid; gap: 10px; font-size: 13px; color: var(--fg3); }
+.side-foot a { text-decoration: none; color: var(--fg); font-size: 14px; }
+.side-foot .meta { display: flex; gap: 6px; font-family: var(--mono); font-size: 11.5px; }
+.mtop { display: none; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 25; height: 52px; align-items: center; justify-content: space-between; background: var(--bg); border-bottom: 1px solid var(--line); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.mtop button { background: none; border: 1px solid var(--line2); border-radius: 8px; padding: 5px 12px; font-size: 13px; cursor: pointer; }
+.page { display: grid; grid-template-columns: minmax(0, 1fr) 190px; gap: 52px; padding: 56px 58px 120px; min-width: 0; }
+.content { min-width: 0; max-width: 680px; }
+.toc { position: sticky; top: calc(56px + env(safe-area-inset-top, 0px)); align-self: start; padding-top: 8px; }
+.toc-h { font-size: 14px; font-weight: 500; margin-bottom: 12px; }
+.toc ol { display: grid; gap: 9px; }
+.toc a { display: block; font-size: 13.5px; line-height: 1.4; color: var(--fg3); text-decoration: none; }
+.toc a:hover, .toc a.on { color: var(--fg); }
+.toc-actions { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); display: grid; gap: 10px; }
+.toc-actions button { display: flex; align-items: center; gap: 9px; padding: 0; border: 0; background: none; font-size: 13.5px; color: var(--fg2); cursor: pointer; }
+.toc-actions svg { width: 14px; height: 14px; }
+
+/* page 01 hero */
+.hero h1 { font-size: 42px; line-height: 1.12; font-weight: 600; letter-spacing: -0.03em; margin: 0; text-wrap: balance; }
+.lede { font-size: 17px; line-height: 1.65; color: var(--fg3); max-width: 600px; margin-top: 22px; }
+.ctas { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 28px; }
+.btn { display: inline-flex; align-items: center; gap: 8px; background: var(--inv-bg); color: var(--inv-fg); font-size: 14.4px; font-weight: 500; padding: 10px 18px; border-radius: 8px; border: 0; text-decoration: none; cursor: pointer; }
+.btn-dash { display: inline-flex; align-items: center; gap: 10px; background: transparent; color: var(--fg2); font-size: 14.5px; font-weight: 500; padding: 11px 18px; border-radius: 8px; border: 1px dashed var(--line2); cursor: pointer; }
+.btn-dash .glyph { font-family: var(--mono); font-size: 12px; border: 1px solid var(--line2); border-radius: 5px; padding: 0 5px; color: var(--fg3); }
+
+/* page 01 sections */
+.sec { border-top: 1px solid var(--line); margin-top: 56px; padding-top: 48px; }
+.sec h2 { font-size: 22px; font-weight: 600; letter-spacing: -0.015em; line-height: 1.35; margin: 0; text-wrap: balance; }
+.sec > p { color: var(--fg2); line-height: 1.7; margin-top: 12px; }
+
+/* problems */
+.ptabs { margin-top: 24px; display: grid; grid-template-columns: 210px minmax(0, 1fr); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.ptabs [role="tablist"] { display: flex; flex-direction: column; border-right: 1px solid var(--line); background: var(--panel); }
+.ptabs [role="tab"] { text-align: left; padding: 14px 16px; border: 0; border-bottom: 1px solid var(--line); background: transparent; font-size: 14px; font-weight: 500; line-height: 1.4; color: var(--fg3); cursor: pointer; }
+.ptabs [role="tab"]:last-child { border-bottom: 0; }
+.ptabs [role="tab"][aria-selected="true"] { color: var(--fg); background: var(--bg); box-shadow: inset 2px 0 0 var(--fg); }
+.ppanel { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.ppanel > p { font-size: 14.5px; line-height: 1.6; color: var(--fg2); }
+.ppanel .skcap { font-family: var(--mono); font-size: 11px; line-height: 1.5; color: var(--fg3); margin-top: -6px; }
+.ppanel .pfix { font-size: 13.5px; color: var(--fg); padding-top: 12px; border-top: 1px dashed var(--line2); }
+.sk { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); padding: 14px; }
+.sk-root { margin: 0 auto 12px; width: max-content; max-width: 100%; border: 1px solid var(--fg3); border-radius: 5px; padding: 3px 10px; font-size: 12.5px; font-weight: 500; background: var(--bg); }
+.sk-row { display: grid; grid-template-columns: minmax(0, 1.8fr) repeat(3, minmax(0, 1fr)); gap: 8px; }
+.sk-col { display: grid; gap: 4px; align-content: start; min-width: 0; }
+.sk-node { border: 1px solid var(--fg3); border-radius: 5px; padding: 3px 6px; font-size: 11.5px; text-align: center; background: var(--bg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sk-node.off { border-style: dashed; border-color: var(--line2); color: var(--fg4); background: transparent; }
+.sk-deep { margin-left: 10px; padding: 2px 0 2px 8px; border-left: 1px solid var(--fg3); font-family: var(--mono); font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sk-talk p { font-size: 13px; line-height: 1.5; }
+.sk-talk .who { font-family: var(--mono); font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--fg3); margin-right: 8px; }
+.sk-talk .ag { margin-left: calc(var(--i) * 18px); margin-top: 6px; color: var(--fg2); }
+.sk-talk code { font-size: 11.5px; color: var(--fg); }
+.sk-sessions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.sk-sessions > div { border: 1px solid var(--line2); border-radius: 6px; background: var(--bg); padding: 8px 10px; display: grid; gap: 8px; }
+.chip2 { justify-self: start; font-size: 12.5px; font-weight: 500; border: 1px dashed var(--fg3); border-radius: 10px; padding: 1px 9px; }
+.sk-svg { display: block; width: 100%; max-width: 420px; height: auto; margin: 0 auto; }
+
+/* flow */
+.flow { position: relative; margin-top: 28px; padding-left: 36px; }
+.flow::before { content: ""; position: absolute; left: 10px; top: 26px; bottom: 26px; width: 2px; background: linear-gradient(var(--line2), var(--fg)); }
+.axis { display: block; margin-left: -36px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg3); }
+.axis.top { margin-bottom: 18px; }
+.axis.bottom { margin-top: 2px; }
+.fstep { position: relative; padding-bottom: 26px; }
+.fdot { position: absolute; left: -36px; top: 1px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--fg); color: var(--bg); font-family: var(--mono); font-size: 11px; font-weight: 500; }
+.fdot.open { background: var(--bg); border: 1.5px solid var(--fg3); }
+.fhead h3 { margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.4; }
+.fsub { margin-top: 4px; font-size: 14.5px; line-height: 1.6; color: var(--fg2); max-width: 600px; }
+.fvis { margin-top: 10px; }
+.f-request { display: flex; align-items: center; gap: 18px; padding: 10px 16px; border: 1px solid var(--line); border-radius: 10px; }
+.f-request svg { width: 70px; height: 70px; flex: none; overflow: visible; }
+.f-request path { fill: none; stroke: var(--fg); stroke-width: 1.2; stroke-linecap: round; }
+.f-request p { font-size: 14.5px; line-height: 1.6; color: var(--fg2); }
+.cards2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.card { border: 1px solid var(--line2); border-radius: 6px; background: var(--bg); padding: 6px 10px; min-width: 0; }
+.card .t { font-size: 13px; font-weight: 500; line-height: 18px; }
+.card .s { font-family: var(--mono); font-size: 10.5px; line-height: 16px; color: var(--fg3); }
+.tray { margin-top: 8px; border: 1px dashed var(--line2); border-radius: 8px; padding: 8px 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.tray .klab { margin: 0 4px 0 0; }
+.chip { border: 1px dashed var(--line2); border-radius: 11px; padding: 1px 10px; font-size: 12px; line-height: 18px; color: var(--fg2); }
+.slices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; align-items: start; }
+.sframe { border: 1px solid var(--fg3); border-radius: 8px; padding: 8px; display: grid; gap: 6px; min-width: 0; }
+.sframe > .klab { color: var(--fg2); margin: 0 0 2px 2px; }
+.mcard { border: 1px solid var(--line2); border-radius: 5px; background: var(--bg); padding: 4px 7px; font-size: 12px; font-weight: 500; line-height: 1.45; }
+.mcard small { display: block; font-family: var(--mono); font-size: 10px; font-weight: 400; color: var(--fg3); }
+.refined { border: 1px solid var(--fg3); border-radius: 8px; padding: 10px 12px 12px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px 18px; }
+.refined > .klab { grid-column: 1 / -1; color: var(--fg2); margin: 0; }
+.refined li { font-size: 13px; line-height: 1.5; color: var(--fg); padding-left: 12px; position: relative; margin-top: 4px; }
+.refined li::before { content: ""; position: absolute; left: 1px; top: 0.7em; width: 5px; height: 1px; background: var(--fg3); }
+.refined .from { font-family: var(--mono); font-size: 10px; color: var(--fg3); }
+.issues { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.icard { border: 1px solid var(--line2); border-radius: 8px; padding: 9px 11px 11px; display: grid; gap: 6px; align-content: start; min-width: 0; }
+.icard .st { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 10px; color: var(--fg3); }
+.icard .st i { width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--fg3); }
+.icard b { font-size: 13px; font-weight: 600; line-height: 1.35; }
+.icard p { font-size: 12px; line-height: 1.45; color: var(--fg2); }
+
+/* drill-down diagram */
+.cmodel { margin-top: 26px; border: 1px solid var(--line); border-radius: 12px; padding: 18px 16px 12px; }
+.scrollx { overflow-x: auto; }
+.cmodel svg { display: block; width: 100%; min-width: 520px; height: auto; }
+.m-box { fill: var(--bg); stroke: var(--fg); stroke-width: 1.3; }
+.m-in { fill: var(--panel); stroke: var(--line2); stroke-width: 1; }
+.m-hi { fill: var(--bg); stroke: var(--fg3); stroke-width: 1.2; }
+.m-line { fill: none; stroke: var(--fg4); stroke-width: 1; }
+.m-bnd { stroke: var(--fg); stroke-width: 2.5; stroke-linecap: round; }
+.m-dot { fill: var(--bg); stroke: var(--fg); stroke-width: 1.5; }
+.m-zoom { fill: none; stroke: var(--line2); stroke-width: 1; stroke-dasharray: 3 3; }
+.m-zone { fill: none; stroke: var(--line2); stroke-width: 1; stroke-dasharray: 4 4; }
+.m-k { font-family: var(--mono); font-size: 8.5px; letter-spacing: 0.08em; fill: var(--fg3); }
+.m-kb { font-family: var(--mono); font-size: 9px; letter-spacing: 0.08em; fill: var(--fg); }
+.m-n { font-family: var(--sans); font-size: 14px; font-weight: 600; fill: var(--fg); }
+.m-c { font-family: var(--mono); font-size: 10px; fill: var(--fg2); text-anchor: middle; }
+.m-person { fill: none; stroke: var(--fg); stroke-width: 1.3; }
+.m-l3 { opacity: 0.38; }
+.figcap { font-family: var(--mono); font-size: 11.5px; line-height: 1.6; color: var(--fg3); margin-top: 10px; }
+
+/* docs pages */
+.dhead h1 { font-size: 32px; font-weight: 600; letter-spacing: -0.025em; line-height: 1.2; margin: 0; }
+.eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: 0.05em; color: var(--fg3); margin-bottom: 10px; }
+.dlede { font-size: 18px; line-height: 1.6; color: var(--fg2); margin-top: 14px; }
+.dsec { margin-top: 48px; }
+.dsec h2 { font-size: 22px; font-weight: 600; letter-spacing: -0.015em; line-height: 1.35; margin: 0; }
+.dsec h3 { font-size: 16.5px; font-weight: 600; letter-spacing: -0.01em; margin: 28px 0 0; }
+.dsec h3 code { font-size: 0.9em; }
+.dsec > p, .dsec .p { color: var(--fg2); line-height: 1.7; margin-top: 12px; }
+.dsec p code, .dsec li code { color: var(--fg); }
+.dl { margin-top: 12px; display: grid; gap: 8px; }
+.dl li { position: relative; padding-left: 16px; color: var(--fg2); line-height: 1.65; }
+.dl li::before { content: ""; position: absolute; left: 2px; top: 0.8em; width: 6px; height: 1px; background: var(--fg3); }
+.dl li b { color: var(--fg); font-weight: 600; }
+pre.code { position: relative; margin: 14px 0 0; padding: 14px 44px 14px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); font-family: var(--mono); font-size: 12.5px; line-height: 1.7; overflow-x: auto; color: var(--fg); }
+pre.code .copy { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg3); cursor: pointer; }
+pre.code .copy svg { width: 14px; height: 14px; }
+pre.note { margin: 14px 0 0; padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; font-family: var(--mono); font-size: 11.5px; line-height: 1.7; overflow-x: auto; color: var(--fg2); }
+.callout { margin-top: 16px; padding: 12px 14px; border: 1px dashed var(--line2); border-radius: 10px; font-size: 14px; line-height: 1.6; color: var(--fg2); }
+.callout b { color: var(--fg); font-weight: 600; }
+.skel { display: grid; gap: 9px; margin-top: 14px; }
+.skel i { display: block; height: 9px; border-radius: 3px; background: var(--skel); }
+.fig { margin-top: 18px; border: 1px solid var(--line); border-radius: 12px; padding: 16px 16px 8px; }
+.ph { margin-top: 18px; height: 190px; border: 1px dashed var(--line2); border-radius: 12px; display: grid; place-items: center; font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg4); text-align: center; padding: 0 16px; }
+
+/* 02: Store diagram */
+.store svg { display: block; width: 100%; min-width: 540px; height: auto; }
+.s-frame { fill: none; stroke: var(--fg); stroke-width: 1.4; }
+.s-rule { stroke: var(--line); stroke-width: 1; }
+.s-box { fill: var(--bg); stroke: var(--line2); stroke-width: 1; }
+.s-area { fill: var(--panel); stroke: var(--line2); stroke-width: 1; }
+.s-out { fill: var(--bg); stroke: var(--fg3); stroke-width: 1; stroke-dasharray: 4 3; }
+.s-line { fill: none; stroke: var(--fg4); stroke-width: 1; }
+.s-dot { fill: var(--bg); stroke: var(--fg); stroke-width: 1.4; }
+.s-k { font-family: var(--mono); font-size: 8.5px; letter-spacing: 0.08em; fill: var(--fg3); }
+.s-n { font-family: var(--sans); font-size: 12.5px; font-weight: 600; fill: var(--fg); }
+.s-s { font-family: var(--sans); font-size: 10.5px; fill: var(--fg2); }
+.s-r { font-family: var(--mono); font-size: 9.5px; fill: var(--fg2); }
+.s-mk circle { fill: var(--fg); }
+.s-mk text { font-family: var(--mono); font-size: 9px; font-weight: 500; fill: var(--bg); text-anchor: middle; dominant-baseline: central; }
+.terms { margin-top: 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 22px; }
+.terms li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; align-items: start; }
+.terms .b { width: 18px; height: 18px; border-radius: 50%; background: var(--fg); color: var(--bg); font-family: var(--mono); font-size: 10px; display: grid; place-items: center; margin-top: 1px; }
+.terms b { display: block; font-size: 13.5px; font-weight: 600; }
+.terms span { display: block; font-size: 13px; line-height: 1.5; color: var(--fg2); }
+
+/* 03: two jobs, starting points, agent and you */
+.jobs { margin-top: 18px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.job { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px 16px; display: grid; gap: 0; align-content: start; }
+.job > .klab { margin-bottom: 12px; color: var(--fg); }
+.jn { border: 1px solid var(--line2); border-radius: 6px; padding: 6px 10px; font-size: 13.5px; font-weight: 500; background: var(--bg); }
+.jn.map { border-color: var(--fg); }
+.je { margin-left: 16px; padding: 7px 0 7px 14px; border-left: 1px solid var(--fg4); font-size: 12.5px; color: var(--fg2); line-height: 1.45; position: relative; }
+.je::after { content: ""; position: absolute; left: -4px; bottom: -1px; border: 3.5px solid transparent; border-top: 5px solid var(--fg4); border-bottom: 0; }
+.je.loop { border-left-style: dashed; margin-top: 8px; }
+.je.loop::after { display: none; }
+.je code { color: var(--fg); }
+.jobs-foot { grid-column: 1 / -1; font-size: 13.5px; line-height: 1.6; color: var(--fg2); padding: 2px 2px 0; }
+.start { margin-top: 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.start > div { padding: 14px 16px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.start b { display: block; font-size: 14px; font-weight: 500; }
+.start span { display: block; margin-top: 6px; font-family: var(--mono); font-size: 12px; color: var(--fg); }
+.start span::before { content: "\2192\00a0"; color: var(--fg4); }
+.pair { margin-top: 12px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.pair > div { padding: 12px 14px 14px; min-width: 0; }
+.pair > div + div { border-left: 1px solid var(--line); background: var(--panel); }
+.pair .dl { margin-top: 6px; gap: 6px; }
+.pair .dl li { font-size: 14px; line-height: 1.55; }
+.pair .you .dl li { color: var(--fg); }
+
+/* 04: numbered steps */
+.steps { margin-top: 16px; counter-reset: st; display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
+.steps > li { position: relative; padding: 0 0 22px 40px; counter-increment: st; min-width: 0; }
+.steps > li::before { content: counter(st); position: absolute; left: 0; top: 0; width: 24px; height: 24px; border-radius: 50%; background: var(--fg); color: var(--bg); font-family: var(--mono); font-size: 11.5px; display: grid; place-items: center; }
+.steps > li::after { content: ""; position: absolute; left: 11.5px; top: 30px; bottom: 6px; width: 1px; background: var(--line2); }
+.steps > li:last-child::after { display: none; }
+.steps > li > b { display: block; font-size: 15.5px; font-weight: 600; line-height: 24px; }
+.steps > li > p { color: var(--fg2); line-height: 1.65; margin-top: 4px; }
+
+.pager { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 64px; padding-top: 28px; border-top: 1px solid var(--line); }
+.pager a { display: grid; gap: 3px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; text-decoration: none; }
+.pager a:hover { border-color: var(--line2); }
+.pager a.next { grid-column: 2; text-align: right; }
+.pager .k { font-family: var(--mono); font-size: 11px; letter-spacing: 0.05em; color: var(--fg3); }
+.pager .t { font-size: 15px; font-weight: 500; }
+.toast { position: fixed; z-index: 41; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--inv-bg); color: var(--inv-fg); font-size: 13px; padding: 7px 14px; border-radius: 8px; }
+
+@media (max-width: 1180px) {
+  .page { grid-template-columns: minmax(0, 1fr); }
+  .toc { display: none; }
+  .content { max-width: 720px; }
+}
+@media (max-width: 960px) {
+  .shell { grid-template-columns: minmax(0, 1fr); }
+  .side { display: none; }
+  .side.open { display: flex; position: fixed; z-index: 24; inset: calc(52px + env(safe-area-inset-top, 0px)) 0 0 0; height: auto; background: var(--bg); border-right: 0; padding-left: max(24px, env(safe-area-inset-left, 0px)); padding-right: max(24px, env(safe-area-inset-right, 0px)); }
+  .side.open > .logo { display: none; }
+  .mtop { display: flex; }
+  .page { padding-block: 32px 120px; padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px)); }
+}
+@media (max-width: 640px) {
+  .hero h1 { font-size: 31px; }
+  .lede { font-size: 16px; }
+  .dhead h1 { font-size: 27px; }
+  .dlede { font-size: 16.5px; }
+  .ptabs { grid-template-columns: minmax(0, 1fr); }
+  .ptabs [role="tablist"] { border-right: 0; border-bottom: 1px solid var(--line); }
+  .sk-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sk-sessions { grid-template-columns: minmax(0, 1fr); }
+  .cards2, .slices, .issues, .refined, .terms, .jobs, .start, .pair { grid-template-columns: minmax(0, 1fr); }
+  .pair > div + div { border-left: 0; border-top: 1px solid var(--line); }
+  .f-request { flex-direction: column; align-items: flex-start; }
+  .pager { grid-template-columns: 1fr; }
+  .pager a.next { grid-column: 1; }
+}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="logo" viewBox="0 0 20 20"><rect x="1.5" y="1.5" width="17" height="17" rx="4.5" fill="none" stroke="currentColor" stroke-width="1.6"/><line x1="10" y1="2.5" x2="10" y2="17.5" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2 2.2"/><circle cx="10" cy="10" r="2.7" fill="currentColor"/></symbol>
+  <symbol id="copy" viewBox="0 0 16 16"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M10.5 3.5v-.5A1.5 1.5 0 0 0 9 1.5H4A1.5 1.5 0 0 0 2.5 3v5A1.5 1.5 0 0 0 4 9.5h.5" fill="none" stroke="currentColor" stroke-width="1.3"/></symbol>
+  <symbol id="out" viewBox="0 0 16 16"><path d="M9.5 2.5h4v4M13.5 2.5 7.5 8.5M12 9.5V13a.5.5 0 0 1-.5.5H3a.5.5 0 0 1-.5-.5V4.5A.5.5 0 0 1 3 4h3.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</svg>
+
+<header class="mtop">
+  <a class="logo" href="#what"><svg><use href="#logo"/></svg>boundary model</a>
+  <button type="button" id="menuBtn" aria-expanded="false" aria-controls="side">Menu</button>
+</header>
+
+<div class="shell">
+  <aside class="side" id="side">
+    <a class="logo" href="#what"><svg><use href="#logo"/></svg>boundary model</a>
+    <nav class="pages" id="pages" aria-label="Pages"></nav>
+    <div class="side-foot">
+      <a href="https://github.com/meaningfool/boundary-model" target="_blank" rel="noopener">GitHub ↗</a>
+      <div class="meta"><span>v0.1.0</span><span>·</span><span>MIT licence</span></div>
+    </div>
+  </aside>
+
+  <div class="page">
+    <div class="content" id="content">
+
+<!-- ============================== 01 ============================== -->
+<article data-page="what" data-title="What it is and why">
+  <header class="hero">
+    <h1>A shared map of your system, <span class="dim">for you and your agent.</span></h1>
+    <p class="lede">Nine agent skills that take you from an idea to a spec, working from a boundary map of your system.</p>
+    <div class="ctas">
+      <a class="btn" href="#install">Get started</a>
+      <button class="btn-dash" type="button" data-say="Copies an install prompt on the real site"><span class="glyph">&gt;_</span>Install with your agent</button>
+    </div>
+  </header>
+
+  <section class="sec" id="what-problems" data-toc="Without a shared map">
+    <h2>Without a shared map</h2>
+    <p>A repository holds code, not the model you have in your head: who uses the system, for what, and which part is responsible for what. From the code alone, agents can write code, but they are not reliable coworkers on what to build.</p>
+    <div class="ptabs">
+      <div role="tablist" aria-label="Problems">
+        <button role="tab" type="button" aria-selected="true" data-p="1">Agents go deep before they go wide.</button>
+        <button role="tab" type="button" aria-selected="false" data-p="2">Behavior changes get drawn into implementation details.</button>
+        <button role="tab" type="button" aria-selected="false" data-p="3">Agents reinvent concepts between sessions.</button>
+        <button role="tab" type="button" aria-selected="false" data-p="4">The code's structure drifts from your mental model.</button>
+      </div>
+      <div class="ppanel" data-p="1">
+        <p>Ask for a change and an agent dives into the first part it sees, down to schemas and error messages, while the rest of the change is still unclear.</p>
+        <div class="sk" aria-hidden="true">
+          <div class="sk-root">Pay with gift cards</div>
+          <div class="sk-row">
+            <div class="sk-col"><div class="sk-node">Place order</div><div class="sk-deep">gift_cards table</div><div class="sk-deep">POST /orders</div><div class="sk-deep">error codes</div></div>
+            <div class="sk-col"><div class="sk-node off">Balance?</div></div>
+            <div class="sk-col"><div class="sk-node off">Charges?</div></div>
+            <div class="sk-col"><div class="sk-node off">Mobile app?</div></div>
+          </div>
+        </div>
+        <p class="skcap">Three levels down on one part. The other three are still open.</p>
+        <p class="pfix"><span class="klab">With the skills</span>Every behavior change is laid out first. The details wait until the whole change is agreed.</p>
+      </div>
+      <div class="ppanel" data-p="2" hidden>
+        <p>You want to agree on what people will be able to do. The conversation turns to tables, endpoints and files before you have.</p>
+        <div class="sk sk-talk" aria-hidden="true">
+          <p><span class="who">You</span>Shoppers should be able to pay with gift cards.</p>
+          <p class="ag" style="--i:1"><span class="who">Agent</span>I'll add a <code>gift_cards</code> table with a balance column.</p>
+          <p class="ag" style="--i:2"><span class="who">Agent</span>Then a <code>POST /gift-cards/redeem</code> endpoint.</p>
+          <p class="ag" style="--i:3"><span class="who">Agent</span>And split the amount in <code>charge.ts</code>.</p>
+        </div>
+        <p class="skcap">What shoppers can do was never agreed. The talk moved to how.</p>
+        <p class="pfix"><span class="klab">With the skills</span>Each change is stated as what changes for the people using the system, marked against the map, and you confirm it before any code.</p>
+      </div>
+      <div class="ppanel" data-p="3" hidden>
+        <p>One session says gift card, the next says voucher, the one after that adds a prepaid balance. Nothing holds the names you agreed on.</p>
+        <div class="sk sk-sessions" aria-hidden="true">
+          <div><span class="klab">Session 1</span><span class="chip2">Gift card</span></div>
+          <div><span class="klab">Session 2</span><span class="chip2">Voucher</span></div>
+          <div><span class="klab">Session 3</span><span class="chip2">Prepaid balance</span></div>
+        </div>
+        <p class="skcap">One concept, three names.</p>
+        <p class="pfix"><span class="klab">With the skills</span>You settle the names when you review the map. Every change is then planned in those names, and fuzzy words get questioned.</p>
+      </div>
+      <div class="ppanel" data-p="4" hidden>
+        <p>The parts you have in mind stop lining up with the folders and services in the code, and nobody notices until a change gets hard.</p>
+        <div class="sk" aria-hidden="true">
+          <svg class="sk-svg" viewBox="0 0 380 140">
+            <text class="m-k" x="0" y="12">IN YOUR HEAD</text>
+            <text class="m-k" x="240" y="12">IN THE CODE</text>
+            <path class="m-line" d="M121 47 C180 47 180 38 240 38"/>
+            <path class="m-line" d="M121 47 C180 47 180 76 240 76"/>
+            <path class="m-line" d="M121 47 C180 47 180 114 240 114"/>
+            <path class="m-line" d="M121 107 C180 107 180 76 240 76"/>
+            <path class="m-line" d="M121 107 C180 107 180 114 240 114"/>
+            <rect class="m-hi" x="0.5" y="32" width="120" height="30" rx="4"/><text class="m-n" style="font-size:12.5px" x="12" y="51">Storefront</text>
+            <rect class="m-hi" x="0.5" y="92" width="120" height="30" rx="4"/><text class="m-n" style="font-size:12.5px" x="12" y="111">Payments</text>
+            <rect class="m-in" x="240" y="24" width="139" height="28" rx="4"/><text class="m-c" style="text-anchor:start" x="252" y="42">src/shop/</text>
+            <rect class="m-in" x="240" y="62" width="139" height="28" rx="4"/><text class="m-c" style="text-anchor:start" x="252" y="80">src/checkout/</text>
+            <rect class="m-in" x="240" y="100" width="139" height="28" rx="4"/><text class="m-c" style="text-anchor:start" x="252" y="118">src/billing/</text>
+          </svg>
+        </div>
+        <p class="skcap">Two parts in your head, three folders in the code, and no clean line between them.</p>
+        <p class="pfix"><span class="klab">With the skills</span>The map cites the code behind each boundary. Updating it shows what changed in the code since the last review.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="what-process" data-toc="Behavior first, details last">
+    <h2>Focus on behavior changes first, implementation details last</h2>
+    <p>Each step works one level closer to the code. You agree on what changes for the people using the system before anyone decides how to build it.</p>
+    <div class="flow">
+      <span class="axis top">Behavior</span>
+      <ol>
+        <li class="fstep">
+          <span class="fdot open" aria-hidden="true"></span>
+          <div class="fhead"><h3>Start from your intended changes</h3></div>
+          <p class="fsub">A request in your own words, with several changes tangled together.</p>
+          <div class="fvis f-request">
+            <svg viewBox="-80 -80 160 160" aria-hidden="true"><path id="tanglePath"/></svg>
+            <p>“Shoppers should be able to pay with gift cards and see what's left on them. In the app too. And can they pay part of an order with a card?”</p>
+          </div>
+        </li>
+        <li class="fstep">
+          <span class="fdot" aria-hidden="true">1</span>
+          <div class="fhead"><h3>Clarify the behavior changes, from the outside in</h3></div>
+          <p class="fsub">One item for each change in what people can do with the system, marked against the map. Questions about details wait.</p>
+          <div class="fvis">
+            <div class="cards2">
+              <div class="card"><div class="t"><span class="tag">MODIFIED</span>Place order</div><div class="s">Shopper ↔ Store · web shop, mobile app</div></div>
+              <div class="card"><div class="t"><span class="tag">NEW</span>See gift card balance</div><div class="s">Shopper ↔ Store · observes Gift card</div></div>
+              <div class="card"><div class="t"><span class="tag">MODIFIED</span>Charge order</div><div class="s">Storefront ↔ Payments · mutates Gift card</div></div>
+              <div class="card"><div class="t"><span class="tag">NEW</span>Gift card</div><div class="s">Resource kept by Payments</div></div>
+            </div>
+            <div class="tray"><span class="klab">Details, for later</span><span class="chip">Can a gift card pay part of an order?</span><span class="chip">What does an expired card show?</span></div>
+          </div>
+        </li>
+        <li class="fstep">
+          <span class="fdot" aria-hidden="true">2</span>
+          <div class="fhead"><h3>Group the changes into increments you can observe</h3></div>
+          <p class="fsub">A change too big for one increment is split, here by interface.</p>
+          <div class="fvis slices">
+            <div class="sframe"><span class="klab">Increment 1 · Pay on the web</span>
+              <div class="mcard"><span class="tag">NEW</span>Gift card</div>
+              <div class="mcard"><span class="tag">MODIFIED</span>Charge order</div>
+              <div class="mcard"><span class="tag cut">SPLIT</span>Place order<small>web shop</small></div>
+            </div>
+            <div class="sframe"><span class="klab">Increment 2 · See the balance</span>
+              <div class="mcard"><span class="tag">NEW</span>See gift card balance</div>
+            </div>
+            <div class="sframe"><span class="klab">Increment 3 · Pay in the app</span>
+              <div class="mcard"><span class="tag cut">SPLIT</span>Place order<small>mobile app</small></div>
+            </div>
+          </div>
+        </li>
+        <li class="fstep">
+          <span class="fdot" aria-hidden="true">3</span>
+          <div class="fhead"><h3>Settle the details of each increment</h3></div>
+          <p class="fsub">Its exact expected behavior and its design decisions, starting from the questions set aside earlier.</p>
+          <div class="fvis refined">
+            <span class="klab">Increment 1 · Pay on the web</span>
+            <div><span class="klab">Expected behavior</span><ul><li>A shopper pays for an order with a gift card in the web shop.</li><li>The gift card's balance goes down by the amount paid.</li></ul></div>
+            <div><span class="klab">Design decisions</span><ul><li>A gift card can pay part of an order, and a card pays the rest. <span class="from">from details</span></li><li>Each gift card's balance is kept as a list of adjustments.</li></ul></div>
+          </div>
+        </li>
+        <li class="fstep">
+          <span class="fdot" aria-hidden="true">4</span>
+          <div class="fhead"><h3>Turn each increment into an issue</h3></div>
+          <p class="fsub">Each issue carries its expected behavior and its proof of done, so an agent can build from it.</p>
+          <div class="fvis issues">
+            <div class="icard"><span class="st"><i></i>Issue</span><b>Pay with a gift card on the web</b><p>Proof of done: pay an order with a gift card in the web shop and see its balance go down.</p></div>
+            <div class="icard"><span class="st"><i></i>Issue</span><b>See a gift card's balance</b><p>Proof of done: open a gift card and see what is left on it.</p></div>
+            <div class="icard"><span class="st"><i></i>Issue</span><b>Pay with a gift card in the app</b><p>Proof of done: pay an order with a gift card in the mobile app.</p></div>
+          </div>
+        </li>
+      </ol>
+      <span class="axis bottom">Implementation details</span>
+    </div>
+  </section>
+
+  <section class="sec" id="what-boundaries" data-toc="Boundaries, level by level">
+    <h2>Boundaries, level by level</h2>
+    <p>A boundary is where a consumer meets a provider: what the provider offers, and through which interfaces. The first one sits between your users and your system. Open the system and the same pattern repeats inside it, between its components, one level down each time.</p>
+    <div class="cmodel">
+      <div class="scrollx">
+        <svg viewBox="0 0 680 366" role="img" aria-label="Level 1: a user, the external boundary, and your system with components A, B and C. Opening your system shows level 2: component A uses component B across an internal boundary, and B holds B1 and B2. Opening B shows level 3, faded: B1 uses B2 across another internal boundary.">
+          <text class="m-kb" x="0" y="11">LEVEL 1 · EXTERNAL BOUNDARY</text>
+          <rect class="m-box" x="0.5" y="26" width="100" height="58" rx="6"/>
+          <text class="m-k" x="12" y="43">CONSUMER</text>
+          <text class="m-n" x="12" y="66">User</text>
+          <circle class="m-person" cx="80" cy="48" r="6"/>
+          <path class="m-person" d="M69 73 a11 11 0 0 1 22 0"/>
+          <path class="m-line" d="M100.5 55 C118 55 118 44 136 44"/>
+          <path class="m-line" d="M100.5 55 C118 55 118 66 136 66"/>
+          <line class="m-bnd" x1="136" y1="22" x2="136" y2="88"/>
+          <circle class="m-dot" cx="136" cy="44" r="4"/>
+          <circle class="m-dot" cx="136" cy="66" r="4"/>
+          <text class="m-k" x="136" y="102" text-anchor="middle">BOUNDARY</text>
+          <path class="m-line" d="M140 44 L170 44"/>
+          <path class="m-line" d="M140 66 L170 66"/>
+          <rect class="m-box" x="170" y="20" width="262" height="72" rx="6"/>
+          <text class="m-k" x="184" y="37">PROVIDER</text>
+          <text class="m-n" x="184" y="56">Your system</text>
+          <rect class="m-in" x="184" y="64" width="68" height="20" rx="3"/><text class="m-c" x="218" y="78">A</text>
+          <rect class="m-in" x="260" y="64" width="68" height="20" rx="3"/><text class="m-c" x="294" y="78">B</text>
+          <rect class="m-in" x="336" y="64" width="68" height="20" rx="3"/><text class="m-c" x="370" y="78">C</text>
+          <path class="m-zoom" d="M170 92 L196 124"/>
+          <path class="m-zoom" d="M432 92 L626 124"/>
+          <rect class="m-zone" x="196" y="124" width="430" height="114" rx="8"/>
+          <text class="m-kb" x="210" y="142">LEVEL 2 · INTERNAL BOUNDARY · INSIDE YOUR SYSTEM</text>
+          <rect class="m-box" x="210.5" y="156" width="86" height="60" rx="6"/>
+          <text class="m-k" x="222" y="173">CONSUMER</text>
+          <text class="m-n" x="222" y="198">A</text>
+          <path class="m-line" d="M296.5 186 C312 186 312 176 326 176"/>
+          <path class="m-line" d="M296.5 186 C312 186 312 196 326 196"/>
+          <line class="m-bnd" x1="326" y1="152" x2="326" y2="222"/>
+          <circle class="m-dot" cx="326" cy="176" r="4"/>
+          <circle class="m-dot" cx="326" cy="196" r="4"/>
+          <path class="m-line" d="M330 176 L356 176"/>
+          <path class="m-line" d="M330 196 L356 196"/>
+          <rect class="m-box" x="356" y="152" width="254" height="72" rx="6"/>
+          <text class="m-k" x="370" y="169">PROVIDER</text>
+          <text class="m-n" x="370" y="188">B</text>
+          <rect class="m-in" x="370" y="196" width="68" height="20" rx="3"/><text class="m-c" x="404" y="210">B1</text>
+          <rect class="m-in" x="446" y="196" width="68" height="20" rx="3"/><text class="m-c" x="480" y="210">B2</text>
+          <path class="m-zoom" d="M356 224 L416 262"/>
+          <path class="m-zoom" d="M610 224 L678 262"/>
+          <g class="m-l3">
+            <rect class="m-zone" x="416" y="262" width="262" height="100" rx="8"/>
+            <text class="m-kb" x="430" y="280">LEVEL 3 · INSIDE B</text>
+            <rect class="m-box" x="430.5" y="292" width="66" height="54" rx="6"/>
+            <text class="m-n" x="442" y="324">B1</text>
+            <line class="m-bnd" x1="520" y1="290" x2="520" y2="350"/>
+            <path class="m-line" d="M496.5 320 L550 320"/>
+            <rect class="m-box" x="550" y="290" width="110" height="58" rx="6"/>
+            <text class="m-n" x="562" y="322">B2</text>
+            <text class="m-c" x="640" y="340">…</text>
+          </g>
+        </svg>
+      </div>
+      <p class="figcap">Each level has the same shape: a consumer, a boundary, a provider. Level 1 boundaries, with the people and systems that use yours, are external. Every boundary below is internal.</p>
+    </div>
+    <p><a class="ilink" href="#model">The boundary model</a> covers the rest: what each boundary lists, how a provider opens into the next level, and the map that records it all.</p>
+  </section>
+</article>
+
+<!-- ============================== 02 ============================== -->
+<article data-page="model" data-title="The boundary model" hidden>
+  <header class="dhead">
+    <div class="eyebrow">02</div>
+    <h1>The boundary model</h1>
+    <p class="dlede">The boundary model describes a system as the people and systems using it see it. This page explains its terms and the map that records them. The <span class="skill">use-boundary-model</span> skill holds the full definitions.</p>
+  </header>
+
+  <section class="dsec" id="model-lists" data-toc="What a boundary lists">
+    <h2>What a boundary lists</h2>
+    <p>A boundary is the line across which a provider offers resources and capabilities to a consumer. There is one boundary for each consumer and provider, however many interfaces it has. Each boundary lists:</p>
+    <ul class="dl">
+      <li><b>Interfaces:</b> the channels the consumer uses, such as a web shop, a mobile app or an API.</li>
+      <li><b>Capabilities:</b> what the consumer can do, to get a result. Each one works on resources, and says how: it observes, mutates, produces or reacts.</li>
+      <li><b>Areas:</b> groups of capabilities that serve one purpose. The core area holds what the consumer comes for. Supporting areas hold what they would skip if they could, such as sign-in or settings.</li>
+      <li><b>Resources:</b> things with a state the consumer cares about, such as an order. A provider lists each resource once, under one name.</li>
+    </ul>
+    <div class="fig store">
+      <div class="scrollx">
+        <svg viewBox="0 0 680 310" role="img" aria-label="The Store example. The Shopper uses the Store through the web shop and the mobile app, to Shop and to See loyalty balance. Inside the Store: Storefront and Payments, and Payments uses the Card network.">
+          <text class="s-k" x="0" y="20">LEVEL 1</text>
+          <rect class="s-box" x="0.5" y="131" width="86" height="48" rx="3"/>
+          <text class="s-k" x="10" y="148">CONSUMER</text>
+          <text class="s-n" x="10" y="166">Shopper</text>
+          <path class="s-line" d="M86.5 155 C104 155 104 135 120 135"/>
+          <path class="s-line" d="M86.5 155 C104 155 104 181 120 181"/>
+          <rect class="s-frame" x="120" y="8" width="558" height="294" rx="2"/>
+          <text class="s-k" x="134" y="30">PROVIDER</text>
+          <text class="s-n" x="134" y="48">Store</text>
+          <text class="s-s" x="134" y="64">The shop as shoppers know it, on the web and in the mobile app.</text>
+          <line class="s-rule" x1="121" y1="78" x2="677" y2="78"/>
+          <text class="s-k" x="130" y="100">INTERFACES</text>
+          <text class="s-k" x="212" y="100">CAPABILITIES</text>
+          <text class="s-k" x="388" y="100">COMPONENTS · LEVEL 2</text>
+          <circle class="s-dot" cx="120" cy="135" r="4"/>
+          <circle class="s-dot" cx="120" cy="181" r="4"/>
+          <text class="s-s" x="130" y="139">web shop</text>
+          <text class="s-s" x="130" y="185">mobile app</text>
+          <path class="s-line" d="M180 135 C196 135 196 165 212 165"/>
+          <path class="s-line" d="M188 181 C200 181 200 165 212 165"/>
+          <path class="s-line" d="M188 181 C200 181 200 252 212 252"/>
+          <rect class="s-area" x="212" y="114" width="150" height="98" rx="3"/>
+          <text class="s-k" x="222" y="130">CORE AREA</text>
+          <text class="s-n" x="222" y="147">Shop</text>
+          <text class="s-s" x="222" y="166">Browse products</text>
+          <text class="s-s" x="222" y="181">Place order</text>
+          <text class="s-s" x="222" y="196">List past orders</text>
+          <rect class="s-area" x="212" y="226" width="150" height="52" rx="3"/>
+          <text class="s-k" x="222" y="242">SUPPORTING AREA</text>
+          <text class="s-n" x="222" y="260">See loyalty balance</text>
+          <path class="s-line" d="M362 165 C375 165 375 151 388 151"/>
+          <path class="s-line" d="M362 165 C375 165 375 243 388 243"/>
+          <path class="s-line" d="M362 252 C375 252 375 151 388 151"/>
+          <rect class="s-box" x="388" y="114" width="128" height="74" rx="3"/>
+          <text class="s-k" x="398" y="130">COMPONENT</text>
+          <text class="s-n" x="398" y="148">Storefront</text>
+          <text class="s-r" x="398" y="165">Product · Order</text>
+          <text class="s-r" x="398" y="179">Loyalty balance</text>
+          <line class="s-line" x1="452" y1="188" x2="452" y2="210"/>
+          <rect class="s-box" x="388" y="210" width="128" height="66" rx="3"/>
+          <text class="s-k" x="398" y="226">COMPONENT</text>
+          <text class="s-n" x="398" y="244">Payments</text>
+          <text class="s-r" x="398" y="262">Charge</text>
+          <line class="s-line" x1="516" y1="243" x2="536" y2="243"/>
+          <rect class="s-out" x="536" y="210" width="130" height="66" rx="3"/>
+          <text class="s-k" x="546" y="226">OUTSIDE SERVICE</text>
+          <text class="s-n" x="546" y="244">Card network</text>
+          <text class="s-r" x="546" y="262">Card authorization</text>
+          <g class="s-mk"><circle cx="86" cy="131" r="8"/><text x="86" y="131">1</text></g>
+          <g class="s-mk"><circle cx="106" cy="120" r="8"/><text x="106" y="120">2</text></g>
+          <g class="s-mk"><circle cx="120" cy="8" r="8"/><text x="120" y="8">3</text></g>
+          <g class="s-mk"><circle cx="120" cy="230" r="8"/><text x="120" y="230">4</text></g>
+          <g class="s-mk"><circle cx="362" cy="114" r="8"/><text x="362" y="114">5</text></g>
+          <g class="s-mk"><circle cx="292" cy="177" r="8"/><text x="292" y="177">6</text></g>
+          <g class="s-mk"><circle cx="446" cy="258" r="8"/><text x="446" y="258">7</text></g>
+          <g class="s-mk"><circle cx="516" cy="210" r="8"/><text x="516" y="210">8</text></g>
+          <g class="s-mk"><circle cx="666" cy="210" r="8"/><text x="666" y="210">9</text></g>
+        </svg>
+      </div>
+      <ol class="terms">
+        <li><span class="b">1</span><div><b>Consumer</b><span>The person or system that uses the provider to get something done.</span></div></li>
+        <li><span class="b">2</span><div><b>Interface</b><span>The channel the consumer uses.</span></div></li>
+        <li><span class="b">3</span><div><b>Provider</b><span>What the consumer believes it is using.</span></div></li>
+        <li><span class="b">4</span><div><b>Boundary</b><span>Where the provider offers resources and capabilities to the consumer.</span></div></li>
+        <li><span class="b">5</span><div><b>Area</b><span>Capabilities that serve one purpose, core or supporting.</span></div></li>
+        <li><span class="b">6</span><div><b>Capability</b><span>Something the consumer can do, to get a result.</span></div></li>
+        <li><span class="b">7</span><div><b>Resource</b><span>Something with a state the consumer cares about.</span></div></li>
+        <li><span class="b">8</span><div><b>Component</b><span>A part of a provider with its own state or decisions.</span></div></li>
+        <li><span class="b">9</span><div><b>Outside service</b><span>A service outside the system that a component calls.</span></div></li>
+      </ol>
+    </div>
+    <p>In text, the same boundary reads:</p>
+    <pre class="note">Resources of Store: Product · Order · Loyalty balance
+
+Shopper &lt;-&gt; Store
+  Interfaces: web shop · mobile app
+  Shop (core)
+    Browse products: observes Product
+    Place order: produces Order · mutates Loyalty balance
+    List past orders: observes Order
+  See loyalty balance (supporting)
+    See loyalty balance: observes Loyalty balance [mobile app]</pre>
+  </section>
+
+  <section class="dsec" id="model-roles" data-toc="Consumers and providers">
+    <h2>Consumers and providers</h2>
+    <ul class="dl">
+      <li>A consumer is a role, not a person. One person can hold several roles, and roles that share goals and capabilities are one consumer.</li>
+      <li>The provider is what the consumer believes it is using. The apps, servers and outside services that deliver it stay inside it until you open it.</li>
+      <li>A boundary points one way: from the consumer, who wants something, to the provider, who delivers it. A callback that delivers a result belongs to the boundary whose capability it completes.</li>
+    </ul>
+  </section>
+
+  <section class="dsec" id="model-levels" data-toc="Levels">
+    <h2>Levels</h2>
+    <p>Level 1 shows the people and systems that use your system, and the system itself. Those boundaries are external. Every boundary below them is internal.</p>
+    <p>A provider is also a consumer one level down. To deliver what it promises, it relies on its own components and on outside services. Opening it shows that next level: its components, what each one keeps, and the boundaries between them.</p>
+    <p>A part of a provider is a component when it keeps state that only it changes, or makes decisions that only it makes, and the other parts reach it only through what it exposes. Storage, libraries and adapters to outside services are how a component keeps or reaches things, not components of their own.</p>
+    <pre class="note">Inside Store                                         Level 2
+  Storefront: shopping and loyalty; serves Shopper › Shop, See loyalty balance
+  Payments: charging orders; serves Shopper › Shop
+
+  Storefront &lt;-&gt; Payments
+    Interfaces: charges API
+    Charge orders (core)
+      Charge order: produces Charge
+      Refund order: mutates Charge
+
+  Payments &lt;-&gt; Card network
+    Interfaces: card network API
+    Authorize card payment (core)
+      Authorize card payment: produces Card authorization</pre>
+  </section>
+
+  <section class="dsec" id="model-out" data-toc="What stays out">
+    <h2>What stays out</h2>
+    <ul class="dl">
+      <li><b>How the system is built.</b> A runtime, a framework, a database or a deployment unit does not make a boundary by itself.</li>
+      <li><b>Steps of a capability.</b> Checking a coupon is part of paying. It gives the consumer nothing of its own.</li>
+      <li><b>What the provider does on its own.</b> A nightly job that builds a report is not something the consumer does. Reading the report is.</li>
+      <li><b>Tools that work on the system rather than with it.</b> Build, deploy and migration tools, health checks and clean-up jobs are not boundaries. The map lists them as exclusions.</li>
+    </ul>
+  </section>
+
+  <section class="dsec" id="model-map" data-toc="The boundary map">
+    <h2>The boundary map</h2>
+    <ul class="dl">
+      <li>One JSON file records a system's current boundaries, at every level. A system has one map.</li>
+      <li>The map describes one revision of the code. A planned change does not go in it.</li>
+      <li>It lives at <code>docs/boundary-map.json</code> by default. A project that keeps it elsewhere records the path in its agent instructions, such as <code>AGENTS.md</code>.</li>
+      <li>A map is finished once a person has reviewed it.</li>
+      <li>The <a class="ilink" href="https://github.com/meaningfool/boundary-model/blob/v0.1.0/skills/use-boundary-model/references/map-format.md" target="_blank" rel="noopener">map format</a> has a JSON schema and a checker, which needs Node 18 or later.</li>
+    </ul>
+  </section>
+</article>
+
+<!-- ============================== 03 ============================== -->
+<article data-page="how" data-title="How the skills work together" hidden>
+  <header class="dhead">
+    <div class="eyebrow">03</div>
+    <h1>How the skills work together</h1>
+    <p class="dlede">Most of the nine skills do one of two jobs: keep a map of your system current, or plan a change on it. This page says what each skill does, and what you decide at each step.</p>
+  </header>
+
+  <section class="dsec" id="how-jobs" data-toc="Two jobs">
+    <h2>Two jobs</h2>
+    <div class="jobs">
+      <div class="job">
+        <span class="klab">Keep the map</span>
+        <span class="jn">Your code</span>
+        <span class="je"><code>extract-boundaries</code></span>
+        <span class="jn">Draft map</span>
+        <span class="je"><code>review-boundaries</code>, with you</span>
+        <span class="jn map">Boundary map</span>
+        <span class="je loop"><code>update-boundaries</code>, after changes land, then a review</span>
+      </div>
+      <div class="job">
+        <span class="klab">Plan a change</span>
+        <span class="jn map">Boundary map</span>
+        <span class="je"><code>shape-boundaries</code></span>
+        <span class="jn">Boundary changes</span>
+        <span class="je"><code>slice</code>, then <code>refine</code></span>
+        <span class="jn">Slices and decisions</span>
+        <span class="je"><code>to-issues</code></span>
+        <span class="jn">GitHub issues</span>
+      </div>
+      <p class="jobs-foot"><code>use-boundary-model</code> holds the model and the map format that the other skills load. <code>visualize-boundaries</code> draws the map whenever one of them needs it.</p>
+    </div>
+  </section>
+
+  <section class="dsec" id="how-start" data-toc="Where to start">
+    <h2>Where to start</h2>
+    <div class="start">
+      <div><b>Nothing built yet</b><span>shape-boundaries</span></div>
+      <div><b>Code, but no map</b><span>extract-boundaries</span></div>
+      <div><b>Code with a map</b><span>update-boundaries, or shape-boundaries</span></div>
+      <div><b>No map wanted</b><span>slice, refine, to-issues</span></div>
+    </div>
+    <p class="p">Ask in plain words, such as “map this repository's boundaries”, or name the skill. The skills keep the map at <code>docs/boundary-map.json</code> by default.</p>
+  </section>
+
+  <section class="dsec" id="how-keep" data-toc="Keep the map">
+    <h2>Keep the map</h2>
+
+    <h3><code>extract-boundaries</code>: map a system</h3>
+    <div class="pair">
+      <div><span class="klab">The agent</span><ul class="dl"><li>Reads the documentation and the code, one level at a time.</li><li>Checks every boundary against the code and cites the files behind it.</li><li>Drafts the map in a working folder outside your repository, then offers a review.</li></ul></div>
+      <div class="you"><span class="klab">You decide</span><ul class="dl"><li>Which system to map.</li><li>What the agent may read.</li><li>Where the map goes.</li><li>Whether to start over when a map already exists.</li></ul></div>
+    </div>
+
+    <h3><code>review-boundaries</code>: review the map</h3>
+    <div class="pair">
+      <div><span class="klab">The agent</span><ul class="dl"><li>Sends one image per screen, from the top level down.</li><li>Checks each screen against the code before asking anything.</li><li>Asks at most five short questions per level, each with its suggestion.</li><li>Draws both versions when an answer would add, remove or move a part.</li></ul></div>
+      <div class="you"><span class="klab">You decide</span><ul class="dl"><li>What the parts are called.</li><li>Which parts matter.</li><li>Whether the map reads clearly.</li></ul></div>
+    </div>
+    <p class="p">The reviewed map is written at its location only when the review ends.</p>
+
+    <h3><code>update-boundaries</code>: bring the map up to date</h3>
+    <div class="pair">
+      <div><span class="klab">The agent</span><ul class="dl"><li>Lists the files changed since the map's revision, sorted by the part of the map they touch.</li><li>Reads why they changed, from commit messages and pull requests.</li><li>Works out what changed for each boundary, and keeps earlier decisions.</li></ul></div>
+      <div class="you"><span class="klab">You decide</span><ul class="dl"><li>The changes, in a review of only what changed.</li></ul></div>
+    </div>
+
+    <h3><code>visualize-boundaries</code>: draw the map</h3>
+    <div class="pair">
+      <div><span class="klab">The agent</span><ul class="dl"><li>Checks the map and draws it as one page, one open box at a time, or as still images.</li><li>Can mark what changed since an earlier map.</li></ul></div>
+      <div class="you"><span class="klab">You decide</span><ul class="dl"><li>Nothing. It draws what the map says.</li></ul></div>
+    </div>
+  </section>
+
+  <section class="dsec" id="how-plan" data-toc="Plan a change">
+    <h2>Plan a change</h2>
+
+    <h3><code>shape-boundaries</code>: shape a change</h3>
+    <div class="pair">
+      <div><span class="klab">The agent</span><ul class="dl"><li>Starts from the map and reads the code behind the boundaries the change touches.</li><li>Asks one question at a time, the one that could change the shape most, with its recommended answer.</li><li>Marks each change NEW, MODIFIED or REMOVED against what exists today.</li></ul></div>
+      <div class="you"><span class="klab">You decide</span><ul class="dl"><li>The answers.</li><li>Whether the shape is complete.</li><li>Which document records the decisions.</li></ul></div>
+    </div>
+
+    <h3><code>slice</code>: divide the work</h3>
+    <div class="pair">
+      <div><span class="klab">The agent</span><ul class="dl"><li>Proposes two or three ways to divide the work, at least one of them vertical.</li><li>Names the slicing smells in each, and recommends one.</li></ul></div>
+      <div class="you"><span class="klab">You decide</span><ul class="dl"><li>The strategy.</li></ul></div>
+    </div>
+
+    <h3><code>refine</code>: settle the details</h3>
+    <div class="pair">
+      <div><span class="klab">The agent</span><ul class="dl"><li>Settles what the code and earlier decisions already answer.</li><li>Asks each question that has a real tradeoff, one at a time, with its recommendation.</li></ul></div>
+      <div class="you"><span class="klab">You decide</span><ul class="dl"><li>Each tradeoff, until no open question would change an expected behavior or a design decision.</li></ul></div>
+    </div>
+
+    <h3><code>to-issues</code>: write the issues</h3>
+    <div class="pair">
+      <div><span class="klab">The agent</span><ul class="dl"><li>Looks for duplicate issues.</li><li>Drafts every issue with its expected behavior and proof of done, then reviews the set.</li></ul></div>
+      <div class="you"><span class="klab">You decide</span><ul class="dl"><li>How the issues are grouped: under an existing parent, under a new parent, or standalone.</li><li>Whether to publish them.</li></ul></div>
+    </div>
+  </section>
+</article>
+
+<!-- ============================== 04 ============================== -->
+<article data-page="install" data-title="Install" hidden>
+  <header class="dhead">
+    <div class="eyebrow">04</div>
+    <h1>Install</h1>
+    <p class="dlede">Install all nine skills side by side. The map scripts find <code>use-boundary-model</code> in the folder next to theirs.</p>
+  </header>
+
+  <section class="dsec" id="install-needs" data-toc="What the skills need">
+    <h2>What the skills need</h2>
+    <ul class="dl">
+      <li>Node 18 or later, for the map scripts.</li>
+      <li>Chrome, Chromium, or Edge, for still images of a map. Without one, <code>visualize-boundaries</code> still draws the map as a page. Set <code>CHROME_PATH</code> if the script cannot find the browser.</li>
+      <li>Access to GitHub, for <code>to-issues</code> to create issues.</li>
+    </ul>
+  </section>
+
+  <section class="dsec" id="install-npx" data-toc="With npx skills">
+    <h2>With npx skills</h2>
+    <p>It supports Claude Code, Codex, and most other agents.</p>
+    <pre class="code">npx skills add meaningfool/boundary-model --skill '*'<button class="copy" type="button" aria-label="Copy" data-copy><svg><use href="#copy"/></svg></button></pre>
+    <ul class="dl">
+      <li><code>-a &lt;agent&gt;</code> picks an agent, such as <code>-a claude-code -a codex</code>.</li>
+      <li><code>-y</code> skips the confirmation prompts.</li>
+      <li><code>-g</code> installs for your user instead of the current project.</li>
+    </ul>
+    <p>In a project, the skills go in <code>.agents/skills/</code>, linked into each agent's own folder such as <code>.claude/skills/</code>, and <code>skills-lock.json</code> records the version. To update, run <code>npx skills update</code>. To remove, run <code>npx skills remove --all</code>.</p>
+  </section>
+
+  <section class="dsec" id="install-claude" data-toc="In Claude Code">
+    <h2>In Claude Code</h2>
+    <pre class="code">/plugin marketplace add meaningfool/boundary-model
+/plugin install boundary-model@meaningfool<button class="copy" type="button" aria-label="Copy" data-copy><svg><use href="#copy"/></svg></button></pre>
+    <p>From a shell, run <code>claude plugin marketplace add meaningfool/boundary-model</code>, then <code>claude plugin install boundary-model@meaningfool</code>.</p>
+    <p>Auto-update is off by default for this marketplace. To update, run <code>claude plugin update boundary-model@meaningfool</code>, or turn on auto-update for <code>meaningfool</code> on the Marketplaces tab of <code>/plugin</code>.</p>
+  </section>
+
+  <section class="dsec" id="install-codex" data-toc="In Codex">
+    <h2>In Codex</h2>
+    <pre class="code">codex plugin marketplace add meaningfool/boundary-model
+codex plugin add boundary-model@meaningfool<button class="copy" type="button" aria-label="Copy" data-copy><svg><use href="#copy"/></svg></button></pre>
+    <p>Start a new session to use the skills. To fetch a newer version of the marketplace, run <code>codex plugin marketplace upgrade meaningfool</code>. To remove, run <code>codex plugin remove boundary-model@meaningfool</code>.</p>
+    <p>Both plugins install the nine skills as one plugin, so each skill's name becomes <code>boundary-model:&lt;skill&gt;</code>, such as <code>boundary-model:extract-boundaries</code>.</p>
+  </section>
+
+  <section class="dsec" id="install-hand" data-toc="By hand">
+    <h2>By hand</h2>
+    <ol class="steps">
+      <li><b>Get the skills</b>
+        <pre class="code">git clone https://github.com/meaningfool/boundary-model.git
+cd boundary-model/skills<button class="copy" type="button" aria-label="Copy" data-copy><svg><use href="#copy"/></svg></button></pre></li>
+      <li><b>Copy the nine folders into your agent's skills folder</b>
+        <pre class="code">mkdir -p ~/.claude/skills
+cp -R use-boundary-model extract-boundaries review-boundaries \
+  update-boundaries visualize-boundaries shape-boundaries \
+  slice refine to-issues ~/.claude/skills/<button class="copy" type="button" aria-label="Copy" data-copy><svg><use href="#copy"/></svg></button></pre>
+        <p>These commands install for Claude Code. For another agent, use its skills folder, such as <code>~/.agents/skills/</code> for Codex. To share the skills with a team, use the project's skills folder instead.</p></li>
+    </ol>
+    <div class="callout">Keep the folder names, and name each folder as above. Don't copy with a trailing-slash glob such as <code>skills/*/</code>. On macOS, <code>cp -R</code> with a trailing slash copies a folder's contents instead of the folder.</div>
+  </section>
+
+  <section class="dsec" id="install-check" data-toc="Check it works">
+    <h2>Check it works</h2>
+    <p>Start a new session in a repository and ask: “Map this repository's boundaries.” The agent should load <code>extract-boundaries</code>. Unless you say otherwise, it reads the whole repository except dependencies, generated files and secrets.</p>
+  </section>
+</article>
+
+<!-- ============================== 05 ============================== -->
+<article data-page="example" data-title="An example" hidden>
+  <header class="dhead">
+    <div class="eyebrow">05</div>
+    <h1>An example</h1>
+    <p class="dlede">One real map of an open-source project, extracted by the skills and reviewed by a person.</p>
+  </header>
+  <div class="callout"><b>Skeleton.</b> This page waits on the choice of project: Karakeep, Ollama, AnythingLLM or Pi. Its content comes from running the skills on that project and reviewing the map together.</div>
+
+  <section class="dsec" id="example-system" data-toc="The system">
+    <h2>The system</h2>
+    <p>What the project is, who uses it and through which interfaces, and the revision we mapped.</p>
+    <div class="skel"><i style="width:94%"></i><i style="width:86%"></i><i style="width:58%"></i></div>
+  </section>
+
+  <section class="dsec" id="example-made" data-toc="How the map was made">
+    <h2>How the map was made</h2>
+    <p>What the extraction read, how long it took, and two or three questions the review settled, with what we decided.</p>
+    <div class="skel"><i style="width:96%"></i><i style="width:90%"></i><i style="width:72%"></i><i style="width:84%"></i></div>
+  </section>
+
+  <section class="dsec" id="example-map" data-toc="The map">
+    <h2>The map</h2>
+    <p>The page that <code>visualize-boundaries</code> draws, live, with a link to the JSON.</p>
+    <div class="ph">The drawn map, embedded</div>
+  </section>
+
+  <section class="dsec" id="example-screens" data-toc="Screen by screen">
+    <h2>Screen by screen</h2>
+    <p>Still images from the top down: all providers, the system, then one component opened. Each with a line on what to look at.</p>
+    <div class="ph">Still images</div>
+  </section>
+
+  <section class="dsec" id="example-out" data-toc="What the map leaves out">
+    <h2>What the map leaves out</h2>
+    <p>The exclusions and cleanup candidates the map records, which the drawing does not show.</p>
+    <div class="skel"><i style="width:88%"></i><i style="width:66%"></i></div>
+  </section>
+</article>
+
+      <nav class="pager" id="pager" aria-label="Previous and next pages"></nav>
+    </div>
+
+    <aside class="toc" aria-label="On this page">
+      <p class="toc-h">On this page</p>
+      <ol id="toc"></ol>
+      <div class="toc-actions">
+        <button type="button" data-say="Copies this page as Markdown on the real site"><svg><use href="#copy"/></svg>Copy as Markdown</button>
+        <button type="button" data-say="Opens this page in a chat on the real site"><svg><use href="#out"/></svg>Open in chat</button>
+      </div>
+    </aside>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const ARTICLES = [...document.querySelectorAll('article[data-page]')];
+  const ORDER = ARTICLES.map((a) => ({ id: a.dataset.page, title: a.dataset.title }));
+  let observer;
+
+  // The tangle on page 01: one seeded scribble.
+  (function drawTangle() {
+    let seed = 7;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+    const pts = [];
+    for (let i = 0; i < 46; i++) {
+      const a = rnd() * Math.PI * 2, r = 18 + rnd() * 50;
+      pts.push([Math.cos(a) * r, Math.sin(a) * r]);
+    }
+    let d = 'M' + pts[0][0].toFixed(1) + ' ' + pts[0][1].toFixed(1);
+    for (let i = 1; i < pts.length - 1; i++) {
+      const mx = (pts[i][0] + pts[i + 1][0]) / 2, my = (pts[i][1] + pts[i + 1][1]) / 2;
+      d += ' Q' + pts[i][0].toFixed(1) + ' ' + pts[i][1].toFixed(1) + ' ' + mx.toFixed(1) + ' ' + my.toFixed(1);
+    }
+    d += ' Q70 30 78 62';
+    $('tanglePath').setAttribute('d', d);
+  })();
+
+  // Problem tabs.
+  document.querySelectorAll('.ptabs').forEach((box) => {
+    const tabs = [...box.querySelectorAll('[role="tab"]')];
+    tabs.forEach((t) => t.addEventListener('click', () => {
+      tabs.forEach((x) => x.setAttribute('aria-selected', String(x === t)));
+      box.querySelectorAll('.ppanel').forEach((p) => { p.hidden = p.dataset.p !== t.dataset.p; });
+    }));
+  });
+
+  // Pages.
+  const current = () => { const h = location.hash.slice(1); return ORDER.some((p) => p.id === h) ? h : 'what'; };
+  function render() {
+    const id = current();
+    const i = ORDER.findIndex((p) => p.id === id);
+    ARTICLES.forEach((a) => { a.hidden = a.dataset.page !== id; });
+    $('pages').innerHTML = ORDER.map((p, k) => '<a href="#' + p.id + '"' + (p.id === id ? ' aria-current="page"' : '') + '><span class="n">' + String(k + 1).padStart(2, '0') + '</span><span>' + p.title + '</span></a>').join('');
+    const art = ARTICLES[i];
+    const secs = [...art.querySelectorAll('section[data-toc]')];
+    $('toc').innerHTML = secs.map((s) => '<li><a href="#" data-target="' + s.id + '">' + s.dataset.toc + '</a></li>').join('');
+    const prev = ORDER[i - 1], next = ORDER[i + 1];
+    $('pager').innerHTML = (prev ? '<a href="#' + prev.id + '"><span class="k">Previous</span><span class="t">' + prev.title + '</span></a>' : '')
+      + (next ? '<a class="next" href="#' + next.id + '"><span class="k">Next</span><span class="t">' + next.title + '</span></a>' : '');
+    if (observer) observer.disconnect();
+    observer = new IntersectionObserver((entries) => entries.forEach((en) => {
+      if (en.isIntersecting) document.querySelectorAll('#toc a').forEach((a) => a.classList.toggle('on', a.dataset.target === en.target.id));
+    }), { rootMargin: '-20% 0px -70% 0px' });
+    secs.forEach((s) => observer.observe(s));
+    window.scrollTo(0, 0);
+    closeMenu();
+  }
+
+  // Clicks.
+  let tt;
+  function say(m) { const t = $('toast'); t.textContent = m; t.hidden = false; clearTimeout(tt); tt = setTimeout(() => { t.hidden = true; }, 1800); }
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('a[data-target]');
+    if (a) { e.preventDefault(); $(a.dataset.target).scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' }); return; }
+    const c = e.target.closest('pre.code [data-copy]');
+    if (c) {
+      const text = c.parentElement.textContent.trim();
+      try { navigator.clipboard.writeText(text).then(() => say('Copied'), () => say('Copying is blocked here')); } catch (err) { say('Copying is blocked here'); }
+      return;
+    }
+    const s = e.target.closest('[data-say]');
+    if (s) { say(s.dataset.say); return; }
+  });
+
+  // Phone menu.
+  const side = $('side'), menuBtn = $('menuBtn');
+  function closeMenu() { side.classList.remove('open'); menuBtn.setAttribute('aria-expanded', 'false'); menuBtn.textContent = 'Menu'; }
+  menuBtn.addEventListener('click', () => {
+    const open = !side.classList.contains('open');
+    side.classList.toggle('open', open);
+    menuBtn.setAttribute('aria-expanded', String(open));
+    menuBtn.textContent = open ? 'Close' : 'Menu';
+  });
+
+  window.addEventListener('hashchange', render);
+  render();
+})();
+</script>

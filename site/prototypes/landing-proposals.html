@@ -1,0 +1,936 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Boundary model landing proposals</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<!--
+  PROTOTYPE, throwaway. Three landing-page proposals for the boundary model site
+  (meaningfool/boundary-model#7), in the style of executor.sh. Switch with #a, #b, #c,
+  the bottom bar, or the arrow keys. Copy is placeholder.
+-->
+<style>
+/* Layout: one shared left sidebar (logo, nav, numbered index) beside a single content column, as on executor.sh. */
+:root {
+  --bg: #ffffff; --fg: #111111; --fg2: #666666; --fg3: #888888; --fg4: #aaaaaa;
+  --line: #ebebeb; --line2: #d4d4d4; --panel: #fafafa; --paper: #ffffff;
+  --inv-bg: #111111; --inv-fg: #ffffff;
+  --proto: #1f4fd1; --proto-fg: #ffffff;
+  --sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b0b0b; --fg: #ededed; --fg2: #a3a3a3; --fg3: #858585; --fg4: #5f5f5f;
+    --line: #222222; --line2: #383838; --panel: #121212; --paper: #ffffff;
+    --inv-bg: #ededed; --inv-fg: #0b0b0b; --proto: #3b6cf0; --proto-fg: #ffffff;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0b0b0b; --fg: #ededed; --fg2: #a3a3a3; --fg3: #858585; --fg4: #5f5f5f;
+  --line: #222222; --line2: #383838; --panel: #121212; --paper: #ffffff;
+  --inv-bg: #ededed; --inv-fg: #0b0b0b; --proto: #3b6cf0; --proto-fg: #ffffff;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-padding-top: 24px; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: var(--sans); font-size: 16px; line-height: 1.5; letter-spacing: -0.011em;
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--bg); }
+a { color: inherit; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; border-radius: 4px; }
+ul, ol { margin: 0; padding: 0; list-style: none; }
+p { margin: 0; }
+code, .mono { font-family: var(--mono); }
+.dim { color: var(--fg4); }
+.label { font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg3); }
+
+/* ---------- shell ---------- */
+.shell { max-width: 1240px; margin: 0 auto; display: grid; grid-template-columns: 240px minmax(0, 1fr); }
+.side {
+  position: sticky; top: env(safe-area-inset-top, 0px); height: 100vh; overflow-y: auto;
+  padding: 32px 24px; border-right: 1px solid var(--line);
+  display: flex; flex-direction: column; gap: 26px;
+}
+.logo { display: inline-flex; align-items: center; gap: 9px; text-decoration: none; font-weight: 600; font-size: 15px; letter-spacing: -0.02em; }
+.logo svg { width: 20px; height: 20px; flex: none; }
+.topnav { display: flex; flex-direction: column; gap: 4px; }
+.topnav a { font-size: 14px; color: var(--fg2); text-decoration: none; padding: 1px 0 1px 12px; border-left: 1px solid transparent; }
+.topnav a.on { color: var(--fg); font-weight: 500; border-left-color: var(--fg); }
+.topnav a:hover { color: var(--fg); }
+.meta { border-top: 1px solid var(--line); padding-top: 14px; display: grid; gap: 6px; font-size: 13px; color: var(--fg2); }
+.meta div { display: flex; justify-content: space-between; gap: 8px; }
+.meta .mono { font-size: 12px; color: var(--fg3); }
+.idx { display: grid; gap: 7px; }
+.idx a { display: flex; gap: 10px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.04em; color: var(--fg3); text-decoration: none; }
+.idx a span { color: var(--fg4); }
+.idx a:hover, .idx a.on { color: var(--fg); }
+.idx a.on span { color: var(--fg); }
+.side-foot { margin-top: auto; border-top: 1px solid var(--line); padding-top: 14px; font-size: 13px; color: var(--fg3); display: grid; gap: 4px; }
+.side-foot b { color: var(--fg); font-weight: 500; }
+
+.mtop {
+  display: none; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 25; height: 52px;
+  align-items: center; justify-content: space-between; background: var(--bg); border-bottom: 1px solid var(--line);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.mtop button { background: none; border: 1px solid var(--line2); border-radius: 8px; padding: 5px 12px; font-size: 13px; cursor: pointer; }
+
+.main { padding: 64px 58px 150px; min-width: 0; }
+.variant { max-width: 884px; }
+
+/* ---------- shared pieces ---------- */
+.hero h1 { font-size: 44px; line-height: 1.12; font-weight: 600; letter-spacing: -0.03em; margin: 0; max-width: 740px; text-wrap: balance; }
+.lede { font-size: 17px; line-height: 1.65; color: var(--fg3); max-width: 590px; margin-top: 24px; }
+.ctas { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-top: 30px; }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px; background: var(--inv-bg); color: var(--inv-fg);
+  font-size: 14.4px; font-weight: 500; line-height: 1.5; padding: 10px 18px; border-radius: 8px; border: 0; text-decoration: none; cursor: pointer;
+}
+.btn-dash {
+  display: inline-flex; align-items: center; gap: 10px; background: transparent; color: var(--fg2);
+  font-size: 14.5px; font-weight: 500; line-height: 1.5; padding: 11px 18px; border-radius: 8px; border: 1px dashed var(--line2); cursor: pointer;
+}
+.btn-dash:hover { color: var(--fg); border-color: var(--fg3); }
+.btn-dash .glyph { font-family: var(--mono); font-size: 12px; border: 1px solid var(--line2); border-radius: 5px; padding: 0 5px; color: var(--fg3); }
+.btn-dash svg, .icon-btn svg { width: 14px; height: 14px; }
+.aside-link { font-size: 15px; color: var(--fg3); margin-top: 22px; }
+.aside-link a { color: var(--fg2); text-underline-offset: 3px; text-decoration-color: var(--line2); }
+.aside-link a:hover { color: var(--fg); }
+
+.sec { border-top: 1px solid var(--line); margin-top: 56px; padding-top: 52px; }
+.sec h2 { font-size: 22px; font-weight: 600; line-height: 1.5; letter-spacing: -0.015em; margin: 0; text-wrap: balance; }
+.sec > p { color: var(--fg2); line-height: 1.65; max-width: 720px; margin-top: 14px; }
+.panel { margin-top: 28px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); min-width: 0; }
+.cap { font-family: var(--mono); font-size: 11.5px; color: var(--fg3); margin-top: 12px; }
+.tag { display: inline-block; font-family: var(--mono); font-size: 10px; letter-spacing: 0.05em; line-height: 1.6; padding: 0 5px; border: 1px solid var(--line2); border-radius: 4px; color: var(--fg); vertical-align: 1px; }
+.cmd {
+  display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 8px; padding: 7px 8px 7px 12px;
+  background: var(--bg); font-family: var(--mono); font-size: 12px; margin-top: 8px; min-width: 0;
+}
+.cmd code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
+.icon-btn { display: inline-grid; place-items: center; width: 26px; height: 26px; flex: none; border: 0; border-radius: 6px; background: transparent; color: var(--fg3); cursor: pointer; }
+.icon-btn:hover { color: var(--fg); background: var(--panel); }
+.endcta { border-top: 1px solid var(--line); margin-top: 64px; padding-top: 56px; }
+.endcta h2 { font-size: 30px; font-weight: 600; letter-spacing: -0.025em; line-height: 1.2; margin: 0; }
+.endcta p { color: var(--fg2); margin-top: 12px; max-width: 560px; line-height: 1.65; }
+.endcta .btn { margin-top: 24px; }
+.foot { max-width: 884px; border-top: 1px solid var(--line); margin-top: 80px; padding-top: 22px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--fg3); }
+.foot nav { display: flex; gap: 18px; }
+.foot a { text-decoration: none; color: var(--fg2); }
+.foot a:hover { color: var(--fg); }
+.foot .logo { font-size: 13px; font-weight: 500; color: var(--fg2); gap: 8px; }
+.foot .logo svg { width: 15px; height: 15px; }
+
+/* ---------- A: stacked sections ---------- */
+.a-split { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
+.a-split .col { padding: 22px 24px 24px; min-width: 0; }
+.a-split .arrow { display: grid; place-items: center; padding: 0 12px; border-inline: 1px solid var(--line); color: var(--fg4); font-family: var(--mono); }
+.a-split .arrow .down { display: none; }
+.a-files { margin-top: 14px; display: grid; gap: 2px; }
+.a-files li { display: flex; gap: 12px; font-family: var(--mono); font-size: 12.5px; color: var(--fg2); padding: 5px 0; overflow-wrap: anywhere; }
+.a-files .op { width: 4ch; flex: none; color: var(--fg4); }
+.a-bchg { margin-top: 14px; display: grid; gap: 2px; }
+.a-bchg li { display: flex; justify-content: space-between; gap: 12px; font-size: 13.5px; color: var(--fg2); padding: 5px 0 5px 14px; }
+.a-bchg li.h { padding-left: 0; color: var(--fg); font-weight: 500; }
+.a-bchg li.h + li.h, .a-bchg li:not(.h) + li.h { margin-top: 8px; }
+.a-bchg .m { font-family: var(--mono); font-size: 11.5px; color: var(--fg3); text-align: right; }
+.paper { background: var(--paper); padding: 18px; border-radius: 12px; }
+.paper img { display: block; width: 100%; height: auto; }
+
+.a-tabs { background: var(--bg); overflow: hidden; }
+.a-tabs .tablist { display: flex; overflow-x: auto; border-bottom: 1px solid var(--line); scrollbar-width: none; }
+.a-tabs [role="tab"] { flex: 1 0 auto; padding: 12px 16px; font-size: 13px; font-weight: 500; color: var(--fg3); background: var(--panel); border: 0; border-right: 1px solid var(--line); cursor: pointer; text-align: left; }
+.a-tabs [role="tab"]:last-child { border-right: 0; }
+.a-tabs [role="tab"][aria-selected="true"] { color: var(--fg); background: var(--bg); box-shadow: inset 0 -2px 0 var(--fg); }
+.a-tp { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 28px; padding: 30px 26px 22px; }
+.a-tp .q { font-size: 20px; letter-spacing: -0.015em; line-height: 1.35; }
+.a-tp .does { font-size: 14px; color: var(--fg2); line-height: 1.6; margin-top: 12px; }
+.a-tp .decide ul { margin-top: 10px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.a-tp .decide li { padding: 10px 14px; font-size: 14px; border-top: 1px solid var(--line); background: var(--bg); }
+.a-tp .decide li:first-child { border-top: 0; }
+.a-chips { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; padding-top: 4px; }
+.chip { font-family: var(--mono); font-size: 11px; padding: 2px 8px; border: 1px solid var(--line); border-radius: 6px; color: var(--fg4); }
+.chip.on { color: var(--fg); border-color: var(--line2); background: var(--panel); }
+
+.a-doc .head { display: flex; justify-content: space-between; gap: 12px; padding: 11px 18px; border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 12px; color: var(--fg3); }
+.a-doc .body { padding: 20px 18px 22px; background: var(--bg); border-radius: 0 0 12px 12px; font-family: var(--mono); font-size: 12.5px; line-height: 1.8; color: var(--fg2); overflow-x: auto; }
+.a-doc .body b { color: var(--fg); font-weight: 500; }
+.i1 { padding-left: 2ch; } .i2 { padding-left: 4ch; } .gap { margin-top: 12px; }
+
+.a-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); margin-top: 28px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.a-grid .cell { padding: 22px 24px 24px; border-top: 1px solid var(--line); border-left: 1px solid var(--line); min-width: 0; }
+.a-grid .cell:nth-child(-n+2) { border-top: 0; }
+.a-grid .cell:nth-child(odd) { border-left: 0; }
+.a-grid .cell:first-child { box-shadow: inset 0 2px 0 var(--fg); }
+.a-grid h3 { font-size: 15px; font-weight: 600; margin: 0; }
+.a-grid p { font-size: 14px; color: var(--fg2); margin: 6px 0 12px; line-height: 1.55; }
+.btn-line { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; font-weight: 500; padding: 7px 12px; border: 1px solid var(--line2); border-radius: 8px; text-decoration: none; }
+
+/* ---------- B: one change, step by step ---------- */
+.b-map { margin-top: 44px; border: 1px solid var(--line); border-radius: 12px; padding: 20px 20px 16px; }
+.scrollx { overflow-x: auto; }
+.b-map svg { display: block; width: 100%; min-width: 700px; height: auto; }
+.m-frame { fill: none; stroke: var(--fg); stroke-width: 1.4; }
+.m-rule { stroke: var(--line); stroke-width: 1; }
+.m-box { fill: var(--bg); stroke: var(--line2); stroke-width: 1; }
+.m-area { fill: var(--panel); stroke: var(--line2); stroke-width: 1; }
+.m-out { fill: var(--bg); stroke: var(--fg3); stroke-width: 1; stroke-dasharray: 4 3; }
+.m-line { fill: none; stroke: var(--fg4); stroke-width: 1; }
+.m-dot { fill: var(--bg); stroke: var(--fg); stroke-width: 1.4; }
+.m-k { font-family: var(--mono); font-size: 8.5px; letter-spacing: 0.08em; fill: var(--fg3); }
+.m-n { font-family: var(--sans); font-size: 13px; font-weight: 600; fill: var(--fg); }
+.m-s { font-family: var(--sans); font-size: 10.5px; fill: var(--fg2); }
+.m-r { font-family: var(--mono); font-size: 9.5px; fill: var(--fg2); }
+
+.b-steps { margin-top: 64px; }
+.b-step { position: relative; display: grid; grid-template-columns: 28px minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 0 30px; padding-bottom: 64px; }
+.b-step::before { content: ""; position: absolute; left: 13px; top: 36px; bottom: 6px; width: 1px; background: var(--line2); }
+.b-num { width: 27px; height: 27px; border-radius: 50%; background: var(--fg); color: var(--bg); font-family: var(--mono); font-size: 12.5px; font-weight: 500; display: grid; place-items: center; margin-top: 2px; }
+.b-step h2 { font-size: 20px; font-weight: 600; letter-spacing: -0.015em; line-height: 1.5; margin: 0; }
+.b-step .txt > p { font-size: 15px; color: var(--fg2); line-height: 1.65; margin-top: 10px; }
+.b-you { margin-top: 16px; padding-top: 12px; border-top: 1px dashed var(--line2); font-size: 14px; line-height: 1.55; }
+.b-you .label { display: block; margin-bottom: 3px; }
+.b-vis { min-width: 0; }
+.b-term { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); overflow: hidden; }
+.b-term .head { display: flex; align-items: center; gap: 6px; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+.b-term .head i { width: 9px; height: 9px; border-radius: 50%; border: 1px solid var(--line2); }
+.b-term .head span { margin-left: 8px; font-family: var(--mono); font-size: 11px; color: var(--fg3); }
+.b-term .cmdline { display: flex; align-items: center; gap: 8px; padding: 14px; font-family: var(--mono); font-size: 12.5px; }
+.b-term .cmdline code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
+.b-term .foot2 { padding: 10px 14px; border-top: 1px solid var(--line); font-size: 13px; color: var(--fg3); }
+.b-term .foot2 a { color: var(--fg2); text-underline-offset: 3px; text-decoration-color: var(--line2); }
+.b-chat { display: grid; gap: 10px; }
+.b-msg { border: 1px solid var(--line); border-radius: 10px; padding: 11px 14px 12px; font-size: 14px; line-height: 1.55; background: var(--panel); max-width: 92%; }
+.b-msg.you { margin-left: auto; background: var(--bg); border-style: dashed; border-color: var(--line2); }
+.b-msg .who { display: block; font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--fg3); margin-bottom: 3px; }
+.b-msg code { font-size: 12.5px; }
+.b-mini { font-family: var(--mono); font-size: 11.5px; line-height: 1.75; color: var(--fg2); border-top: 1px solid var(--line); margin-top: 10px; padding-top: 8px; }
+.b-mini b { color: var(--fg); font-weight: 500; }
+.b-q { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.b-q .head { display: flex; justify-content: space-between; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 11px; color: var(--fg3); }
+.b-q .text { padding: 14px 14px 4px; font-size: 14.5px; line-height: 1.55; }
+.b-q .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px 14px 14px; }
+.b-opt { border: 1px solid var(--line); border-radius: 8px; padding: 10px; display: grid; gap: 8px; align-content: start; }
+.b-opt.sel { border-color: var(--fg); }
+.b-opt .lab { font-family: var(--mono); font-size: 11px; color: var(--fg2); display: flex; justify-content: space-between; gap: 6px; flex-wrap: wrap; }
+.b-opt.sel .lab { color: var(--fg); }
+.mb { border: 1px solid var(--fg3); border-radius: 4px; padding: 6px; font-size: 11.5px; font-weight: 600; background: var(--bg); }
+.mb .k { display: block; font-family: var(--mono); font-size: 8.5px; font-weight: 400; letter-spacing: 0.06em; color: var(--fg3); }
+.mb .row { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 6px; }
+.mb2 { border: 1px solid var(--line2); border-radius: 3px; padding: 5px; font-size: 10.5px; font-weight: 500; color: var(--fg2); }
+.b-issue { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.b-issue .head { padding: 14px 16px; border-bottom: 1px solid var(--line); display: grid; gap: 6px; }
+.b-issue .state { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; color: var(--fg2); }
+.b-issue .state i { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--fg2); }
+.b-issue h3 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+.b-issue .body { padding: 12px 16px 16px; display: grid; gap: 12px; background: var(--panel); }
+.b-issue .body li { font-size: 13.5px; color: var(--fg2); line-height: 1.55; padding-left: 14px; position: relative; }
+.b-issue .body li::before { content: ""; position: absolute; left: 2px; top: 0.7em; width: 5px; height: 1px; background: var(--fg3); }
+.b-issue .body .label { margin-bottom: 4px; }
+.b-loop { margin-left: 58px; border: 1px dashed var(--line2); border-radius: 10px; padding: 14px 16px; display: flex; gap: 12px; font-size: 14px; color: var(--fg2); line-height: 1.6; }
+.b-loop .g { font-family: var(--mono); color: var(--fg); }
+
+/* ---------- C: reference sheet ---------- */
+.v-c .hero h1 { font-size: 40px; }
+.c-cmd { display: flex; align-items: center; gap: 10px; margin-top: 26px; max-width: 620px; border: 1px solid var(--line2); border-radius: 2px; padding: 9px 8px 9px 14px; background: var(--panel); font-family: var(--mono); font-size: 13px; }
+.c-cmd code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
+.c-cmd .pr { color: var(--fg4); }
+.v-c .sec { margin-top: 48px; padding-top: 40px; }
+.eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; color: var(--fg3); margin-bottom: 8px; }
+.c-hair { margin-top: 26px; display: grid; border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.c-hair > * { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 16px 18px 18px; min-width: 0; }
+.c-terms { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.c-terms p { font-size: 14px; color: var(--fg2); line-height: 1.55; margin-top: 6px; }
+.c-more { display: inline-block; margin-top: 12px; font-family: var(--mono); font-size: 11.5px; color: var(--fg2); text-underline-offset: 3px; text-decoration-color: var(--line2); }
+.c-map { margin-top: 26px; border: 1px solid var(--line); background: var(--paper); padding: 16px; border-radius: 2px; }
+.c-map img { display: block; width: 100%; height: auto; }
+.c-table { width: 100%; border-collapse: collapse; margin-top: 26px; font-size: 14px; }
+.c-table th { text-align: left; font-family: var(--mono); font-size: 10.5px; font-weight: 400; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg3); padding: 0 14px 10px 0; border-bottom: 1px solid var(--line2); }
+.c-table td { padding: 12px 14px 12px 0; border-bottom: 1px solid var(--line); color: var(--fg2); line-height: 1.5; vertical-align: top; }
+.c-table td:first-child { font-family: var(--mono); font-size: 12.5px; color: var(--fg); white-space: nowrap; }
+.c-table td:last-child { color: var(--fg); }
+.c-qa { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.c-qa h3, .c-start h3 { font-size: 15px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+.c-qa p { font-size: 14px; color: var(--fg2); line-height: 1.6; margin-top: 6px; }
+.c-start { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.c-start h3 { font-weight: 500; font-size: 14px; }
+.c-start .to { display: block; margin-top: 18px; font-family: var(--mono); font-size: 12px; color: var(--fg); line-height: 1.6; }
+.c-start .to::before { content: "→ "; color: var(--fg4); }
+.c-tabs { margin-top: 26px; border: 1px solid var(--line); border-radius: 2px; }
+.c-tabs .tablist { display: flex; overflow-x: auto; border-bottom: 1px solid var(--line); scrollbar-width: none; }
+.c-tabs [role="tab"] { padding: 10px 16px; border: 0; border-right: 1px solid var(--line); background: transparent; font-family: var(--mono); font-size: 12px; color: var(--fg3); cursor: pointer; white-space: nowrap; }
+.c-tabs [role="tab"][aria-selected="true"] { color: var(--fg); background: var(--panel); }
+.c-tabs .tp { padding: 16px 18px 18px; }
+.c-tabs .tp p { font-size: 14px; color: var(--fg2); line-height: 1.6; margin-bottom: 10px; }
+.c-tabs pre { margin: 0; padding: 12px 14px; background: var(--panel); border: 1px solid var(--line); font-family: var(--mono); font-size: 12.5px; line-height: 1.7; overflow-x: auto; }
+
+/* ---------- prototype switcher (not part of the design) ---------- */
+.switcher {
+  position: fixed; z-index: 40; left: 50%; transform: translateX(-50%);
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: 999px;
+  background: var(--proto); color: var(--proto-fg); box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
+  font-family: var(--sans); font-size: 13px; white-space: nowrap; max-width: calc(100vw - 24px);
+}
+.switcher button { background: transparent; border: 0; color: inherit; cursor: pointer; border-radius: 999px; padding: 6px 10px; font-size: 13px; }
+.switcher button:hover { background: rgba(255, 255, 255, 0.16); }
+.switcher .cur { padding: 0 8px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
+.switcher .sep { width: 1px; height: 18px; background: rgba(255, 255, 255, 0.35); margin: 0 4px; }
+.switcher .note { opacity: 0.75; font-size: 12px; padding: 0 10px 0 4px; }
+.toast { position: fixed; z-index: 41; left: 50%; transform: translateX(-50%); bottom: calc(66px + env(safe-area-inset-bottom, 0px)); background: var(--inv-bg); color: var(--inv-fg); font-size: 13px; padding: 7px 14px; border-radius: 8px; }
+
+/* ---------- narrower screens ---------- */
+@media (max-width: 1100px) {
+  .b-step { grid-template-columns: 28px minmax(0, 1fr); }
+  .b-vis { grid-column: 2; margin-top: 22px; }
+}
+@media (max-width: 960px) {
+  .shell { grid-template-columns: minmax(0, 1fr); }
+  .side { display: none; }
+  .side.open {
+    display: flex; position: fixed; z-index: 24; inset: calc(52px + env(safe-area-inset-top, 0px)) 0 0 0; height: auto;
+    background: var(--bg); border-right: 0;
+    padding-left: max(24px, env(safe-area-inset-left, 0px)); padding-right: max(24px, env(safe-area-inset-right, 0px));
+  }
+  .side.open .logo { display: none; }
+  .mtop { display: flex; }
+  .main { padding-block: 36px 150px; padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px)); }
+}
+@media (max-width: 640px) {
+  .hero h1, .v-c .hero h1 { font-size: 32px; letter-spacing: -0.028em; }
+  .lede { font-size: 16px; }
+  .sec { margin-top: 44px; padding-top: 40px; }
+  .a-split { grid-template-columns: minmax(0, 1fr); }
+  .a-split .arrow { border-inline: 0; border-block: 1px solid var(--line); padding: 6px; }
+  .a-split .arrow .right { display: none; }
+  .a-split .arrow .down { display: inline; }
+  .a-tp { grid-template-columns: minmax(0, 1fr); gap: 20px; padding: 22px 18px 18px; }
+  .a-grid { grid-template-columns: minmax(0, 1fr); }
+  .a-grid .cell { border-left: 0; }
+  .a-grid .cell:nth-child(2) { border-top: 1px solid var(--line); }
+  .b-step { grid-template-columns: 28px minmax(0, 1fr); gap: 0 16px; }
+  .b-q .opts { grid-template-columns: minmax(0, 1fr); }
+  .b-loop { margin-left: 0; }
+  .c-terms, .c-qa { grid-template-columns: minmax(0, 1fr); }
+  .c-start { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .c-table thead { display: none; }
+  .c-table, .c-table tbody, .c-table tr, .c-table td { display: block; }
+  .c-table tr { border-bottom: 1px solid var(--line); padding: 10px 0; }
+  .c-table td { border: 0; padding: 2px 0; }
+  .c-table td:not(:first-child)::before { content: attr(data-label); display: block; font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg3); margin-top: 6px; }
+  .switcher .note { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="logo" viewBox="0 0 20 20"><rect x="1.5" y="1.5" width="17" height="17" rx="4.5" fill="none" stroke="currentColor" stroke-width="1.6"/><line x1="10" y1="2.5" x2="10" y2="17.5" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2 2.2"/><circle cx="10" cy="10" r="2.7" fill="currentColor"/></symbol>
+  <symbol id="copy" viewBox="0 0 16 16"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M10.5 3.5v-.5A1.5 1.5 0 0 0 9 1.5H4A1.5 1.5 0 0 0 2.5 3v5A1.5 1.5 0 0 0 4 9.5h.5" fill="none" stroke="currentColor" stroke-width="1.3"/></symbol>
+</svg>
+
+<header class="mtop">
+  <a class="logo" href="#"><svg><use href="#logo"/></svg>boundary model</a>
+  <button type="button" id="menuBtn" aria-expanded="false" aria-controls="side">Menu</button>
+</header>
+
+<div class="shell">
+  <aside class="side" id="side">
+    <a class="logo" href="#"><svg><use href="#logo"/></svg>boundary model</a>
+    <nav class="topnav" aria-label="Site">
+      <a class="on" href="#">Home</a>
+      <a href="#">Docs</a>
+      <a href="#">GitHub ↗</a>
+    </nav>
+    <div class="meta">
+      <div><span>Open source</span><span class="mono">MIT</span></div>
+      <div><span>Latest release</span><span class="mono">v0.1.0</span></div>
+    </div>
+    <ol class="idx" id="idx" aria-label="On this page"></ol>
+    <div class="side-foot"><b>Nine agent skills</b><span>For Claude Code, Codex and other agents.</span></div>
+  </aside>
+
+  <main class="main" id="main">
+
+    <!-- ================= A ================= -->
+    <div class="variant v-a" data-variant="a" data-name="Stacked sections">
+      <header class="hero">
+        <h1>Give your coding agent a map of your system. <span class="dim">Then shape each change on it with you, before any code is written.</span></h1>
+        <p class="lede">Nine agent skills for Claude Code, Codex and other agents. They map who uses your system, for what and through which interfaces, keep that map current, and plan each change from it.</p>
+        <div class="ctas">
+          <a class="btn" href="#">Read the docs</a>
+          <button class="btn-dash" type="button" data-copy="prompt"><span class="glyph">&gt;_</span>Install with your agent<svg><use href="#copy"/></svg></button>
+        </div>
+        <p class="aside-link">Prefer a plugin? <a href="#" data-jump="a-install">Claude Code, Codex, or by hand ↓</a></p>
+      </header>
+
+      <section class="sec" id="a-why" data-nav="Why">
+        <h2>Your agent sees files.</h2>
+        <p>A coding agent sees a repository as files, folders and functions, so it plans a change as a list of files to edit. What the change means for the people using the code, and which part should own it, stays unclear until code review, when it costs the most to change.</p>
+        <div class="panel a-split">
+          <div class="col">
+            <div class="label">The agent's plan</div>
+            <ul class="a-files">
+              <li><span class="op">edit</span>src/storefront/checkout.tsx</li>
+              <li><span class="op">edit</span>mobile/screens/Checkout.tsx</li>
+              <li><span class="op">edit</span>src/payments/charge.ts</li>
+              <li><span class="op">add</span>src/payments/gift-cards.ts</li>
+              <li><span class="op">edit</span>db/schema.sql</li>
+            </ul>
+          </div>
+          <div class="arrow" aria-hidden="true"><span class="right">→</span><span class="down">↓</span></div>
+          <div class="col">
+            <div class="label">What changes for its users</div>
+            <ul class="a-bchg">
+              <li class="h"><span>Shopper ↔ Store</span><span class="tag">MODIFIED</span></li>
+              <li><span>Place order</span><span class="m">mutates Gift card</span></li>
+              <li><span>See gift card balance</span><span class="tag">NEW</span></li>
+              <li class="h"><span>Storefront ↔ Payments</span><span class="tag">MODIFIED</span></li>
+              <li><span>Charge order</span><span class="m">mutates Gift card</span></li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="sec" id="a-map" data-nav="The map">
+        <h2>A map from the consumer's side.</h2>
+        <p>The map describes your system one level up: the resources its consumers care about, what they can do with them, and through which interfaces. Open a provider to see the components it relies on and what each one keeps.</p>
+        <div class="panel paper"><img src="../../docs/example/store-map.png" alt="A boundary map of an example online store. The Shopper uses the Store through the web shop and the mobile app. The Store offers Shop and See loyalty balance, and relies on Storefront, Payments and the Card network." width="2980" height="811"></div>
+        <p class="cap">Drawn by visualize-boundaries. An online store, opened one level.</p>
+      </section>
+
+      <section class="sec" id="a-work" data-nav="Working with it">
+        <h2>You decide what it means.</h2>
+        <p>The agent builds the map from the code and cites the files behind each boundary. You settle the names, what matters, and whether the map reads clearly. Each skill stops at the decisions that belong to you.</p>
+        <div class="panel a-tabs" data-tabs>
+          <div class="tablist" role="tablist" aria-label="Steps">
+            <button role="tab" type="button" aria-selected="true" data-tab="map">Map</button>
+            <button role="tab" type="button" aria-selected="false" data-tab="review">Review</button>
+            <button role="tab" type="button" aria-selected="false" data-tab="update">Update</button>
+            <button role="tab" type="button" aria-selected="false" data-tab="shape">Shape</button>
+            <button role="tab" type="button" aria-selected="false" data-tab="slice">Slice</button>
+            <button role="tab" type="button" aria-selected="false" data-tab="refine">Refine</button>
+            <button role="tab" type="button" aria-selected="false" data-tab="issues">Issues</button>
+          </div>
+          <div class="a-tp" data-panel="map">
+            <div><p class="q">“Map this repository's boundaries.”</p><p class="does">The agent reads the docs and the code, one level at a time, and drafts a map that cites the files behind each boundary.</p></div>
+            <div class="decide"><div class="label">You decide</div><ul><li>Which system to map</li><li>What it may read</li><li>Whether to replace an existing map</li></ul></div>
+            <div class="a-chips" data-on="extract-boundaries"></div>
+          </div>
+          <div class="a-tp" data-panel="review" hidden>
+            <div><p class="q">“Review the map with me.”</p><p class="does">The agent sends one image per screen and asks at most five short questions per level, each with its suggestion.</p></div>
+            <div class="decide"><div class="label">You decide</div><ul><li>What each part is called</li><li>Which parts matter</li><li>Option A or B, drawn side by side</li></ul></div>
+            <div class="a-chips" data-on="review-boundaries visualize-boundaries"></div>
+          </div>
+          <div class="a-tp" data-panel="update" hidden>
+            <div><p class="q">“Is the map current?”</p><p class="does">The agent lists what changed since the map's revision and works out what that does to each boundary.</p></div>
+            <div class="decide"><div class="label">You decide</div><ul><li>The changes, in a review of only what changed</li></ul></div>
+            <div class="a-chips" data-on="update-boundaries review-boundaries"></div>
+          </div>
+          <div class="a-tp" data-panel="shape" hidden>
+            <div><p class="q">“Let shoppers pay with gift cards.”</p><p class="does">The agent asks one question at a time, only those whose answer could add, remove or redefine a boundary change.</p></div>
+            <div class="decide"><div class="label">You decide</div><ul><li>The answers</li><li>Whether the shape is right</li></ul></div>
+            <div class="a-chips" data-on="shape-boundaries"></div>
+          </div>
+          <div class="a-tp" data-panel="slice" hidden>
+            <div><p class="q">“How should we split this?”</p><p class="does">The agent compares two or three ways to divide the work, names their smells, and recommends one.</p></div>
+            <div class="decide"><div class="label">You decide</div><ul><li>The slicing strategy</li></ul></div>
+            <div class="a-chips" data-on="slice"></div>
+          </div>
+          <div class="a-tp" data-panel="refine" hidden>
+            <div><p class="q">“Settle the details.”</p><p class="does">The agent asks each question that has a real tradeoff, one at a time, with its recommendation.</p></div>
+            <div class="decide"><div class="label">You decide</div><ul><li>Expected behavior</li><li>Design decisions</li></ul></div>
+            <div class="a-chips" data-on="refine"></div>
+          </div>
+          <div class="a-tp" data-panel="issues" hidden>
+            <div><p class="q">“Write the issues.”</p><p class="does">The agent drafts one issue per slice, each with its proof of done, and checks the set for contradictions.</p></div>
+            <div class="decide"><div class="label">You decide</div><ul><li>A parent issue, or standalone issues</li><li>When to publish</li></ul></div>
+            <div class="a-chips" data-on="to-issues"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="sec" id="a-shape" data-nav="Shape a change">
+        <h2>Shape a change before building it.</h2>
+        <p>Ask for a change in your own words. The agent asks questions until no answer could change the shape, then states the change as the boundary changes it leads to, marked against the map. Slicing, details and issues come after.</p>
+        <div class="panel a-doc">
+          <div class="head"><span>Shape: pay with gift cards</span><span>shape-boundaries</span></div>
+          <div class="body">
+            <p><b>Shopper ↔ Store</b> <span class="tag">MODIFIED</span> <span class="dim">shoppers can pay with a gift card and see what is left on it</span></p>
+            <p class="i1">Interfaces: web shop · mobile app</p>
+            <p class="i1">Shop (core)</p>
+            <p class="i2"><span class="tag">MODIFIED</span> Place order: produces <b>Order</b> · mutates <b>Loyalty balance</b> · mutates <b>Gift card</b></p>
+            <p class="i1">See gift card balance (supporting)</p>
+            <p class="i2"><span class="tag">NEW</span> See gift card balance: observes <b>Gift card</b></p>
+            <p class="gap"><b>Storefront ↔ Payments</b> <span class="tag">MODIFIED</span> <span class="dim">Payments charges an order to a gift card as well as to a card</span></p>
+            <p class="i2"><span class="tag">MODIFIED</span> Charge order: produces <b>Charge</b> · mutates <b>Gift card</b></p>
+            <p class="gap"><b>Shape complete: YES</b></p>
+            <p class="dim">Details: can a gift card pay for part of an order?</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="sec" id="a-install" data-nav="Install">
+        <h2>Install.</h2>
+        <p>Install all nine skills side by side. The map scripts need Node 18 or later.</p>
+        <div class="a-grid">
+          <div class="cell">
+            <h3>npx skills</h3>
+            <p>Claude Code, Codex and most other agents.</p>
+            <div class="cmd"><code>npx skills add meaningfool/boundary-model --skill '*'</code><button class="icon-btn" type="button" aria-label="Copy command" data-copy="npx skills add meaningfool/boundary-model --skill '*'"><svg><use href="#copy"/></svg></button></div>
+          </div>
+          <div class="cell">
+            <h3>Claude Code</h3>
+            <p>The nine skills as one plugin.</p>
+            <div class="cmd"><code>/plugin marketplace add meaningfool/boundary-model</code></div>
+            <div class="cmd"><code>/plugin install boundary-model@meaningfool</code></div>
+          </div>
+          <div class="cell">
+            <h3>Codex</h3>
+            <p>The nine skills as one plugin.</p>
+            <div class="cmd"><code>codex plugin marketplace add meaningfool/boundary-model</code></div>
+            <div class="cmd"><code>codex plugin add boundary-model@meaningfool</code></div>
+          </div>
+          <div class="cell">
+            <h3>By hand</h3>
+            <p>Copy the nine skill folders side by side into your agent's skills folder.</p>
+            <a class="btn-line" href="#">Install steps ↗</a>
+          </div>
+        </div>
+      </section>
+
+      <div class="endcta">
+        <h2>Learn the model in four pages.</h2>
+        <p>What it is and why, how the skills work together, how to install them, and a real map.</p>
+        <a class="btn" href="#">Read the docs</a>
+      </div>
+    </div>
+
+    <!-- ================= B ================= -->
+    <div class="variant v-b" data-variant="b" data-name="One change, step by step" hidden>
+      <header class="hero">
+        <h1>Your agent plans in files. <span class="dim">Give it a map of who uses your system, and for what.</span></h1>
+        <p class="lede">Nine skills that map your system from its consumers' side, keep the map current, and shape each change on it with you before it is built.</p>
+        <div class="ctas">
+          <a class="btn" href="#">Read the docs</a>
+          <button class="btn-dash" type="button" data-copy="prompt"><span class="glyph">&gt;_</span>Install with your agent<svg><use href="#copy"/></svg></button>
+        </div>
+      </header>
+
+      <figure class="b-map" style="margin-inline:0">
+        <div class="scrollx">
+          <svg viewBox="0 0 860 300" role="img" aria-label="The Store example opened one level. The Shopper uses the Store through the web shop and the mobile app. The Store offers Shop and See loyalty balance, handled by Storefront and Payments. Payments uses the Card network.">
+            <rect class="m-box" x="0.5" y="126" width="104" height="48" rx="3"/>
+            <text class="m-k" x="12" y="143">CONSUMER</text>
+            <text class="m-n" x="12" y="161">Shopper</text>
+            <path class="m-line" d="M104.5 150 C128 150 128 130 150 130"/>
+            <path class="m-line" d="M104.5 150 C128 150 128 176 150 176"/>
+            <rect class="m-frame" x="150" y="8" width="708" height="284" rx="2"/>
+            <text class="m-k" x="166" y="30">PROVIDER</text>
+            <text class="m-n" x="166" y="48">Store</text>
+            <text class="m-s" x="166" y="64">The shop as shoppers know it, on the web and in the mobile app.</text>
+            <line class="m-rule" x1="151" y1="78" x2="857" y2="78"/>
+            <text class="m-k" x="166" y="100">INTERFACES</text>
+            <text class="m-k" x="262" y="100">CAPABILITIES</text>
+            <text class="m-k" x="500" y="100">COMPONENTS</text>
+            <text class="m-k" x="712" y="100">USES</text>
+            <circle class="m-dot" cx="150" cy="130" r="4"/>
+            <circle class="m-dot" cx="150" cy="176" r="4"/>
+            <text class="m-s" x="161" y="134">web shop</text>
+            <text class="m-s" x="161" y="180">mobile app</text>
+            <path class="m-line" d="M212 130 C238 130 238 160 262 160"/>
+            <path class="m-line" d="M220 176 C242 176 242 160 262 160"/>
+            <path class="m-line" d="M220 176 C242 176 242 247 262 247"/>
+            <rect class="m-area" x="262" y="112" width="190" height="96" rx="3"/>
+            <text class="m-k" x="274" y="128">CORE</text>
+            <text class="m-n" x="274" y="145">Shop</text>
+            <text class="m-s" x="274" y="164">Browse products</text>
+            <text class="m-s" x="274" y="179">Place order</text>
+            <text class="m-s" x="274" y="194">List past orders</text>
+            <rect class="m-area" x="262" y="222" width="190" height="50" rx="3"/>
+            <text class="m-k" x="274" y="238">SUPPORTING</text>
+            <text class="m-n" x="274" y="256">See loyalty balance</text>
+            <path class="m-line" d="M452 160 C476 160 476 149 500 149"/>
+            <path class="m-line" d="M452 160 C476 160 476 239 500 239"/>
+            <path class="m-line" d="M452 247 C476 247 476 149 500 149"/>
+            <rect class="m-box" x="500" y="112" width="170" height="74" rx="3"/>
+            <text class="m-k" x="512" y="128">COMPONENT</text>
+            <text class="m-n" x="512" y="146">Storefront</text>
+            <text class="m-r" x="512" y="163">Product · Order</text>
+            <text class="m-r" x="512" y="177">Loyalty balance</text>
+            <line class="m-line" x1="585" y1="186" x2="585" y2="206"/>
+            <rect class="m-box" x="500" y="206" width="170" height="66" rx="3"/>
+            <text class="m-k" x="512" y="222">COMPONENT</text>
+            <text class="m-n" x="512" y="240">Payments</text>
+            <text class="m-r" x="512" y="258">Charge</text>
+            <line class="m-line" x1="670" y1="239" x2="700" y2="239"/>
+            <rect class="m-out" x="700" y="206" width="142" height="66" rx="3"/>
+            <text class="m-k" x="712" y="222">OUTSIDE SERVICE</text>
+            <text class="m-n" x="712" y="240">Card network</text>
+            <text class="m-r" x="712" y="258">Card authorization</text>
+          </svg>
+        </div>
+        <figcaption class="cap">The Store example, opened one level: who uses it, through which interfaces, for what, and the parts it relies on.</figcaption>
+      </figure>
+
+      <ol class="b-steps">
+        <li class="b-step" id="b-install" data-nav="Install">
+          <span class="b-num">1</span>
+          <div class="txt">
+            <h2>Install the skills</h2>
+            <p>One command installs the nine skills side by side for the agents you pick. Claude Code and Codex can also take them as one plugin.</p>
+            <p class="b-you"><span class="label">You decide</span>Which agents, and whether the skills go in the project or in your user folder.</p>
+          </div>
+          <div class="b-vis">
+            <div class="b-term">
+              <div class="head"><i></i><i></i><i></i><span>Terminal</span></div>
+              <div class="cmdline"><span class="dim">$</span><code>npx skills add meaningfool/boundary-model --skill '*'</code><button class="icon-btn" type="button" aria-label="Copy command" data-copy="npx skills add meaningfool/boundary-model --skill '*'"><svg><use href="#copy"/></svg></button></div>
+              <div class="foot2">Or: <a href="#">Claude Code plugin</a> · <a href="#">Codex plugin</a> · <a href="#">by hand</a></div>
+            </div>
+          </div>
+        </li>
+        <li class="b-step" id="b-map" data-nav="Map your code">
+          <span class="b-num">2</span>
+          <div class="txt">
+            <h2>Map your code</h2>
+            <p>Ask in plain words, or name the skill. The agent reads the docs and the code one level at a time, checks every boundary against the code, and cites the files behind it.</p>
+            <p class="b-you"><span class="label">You decide</span>Which system to map, what the agent may read, and where the map goes.</p>
+          </div>
+          <div class="b-vis b-chat">
+            <div class="b-msg you"><span class="who">You</span>Map this repository's boundaries.</div>
+            <div class="b-msg"><span class="who">Agent · extract-boundaries</span>The draft map is in the working folder. It is unreviewed. Shall we review it now with <code>review-boundaries</code>?</div>
+          </div>
+        </li>
+        <li class="b-step" id="b-review" data-nav="Review it">
+          <span class="b-num">3</span>
+          <div class="txt">
+            <h2>Review the map together</h2>
+            <p>The agent shows the map one level at a time, as images, and asks at most five short questions per level, each with its suggestion. When an answer would move a box, it draws both versions.</p>
+            <p class="b-you"><span class="label">You decide</span>What the parts are called, which ones matter, and whether the map reads clearly.</p>
+          </div>
+          <div class="b-vis">
+            <div class="b-q">
+              <div class="head"><span>Store › Payments</span><span>Question 2 of 3</span></div>
+              <p class="text">Fraud check keeps its own record of the charges it scores. Is it a component of its own?</p>
+              <div class="opts">
+                <div class="b-opt sel">
+                  <div class="mb"><span class="k">COMPONENT</span>Payments<div class="row"><div class="mb2">Charge service</div><div class="mb2">Fraud check</div></div></div>
+                  <div class="lab"><span>A · two components</span><span>suggested</span></div>
+                </div>
+                <div class="b-opt">
+                  <div class="mb"><span class="k">COMPONENT</span>Payments<div class="row" style="grid-template-columns:1fr"><div class="mb2">Charge service, scoring included</div></div></div>
+                  <div class="lab"><span>B · one component</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </li>
+        <li class="b-step" id="b-shape" data-nav="Shape a change">
+          <span class="b-num">4</span>
+          <div class="txt">
+            <h2>Shape a change</h2>
+            <p>Describe a change in your own words. The agent asks only the questions whose answer could add, remove or redefine a boundary change, then proposes the shape for you to confirm.</p>
+            <p class="b-you"><span class="label">You decide</span>The answers, and whether the shape is right.</p>
+          </div>
+          <div class="b-vis b-chat">
+            <div class="b-msg you"><span class="who">You</span>Let shoppers pay with gift cards.</div>
+            <div class="b-msg"><span class="who">Agent · shape-boundaries</span>Which component keeps a gift card's balance, Storefront or Payments? It decides whether the Storefront ↔ Payments boundary changes. I suggest Payments, since it already charges orders.
+              <div class="b-mini"><b>Shopper ↔ Store</b> MODIFIED<br>&nbsp;&nbsp;NEW See gift card balance<br><b>Storefront ↔ Payments</b> MODIFIED<br>&nbsp;&nbsp;MODIFIED Charge order</div>
+            </div>
+          </div>
+        </li>
+        <li class="b-step" id="b-plan" data-nav="Plan the work">
+          <span class="b-num">5</span>
+          <div class="txt">
+            <h2>Slice it, settle the details, write the issues</h2>
+            <p>The agent compares ways to divide the work, settles expected behavior and design decisions with you, then drafts one issue per slice, each with its proof of done.</p>
+            <p class="b-you"><span class="label">You decide</span>The slicing strategy, each tradeoff, and how the issues are grouped before they are published.</p>
+          </div>
+          <div class="b-vis">
+            <div class="b-issue">
+              <div class="head"><span class="state"><i></i>Draft · to-issues</span><h3>Pay for an order with a gift card</h3></div>
+              <div class="body">
+                <div><div class="label">Expected behavior</div><ul><li>A shopper can pay for an order with a gift card, on the web and in the app.</li><li>A shopper can see what is left on a gift card.</li></ul></div>
+                <div><div class="label">Proof of done</div><ul><li>In the web shop, pay for an order with a gift card, then see its balance go down.</li></ul></div>
+              </div>
+            </div>
+          </div>
+        </li>
+      </ol>
+      <div class="b-loop"><span class="g">↺</span><span>When changes land, ask whether the map is current. <code>update-boundaries</code> reads only what changed since the map's revision, and you review the difference.</span></div>
+
+      <div class="endcta">
+        <h2>Learn the model in four pages.</h2>
+        <p>What it is and why, how the skills work together, how to install them, and a real map.</p>
+        <a class="btn" href="#">Read the docs</a>
+      </div>
+    </div>
+
+    <!-- ================= C ================= -->
+    <div class="variant v-c" data-variant="c" data-name="Reference sheet" hidden>
+      <header class="hero">
+        <h1>A map of your system, from its consumers' side. <span class="dim">Your agent builds it, keeps it current, and shapes each change on it with you.</span></h1>
+        <div class="ctas">
+          <a class="btn" href="#">Read the docs</a>
+          <button class="btn-dash" type="button" data-copy="prompt"><span class="glyph">&gt;_</span>Install with your agent<svg><use href="#copy"/></svg></button>
+        </div>
+        <div class="c-cmd"><span class="pr">$</span><code>npx skills add meaningfool/boundary-model --skill '*'</code><button class="icon-btn" type="button" aria-label="Copy command" data-copy="npx skills add meaningfool/boundary-model --skill '*'"><svg><use href="#copy"/></svg></button></div>
+        <p class="aside-link">Or as a plugin: <a href="#" data-jump="c-install">Claude Code, Codex, or by hand ↓</a></p>
+      </header>
+
+      <section class="sec" id="c-what" data-nav="What it is">
+        <div class="eyebrow">01</div>
+        <h2>What it is</h2>
+        <p>The boundary model describes a system as its consumers see it: who uses it, for what, and through which interfaces. Opening a provider shows the components it relies on, each with the state it keeps and the decisions it makes. Nine skills let your agent build that map from the code and work with it alongside you.</p>
+        <div class="c-hair c-terms">
+          <div><div class="label">Consumer</div><p>The person or system that uses the provider to get something done.</p></div>
+          <div><div class="label">Provider</div><p>What the consumer believes it is using.</p></div>
+          <div><div class="label">Interface</div><p>The channel the consumer uses, such as a web shop or an API.</p></div>
+          <div><div class="label">Capability</div><p>Something the consumer can do with the provider's resources, to get a result.</p></div>
+          <div><div class="label">Resource</div><p>Something with a state that the consumer cares about.</p></div>
+          <div><div class="label">Component</div><p>A part of a provider that keeps its own state or makes its own decisions.</p></div>
+        </div>
+        <a class="c-more" href="#">All definitions: use-boundary-model ↗</a>
+      </section>
+
+      <section class="sec" id="c-map" data-nav="What a map looks like">
+        <div class="eyebrow">02</div>
+        <h2>What a map looks like</h2>
+        <p>visualize-boundaries draws the map as one page, one open box at a time, and as still images for a review. This is the Store example, opened one level.</p>
+        <div class="c-map"><img src="../../docs/example/store-map.png" alt="A boundary map of an example online store. The Shopper uses the Store through the web shop and the mobile app. The Store offers Shop and See loyalty balance, and relies on Storefront, Payments and the Card network." width="2980" height="811"></div>
+      </section>
+
+      <section class="sec" id="c-who" data-nav="Who decides what">
+        <div class="eyebrow">03</div>
+        <h2>Who decides what</h2>
+        <p>The agent does the reading, the drafting and the drawing. Each skill stops at the decisions that belong to you.</p>
+        <div class="scrollx">
+          <table class="c-table">
+            <thead><tr><th>Skill</th><th>The agent</th><th>You decide</th></tr></thead>
+            <tbody>
+              <tr><td>extract-boundaries</td><td data-label="The agent">Drafts the map from the docs and code, citing files</td><td data-label="You decide">Which system, what it reads, where the map goes</td></tr>
+              <tr><td>review-boundaries</td><td data-label="The agent">Shows each level as images, asks at most five questions</td><td data-label="You decide">Names, what matters, option A or B</td></tr>
+              <tr><td>update-boundaries</td><td data-label="The agent">Lists what changed since the map's revision</td><td data-label="You decide">The changes, in a review</td></tr>
+              <tr><td>visualize-boundaries</td><td data-label="The agent">Draws the map as a page or as images</td><td data-label="You decide">Nothing; it draws what the map says</td></tr>
+              <tr><td>shape-boundaries</td><td data-label="The agent">Asks only questions that could change the shape</td><td data-label="You decide">The answers, and whether the shape is right</td></tr>
+              <tr><td>slice</td><td data-label="The agent">Compares two or three ways to divide the work</td><td data-label="You decide">The strategy</td></tr>
+              <tr><td>refine</td><td data-label="The agent">Asks each real tradeoff, with a recommendation</td><td data-label="You decide">Expected behavior and design decisions</td></tr>
+              <tr><td>to-issues</td><td data-label="The agent">Drafts one issue per slice, with its proof of done</td><td data-label="You decide">How issues are grouped, and when to publish</td></tr>
+              <tr><td>use-boundary-model</td><td data-label="The agent">Holds the model and the map format the others load</td><td data-label="You decide">Nothing</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="sec" id="c-isnt" data-nav="What it is and isn't">
+        <div class="eyebrow">04</div>
+        <h2>What it is and isn't</h2>
+        <div class="c-hair c-qa">
+          <div><h3>Is it an architecture diagram?</h3><p>No. It starts from the consumers' side. How the system is built appears only when you open a provider, and a runtime or database is not a boundary by itself.</p></div>
+          <div><h3>Does it write code?</h3><p>No. The skills write a map, a shape, plans and issues. Building the change is your usual agent work.</p></div>
+          <div><h3>Do I need a map to start?</h3><p>No. shape-boundaries works without one, and slice, refine and to-issues work on their own.</p></div>
+          <div><h3>Does the map go stale?</h3><p>Not if you update it. update-boundaries reads only what changed since the map's revision, so earlier decisions stay.</p></div>
+        </div>
+      </section>
+
+      <section class="sec" id="c-start" data-nav="Where to start">
+        <div class="eyebrow">05</div>
+        <h2>Where to start</h2>
+        <div class="c-hair c-start">
+          <div><h3>Nothing built yet</h3><span class="to">shape-boundaries</span></div>
+          <div><h3>Code, but no map</h3><span class="to">extract-boundaries</span></div>
+          <div><h3>Code with a map</h3><span class="to">update-boundaries, or shape-boundaries</span></div>
+          <div><h3>No map wanted</h3><span class="to">slice, refine, to-issues</span></div>
+        </div>
+      </section>
+
+      <section class="sec" id="c-install" data-nav="Install">
+        <div class="eyebrow">06</div>
+        <h2>Install</h2>
+        <p>Install all nine skills side by side: the map scripts find use-boundary-model in the folder next to theirs.</p>
+        <div class="c-tabs" data-tabs>
+          <div class="tablist" role="tablist" aria-label="Install routes">
+            <button role="tab" type="button" aria-selected="true" data-tab="npx">npx skills</button>
+            <button role="tab" type="button" aria-selected="false" data-tab="cc">Claude Code</button>
+            <button role="tab" type="button" aria-selected="false" data-tab="codex">Codex</button>
+            <button role="tab" type="button" aria-selected="false" data-tab="hand">By hand</button>
+          </div>
+          <div class="tp" data-panel="npx"><p>Claude Code, Codex, and most other agents.</p><pre>npx skills add meaningfool/boundary-model --skill '*'</pre></div>
+          <div class="tp" data-panel="cc" hidden><p>Installs the nine skills as one plugin.</p><pre>/plugin marketplace add meaningfool/boundary-model
+/plugin install boundary-model@meaningfool</pre></div>
+          <div class="tp" data-panel="codex" hidden><p>Installs the nine skills as one plugin. Start a new session to use them.</p><pre>codex plugin marketplace add meaningfool/boundary-model
+codex plugin add boundary-model@meaningfool</pre></div>
+          <div class="tp" data-panel="hand" hidden><p>These commands install for Claude Code. Keep the folder names.</p><pre>git clone https://github.com/meaningfool/boundary-model.git
+cd boundary-model/skills
+mkdir -p ~/.claude/skills
+cp -R use-boundary-model extract-boundaries review-boundaries \
+  update-boundaries visualize-boundaries shape-boundaries \
+  slice refine to-issues ~/.claude/skills/</pre></div>
+        </div>
+      </section>
+
+      <div class="endcta">
+        <h2>Read the docs.</h2>
+        <p>Four short pages: what it is and why, how the skills work together, install, and an example.</p>
+        <a class="btn" href="#">Read the docs</a>
+      </div>
+    </div>
+
+    <footer class="foot">
+      <a class="logo" href="#"><svg><use href="#logo"/></svg>boundary model</a>
+      <nav><a href="#">Docs</a><a href="#">GitHub</a><a href="#">Changelog</a><a href="#">MIT licence</a></nav>
+    </footer>
+  </main>
+</div>
+
+<div class="switcher" role="toolbar" aria-label="Prototype variants">
+  <button type="button" id="prev" aria-label="Previous variant">‹</button>
+  <span class="cur" id="cur">A · Stacked sections</span>
+  <button type="button" id="next" aria-label="Next variant">›</button>
+  <span class="sep"></span>
+  <button type="button" id="theme">Theme: auto</button>
+  <span class="note">Prototype · placeholder copy</span>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(() => {
+  const VARIANTS = ['a', 'b', 'c'];
+  const SKILLS = ['extract-boundaries', 'review-boundaries', 'update-boundaries', 'visualize-boundaries', 'shape-boundaries', 'slice', 'refine', 'to-issues'];
+  const PROMPT = "Install the boundary model agent skills in this project with `npx skills add meaningfool/boundary-model --skill '*'`, then tell me whether I need to start a new session to use them.";
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const idx = document.getElementById('idx');
+  const side = document.getElementById('side');
+  const menuBtn = document.getElementById('menuBtn');
+  let observer;
+
+  const current = () => { const h = location.hash.slice(1); return VARIANTS.includes(h) ? h : 'a'; };
+  const go = (step) => { const i = VARIANTS.indexOf(current()); location.hash = VARIANTS[(i + step + VARIANTS.length) % VARIANTS.length]; };
+
+  function scrollToId(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+    closeMenu();
+  }
+
+  function buildIndex(root) {
+    const secs = [...root.querySelectorAll('[data-nav]')];
+    idx.innerHTML = '';
+    secs.forEach((s, i) => {
+      const li = document.createElement('li');
+      const a = document.createElement('a');
+      a.href = '#';
+      a.dataset.target = s.id;
+      a.innerHTML = '<span>' + String(i + 1).padStart(2, '0') + '</span>';
+      a.append(s.dataset.nav);
+      a.addEventListener('click', (e) => { e.preventDefault(); scrollToId(s.id); });
+      li.append(a);
+      idx.append(li);
+    });
+    if (observer) observer.disconnect();
+    observer = new IntersectionObserver((entries) => {
+      entries.forEach((en) => {
+        if (!en.isIntersecting) return;
+        idx.querySelectorAll('a').forEach((a) => a.classList.toggle('on', a.dataset.target === en.target.id));
+      });
+    }, { rootMargin: '-30% 0px -60% 0px' });
+    secs.forEach((s) => observer.observe(s));
+  }
+
+  function show(v) {
+    let root;
+    document.querySelectorAll('.variant').forEach((el) => {
+      el.hidden = el.dataset.variant !== v;
+      if (!el.hidden) root = el;
+    });
+    document.getElementById('cur').textContent = v.toUpperCase() + ' · ' + root.dataset.name;
+    buildIndex(root);
+    window.scrollTo(0, 0);
+  }
+
+  // Skill chips in A's step tabs.
+  document.querySelectorAll('.a-chips').forEach((box) => {
+    const on = box.dataset.on.split(' ');
+    SKILLS.forEach((s) => {
+      const c = document.createElement('span');
+      c.className = 'chip' + (on.includes(s) ? ' on' : '');
+      c.textContent = s;
+      box.append(c);
+    });
+  });
+
+  // Tabs.
+  document.querySelectorAll('[data-tabs]').forEach((box) => {
+    const tabs = [...box.querySelectorAll('[role="tab"]')];
+    tabs.forEach((t) => t.addEventListener('click', () => {
+      tabs.forEach((x) => x.setAttribute('aria-selected', String(x === t)));
+      box.querySelectorAll('[data-panel]').forEach((p) => { p.hidden = p.dataset.panel !== t.dataset.tab; });
+    }));
+  });
+
+  // Copy buttons.
+  const toast = document.getElementById('toast');
+  let toastTimer;
+  function say(msg) {
+    toast.textContent = msg; toast.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => { toast.hidden = true; }, 1800);
+  }
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-copy]');
+    if (b) {
+      const text = b.dataset.copy === 'prompt' ? PROMPT : b.dataset.copy;
+      try {
+        navigator.clipboard.writeText(text).then(() => say(b.dataset.copy === 'prompt' ? 'Prompt copied' : 'Command copied'), () => say('Copying is blocked here'));
+      } catch (err) { say('Copying is blocked here'); }
+      return;
+    }
+    const j = e.target.closest('[data-jump]');
+    if (j) { e.preventDefault(); scrollToId(j.dataset.jump); return; }
+    const dead = e.target.closest('a[href="#"]');
+    if (dead) e.preventDefault();
+  });
+
+  // Phone menu.
+  function closeMenu() { side.classList.remove('open'); menuBtn.setAttribute('aria-expanded', 'false'); menuBtn.textContent = 'Menu'; }
+  menuBtn.addEventListener('click', () => {
+    const open = !side.classList.contains('open');
+    side.classList.toggle('open', open);
+    menuBtn.setAttribute('aria-expanded', String(open));
+    menuBtn.textContent = open ? 'Close' : 'Menu';
+  });
+
+  // Theme.
+  const themes = ['auto', 'light', 'dark'];
+  const themeBtn = document.getElementById('theme');
+  let ti = themes.indexOf(document.documentElement.dataset.theme || 'auto');
+  if (ti < 0) ti = 0;
+  themeBtn.textContent = 'Theme: ' + themes[ti];
+  themeBtn.addEventListener('click', () => {
+    ti = (ti + 1) % themes.length;
+    if (themes[ti] === 'auto') delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = themes[ti];
+    themeBtn.textContent = 'Theme: ' + themes[ti];
+  });
+
+  // Variant switching.
+  document.getElementById('prev').addEventListener('click', () => go(-1));
+  document.getElementById('next').addEventListener('click', () => go(1));
+  document.addEventListener('keydown', (e) => {
+    if (e.target.closest('input, textarea, select, [contenteditable]')) return;
+    if (e.key === 'ArrowLeft') go(-1);
+    if (e.key === 'ArrowRight') go(1);
+  });
+  window.addEventListener('hashchange', () => show(current()));
+  show(current());
+})();
+</script>

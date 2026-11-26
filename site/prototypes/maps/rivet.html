@@ -1,0 +1,1111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rivet boundary map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono&family=Public+Sans:wght@400;600&display=swap">
+<style>
+/* Thin ink lines on paper, with one colour per kind of thing: consumers grey, components green,
+   outside services stone, interfaces blue, capabilities violet, resources amber. Layout: a
+   breadcrumb, then one open box whose columns are headed by what they hold, and a panel docked
+   beside it when something is selected, so the map stays scrollable. */
+:root {
+  --paper: #ffffff;
+  --ink: #1a1a1a;
+  --graphite: #6b6b6b;
+  --pencil: #c9c9c9;
+  --panel: #f5f5f4;
+  --panel-line: #e3e3e1;
+  --k-consumer: #6b7280;
+  --k-component: #2e8b57;
+  --k-outside: #8a7f72;
+  --k-interface: #2f6fdb;
+  --k-capability: #7a4fd1;
+  --k-resource: #b7791f;
+  --sans: "Public Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #17181a; --ink: #ececea; --graphite: #a0a09c; --pencil: #55565a; --panel: #212225; --panel-line: #33343a;
+    --k-consumer: #9aa1ad; --k-component: #5cc18a; --k-outside: #b0a596; --k-interface: #6f9cf0; --k-capability: #a585ef; --k-resource: #e0a64a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #17181a; --ink: #ececea; --graphite: #a0a09c; --pencil: #55565a; --panel: #212225; --panel-line: #33343a;
+  --k-consumer: #9aa1ad; --k-component: #5cc18a; --k-outside: #b0a596; --k-interface: #6f9cf0; --k-capability: #a585ef; --k-resource: #e0a64a;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  --k: var(--graphite);
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  margin: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: var(--paper);
+  color: var(--ink);
+  font: 14px/1.4 var(--sans);
+}
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+code { font-family: var(--mono); font-size: 0.92em; }
+
+.k-consumer { --k: var(--k-consumer); }
+.k-component { --k: var(--k-component); }
+.k-outside { --k: var(--k-outside); }
+.k-interface { --k: var(--k-interface); }
+.k-capability { --k: var(--k-capability); }
+.k-resource { --k: var(--k-resource); }
+
+.top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; padding-block: 12px 10px; border-bottom: 1px solid var(--panel-line); }
+.top h1 { margin: 0; font-size: 15px; font-weight: 600; }
+.top .rev { font-family: var(--mono); font-size: 12px; color: var(--graphite); }
+.top p { margin: 0; font-size: 13px; color: var(--graphite); }
+#nav { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; padding-block: 10px 0; font-size: 13px; }
+#nav button { color: var(--graphite); border-bottom: 1px dotted var(--pencil); }
+#nav .b-back-nav { margin-right: 8px; padding: 1px 8px; color: var(--ink); border: 1px solid var(--panel-line); border-radius: 3px; }
+#nav .b-back-nav:hover { border-color: var(--ink); }
+#nav .b-back-nav:disabled { color: var(--pencil); border-color: var(--panel-line); cursor: default; }
+#nav button:hover { color: var(--ink); }
+.b-sep { color: var(--pencil); }
+main { display: flex; min-height: 0; min-width: 0; }
+#scroll { flex: 1 1 auto; min-width: 0; overflow: auto; }
+
+/* ---- stage and zones ---- */
+.b-stage { position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: max-content; gap: 0 64px; align-items: start; width: max-content; min-width: 100%; padding: 14px 4px 48px; }
+.b-wires { position: absolute; top: 0; left: 0; z-index: 1; overflow: visible; pointer-events: none; }
+.b-wires path { fill: none; stroke: var(--pencil); stroke-width: 1.25; }
+.b-wires path.lit { stroke: var(--ink); stroke-width: 1.75; opacity: 1; }
+.b-wires path.dim { opacity: 0.18; }
+.b-zone h3 { margin: 0 0 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--k); }
+.z-consumer { --k: var(--k-consumer); }
+.z-interface { --k: var(--k-interface); }
+.z-capability { --k: var(--k-capability); }
+.z-component { --k: var(--k-component); }
+.z-resource { --k: var(--k-resource); }
+.z-uses { --k: var(--graphite); }
+.b-left > .b-zone-body { position: relative; width: 170px; }
+.b-left > .b-zone-body > .b-box { position: absolute; left: 0; width: 170px; }
+.b-col { display: flex; flex-direction: column; gap: 14px; }
+.b-right > .b-zone-body { position: relative; width: 210px; }
+.b-right > .b-zone-body > .b-box { position: absolute; left: 0; }
+.b-col.b-placed { position: relative; display: block; width: 210px; }
+.b-placed > .b-box { position: absolute; left: 0; }
+.b-cols { display: flex; align-items: flex-start; gap: 48px; }
+.dim { opacity: 0.22; }
+
+/* ---- the open box ---- */
+.b-frame { position: relative; border: 1.5px solid var(--ink); }
+.b-frame-head { position: relative; z-index: 2; padding: 10px 14px 12px; border-bottom: 1px solid var(--panel-line); background: var(--paper); }
+.b-frame-head h2 { margin: 0 0 4px; font-size: 20px; font-weight: 600; }
+.b-frame-head p { margin: 0; max-width: 70ch; color: var(--graphite); font-size: 13px; }
+.b-frame-head .b-through { margin-top: 4px; color: var(--ink); }
+.b-body { display: grid; grid-auto-flow: column; grid-auto-columns: max-content; gap: 0 44px; padding: 14px 20px 20px 0; }
+.z-interface { width: 184px; }
+.z-interface > h3 { padding-left: 13px; }
+.z-interface > .b-zone-body, .z-capability > .b-zone-body, .z-resource > .b-zone-body { position: relative; }
+.z-capability > .b-zone-body { width: 196px; }
+.z-resource > .b-zone-body { width: 180px; }
+.b-keeps { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin-top: 8px; }
+.b-keeps-label { font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--k-resource); }
+.b-keeps .b-chips { margin-top: 0; }
+
+/* ---- boxes: one shape for every kind ---- */
+.b-box { position: relative; z-index: 2; display: block; width: 210px; padding: 6px 10px 7px; text-align: left; background: color-mix(in srgb, var(--k) 6%, var(--paper)); border: 1px solid color-mix(in srgb, var(--k) 45%, var(--paper)); cursor: pointer; }
+.b-box:hover { border-color: var(--k); }
+.b-box.provider { border-width: 1.5px; }
+.b-box.k-outside { border-style: dashed; }
+.b-box.opens:hover { background: color-mix(in srgb, var(--k) 13%, var(--paper)); border-color: var(--k); }
+.b-box.lit { border-color: var(--k); box-shadow: 0 0 0 1.5px var(--k); }
+.b-box.chosen { box-shadow: 0 0 0 1.5px var(--k), 0 0 0 4px color-mix(in srgb, var(--ink) 25%, transparent); }
+.b-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.b-kind { font-size: 10.5px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--k); }
+.b-qual { font-size: 11px; color: var(--graphite); white-space: nowrap; }
+.b-name { display: block; width: 100%; font-weight: 600; font-size: 13.5px; text-align: left; }
+.b-sub { display: block; font-size: 11.5px; color: var(--graphite); }
+.b-via { display: block; margin-top: 2px; font-size: 11.5px; font-style: italic; color: var(--ink); }
+.b-area { position: absolute; left: 0; width: 100%; }
+
+/* ---- the way in: a bar at the foot of the box ---- */
+.b-go { display: flex; justify-content: space-between; align-items: baseline; width: calc(100% + 20px); margin: 7px -10px -7px; padding: 4px 10px; font-size: 12px; font-weight: 600; color: var(--k); border-top: 1px solid color-mix(in srgb, var(--k) 40%, var(--paper)); }
+.b-go span:last-child { font-size: 15px; line-height: 1; }
+.b-go:hover { background: var(--k); color: var(--paper); }
+.b-go.wide { --k: var(--k-component); width: 100%; margin: 18px 0 0; padding: 6px 10px; font-size: 13px; border: 1px solid var(--k); }
+
+/* ---- interfaces: dots on the edge of the open box ---- */
+.b-port { position: relative; display: block; width: calc(100% + 10px); margin-left: -10px; padding: 2px 0 2px 13px; font-size: 12px; line-height: 1.3; color: var(--ink); text-align: left; }
+.b-port::before { content: ""; position: absolute; left: -5px; top: 50%; width: 8px; height: 8px; margin-top: -4px; border-radius: 50%; border: 1.5px solid var(--k-interface); background: var(--paper); }
+.b-port:hover, .b-port.lit { color: var(--k-interface); }
+.b-port.lit { font-weight: 600; }
+.b-port.lit::before { background: var(--k-interface); }
+.b-port.edge { position: absolute; left: 0; width: 184px; margin-left: 0; padding-right: 0; font-size: 12.5px; background: var(--paper); }
+
+/* ---- resources as chips ---- */
+.b-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.b-chip { --k: var(--k-resource); padding: 1px 7px; font-size: 11.5px; border: 1px solid color-mix(in srgb, var(--k) 50%, var(--paper)); background: color-mix(in srgb, var(--k) 8%, var(--paper)); border-radius: 999px; }
+.b-chip:hover, .b-chip.lit { border-color: var(--k); }
+.b-chip.lit { box-shadow: 0 0 0 1px var(--k); }
+
+/* ---- panel ---- */
+#panel { position: relative; flex: none; width: 340px; overflow: auto; padding: 16px 18px 24px; background: var(--panel); border-left: 1px solid var(--panel-line); }
+#panel[hidden] { display: none; }
+@media (max-width: 760px) {
+  main { flex-direction: column; }
+  #scroll { flex: 1 1 0; min-height: 0; }
+  #panel { width: auto; max-height: 50%; border-left: 0; border-top: 1px solid var(--panel-line); }
+}
+#panel h2 { margin: 2px 0 6px; font-size: 18px; font-weight: 600; padding-right: 24px; }
+#panel h3 { margin: 18px 0 6px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--graphite); }
+#panel p { margin: 0 0 6px; }
+.b-note { font-size: 12.5px; color: var(--graphite); }
+.b-back { margin-bottom: 10px; font-size: 12.5px; color: var(--graphite); }
+.b-back:hover { color: var(--k-capability); }
+.b-props { margin: 0; padding-left: 18px; }
+.b-props li + li { margin-top: 2px; }
+.b-close { position: absolute; top: 10px; right: 12px; font-size: 20px; line-height: 1; color: var(--graphite); }
+.b-caps { margin: 12px 0 0; padding: 0; list-style: none; }
+.b-caps li { padding: 4px 0 4px 10px; border-left: 2px solid color-mix(in srgb, var(--k-capability) 30%, var(--panel)); }
+.b-caps li + li { margin-top: 4px; }
+.b-caps button { display: block; font-size: 13.5px; }
+.b-caps button:hover, .b-caps li.on button { color: var(--k-capability); }
+.b-caps li.on { border-left-color: var(--k-capability); }
+.b-caps span { display: block; font-size: 12px; color: var(--graphite); }
+/* What leaves fades first, what arrives fades in after, while the boxes on both screens travel. */
+::view-transition-group(*) { animation-duration: 560ms; animation-timing-function: cubic-bezier(0.45, 0, 0.2, 1); }
+::view-transition-old(root) { animation: 200ms ease-out both b-fade-out; }
+/* New content, such as a consumer that was not on the last screen, is fully there when the
+   travelling boxes land, at 560ms. */
+::view-transition-new(root) { animation: 280ms ease-in 280ms both b-fade-in; }
+/* Opening a box grows it into the frame of the next screen; going back shrinks the frame into it. */
+/* The rectangle grows or shrinks; what is inside it is shown at its real size, never stretched. */
+::view-transition-group(zoom) { overflow: hidden; }
+::view-transition-old(zoom), ::view-transition-new(zoom) { width: 100%; height: 100%; object-fit: none; object-position: left top; mix-blend-mode: normal; }
+::view-transition-old(zoom) { animation: 220ms ease-out both b-fade-out; }
+::view-transition-new(zoom) { animation: 400ms ease-in 160ms both b-fade-in; }
+@keyframes b-fade-out { to { opacity: 0; } }
+@keyframes b-fade-in { from { opacity: 0; } }
+
+/* ---- still images: the whole screen, then what the panel would say about it ---- */
+html.still, html.still body { height: auto; }
+html.still body, html.still main { display: block; }
+html.still #scroll { overflow: visible; }
+html.still #panel, html.still .b-back-nav, html.still .top p { display: none; }
+.b-legend { columns: 3; column-gap: 32px; padding: 16px 4px; border-top: 1px solid var(--panel-line); }
+.b-legend section { break-inside: avoid; margin-bottom: 16px; }
+.b-legend h3 { margin: 0 0 6px; font-size: 13px; }
+.b-legend p { margin: 0 0 6px; font-size: 13px; color: var(--graphite); }
+.b-legend ul { margin: 0; padding-left: 16px; }
+.b-legend li { margin-bottom: 4px; font-size: 13px; }
+</style>
+</head>
+<body>
+<header class="top">
+<h1>Rivet boundary map</h1><span class="rev">f89614f</span>
+<p>Click anything to light what it connects to. Open, at the foot of a box, goes inside.</p>
+</header>
+<nav id="nav" aria-label="Where you are"></nav>
+<main><div id="scroll"></div><aside id="panel" hidden></aside></main>
+<script type="application/json" id="map-data">{"system":{"name":"Rivet","description":"Rivet runs long-lived actors with in-memory state, a SQLite database per actor, WebSockets and scheduling, on a control plane you self-host or use as a managed cloud.","corpus":{"included":"The whole rivet-dev/rivet repository at this revision and its history since 2026-05-25: engine, RivetKit for TypeScript, Rust, Python and Swift, integrations, shared libraries, docs, examples, scripts, CI and Docker files.","excluded":"vendor/ (vendored copies of slatedb, object_store and other dependencies), generated output, and secrets."},"revision":"f89614f0c2a065f0ce2d506cddba0dc3fba3cea1"},"consumers":[{"name":"App developer","description":"A developer who builds an application on Rivet Actors: defines actors, runs them on nodes, calls them from frontends, backends and other actors, and deploys them."},{"name":"Control plane operator","description":"The person or team that runs a self-hosted Rivet control plane: creates namespaces, configures node pools, issues tokens and moves actors from Rivet 2."}],"providers":[{"name":"Rivet","description":"Rivet Actors: long-lived actors with in-memory state, a SQLite database each, WebSockets and scheduling, run on the developer's nodes under a control plane that is local, self-hosted or Rivet Cloud.","resources":["Actor","Actor database","Connection","Schedule","Workflow run","Namespace","Node pool","Node","Token","Region","Rivet 2 migration","Compute pool","Build","Logs","Cluster secret","Deploy trust","Workflow SDK run","Workflow hook","Run stream","Flue agent session","Flue run"],"parts":[{"name":"Client libraries","why":"rivetkit/client, @rivetkit/react, @rivetkit/framework-base and the Rust, Python and Swift clients present the gateway's and control plane's capabilities and keep only a live connection: part of the interface \"client libraries\"."},{"name":"DevTools","why":"@rivetkit/devtools is a floating button that opens the Inspector and keeps no state: part of the interface \"Actor Inspector\"."},{"name":"Local control plane launcher","why":"rivetkit-engine-process and @rivetkit/engine-cli find, download, start or reuse the rivet-engine binary for local development; wiring of the local form of the control plane."},{"name":"Shared TypeScript libraries","why":"@rivetkit/virtual-websocket and @rivetkit/shared-data are libraries."},{"name":"Generated clients and specs","why":"engine/sdks/typescript/api-full, rivetkit-openapi, rivetkit-asyncapi, rivetkit-json-schema and engine/artifacts are generated output and contract documents."}],"components":[{"name":"Actor runtime","description":"The node side of Rivet: the runtime inside the developer's process that hosts actors, runs their actions, workflows and schedules, and holds their connections.","resources":["Actor","Actor database","Connection","Schedule","Workflow run"],"serves":[{"consumer":"App developer","area":"Run actors"},{"consumer":"App developer","area":"Inspect actors"},{"consumer":"App developer","area":"Observe actors"}],"parts":[{"name":"Inspector","why":"Reads the host's state, connections, database, queue and workflow history and forwards actions; its only record, an access token, is written through the host's store (`persist_inspector_token`): part of the interface \"Actor Inspector\"."},{"name":"Language SDKs and bindings","why":"The TS `rivetkit` actor API, rivetkit-napi, rivetkit-wasm, the Rust `rivetkit` crate and @rivetkit/effect present the host's contract in each language and runtime; napi and wasm are variants of one binding contract: part of the interface \"RivetKit actor SDK\"."},{"name":"Node connection client","why":"engine/sdks/rust/envoy-client is the transport the host uses to reach the control plane."},{"name":"Actor database access","why":"rivetkit-core's sqlite module and the sqlite-embedded VFS are how the host reaches the actor database the control plane keeps."},{"name":"Trace export","why":"rivetkit-core's telemetry module is an adapter to the developer's OpenTelemetry collector."},{"name":"SQL loader and traces package","why":"@rivetkit/sql-loader is a library; @rivetkit/traces is a library nothing in the repository imports."},{"name":"Test harness","why":"rivetkit/test runs the same runtime for tests: part of the interface \"test harness\"."}],"components":[{"name":"Actor host","description":"The core that runs each actor: its lifecycle and sleep, action, HTTP and WebSocket dispatch, connections and events, schedules, queue and state, all kept in the actor's database.","resources":["Actor","Actor database","Connection","Schedule"],"serves":[{"consumer":"Workflow SDK world","area":"Host actors"},{"consumer":"Flue target","area":"Host actors"},{"consumer":"App developer","area":"Run actors"},{"consumer":"App developer","area":"Observe actors"}],"parts":[{"name":"Lifecycle task","why":"src/actor/task.rs drives start, stop, sleep and dispatch for one actor; it is the owner the other parts run under."},{"name":"Connections and events","why":"connection.rs and the connect routes keep connections in `_rivet_conns`, written through the shared internal storage module."},{"name":"Schedules","why":"schedule.rs keeps `_rivet_schedule_events` and `_rivet_schedule_history` through the same store module."},{"name":"Queue, state and user KV","why":"queue.rs, state.rs and kv.rs write `_rivet_queue`, `_rivet_actor_state` and `_rivet_user_kv` through the same store module, which persists state, connections and workflow writes in one transaction."},{"name":"Sleep","why":"sleep.rs decides sleep by reading connections, pending disconnects and queue waits directly."},{"name":"Database access, forks, HTTP and WebSocket routing, TS bridge, dynamic loading","why":"Steps and adapters of hosting one actor (sqlite/*, fork.rs, registry/http.rs, registry/websocket.rs, rivetkit/src/registry/native.ts, rivetkit/src/dynamic)."}]},{"name":"Workflow engine","description":"The durable workflow engine that records every step of a workflow and replays the history to resume it after sleep, a crash or an upgrade.","resources":["Workflow run"],"serves":[{"consumer":"Actor host","area":"Run workflows"},{"consumer":"App developer","area":"Run actors"},{"consumer":"App developer","area":"Inspect actors"}],"parts":[{"name":"Context and replay","why":"src/context.ts runs steps, sleeps, messages, joins and races against recorded history: steps of running a workflow."},{"name":"History storage","why":"src/storage.ts is the single writer of the workflow's KV namespace, flushing dirty entries."},{"name":"Location system and driver contract","why":"src/location.ts addresses entries; src/driver.ts is the storage contract the host fulfils."}]}]},{"name":"Control plane","description":"The rivet-engine service that keeps actors, namespaces, node pools and nodes, places and wakes actors, routes requests to them, stores their databases, and checks credentials.","resources":["Actor","Actor database","Node","Namespace","Node pool","Token","Region","Rivet 2 migration"],"serves":[{"consumer":"App developer","area":"Run actors"},{"consumer":"App developer","area":"Control client access"},{"consumer":"Control plane operator","area":"Administer namespaces"},{"consumer":"Control plane operator","area":"Configure node pools"},{"consumer":"Control plane operator","area":"Control access"},{"consumer":"Control plane operator","area":"See regions"},{"consumer":"Control plane operator","area":"Move actors from Rivet 2"}],"parts":[{"name":"Actor gateway","why":"pegboard-gateway resolves the actor for each request, reads and nudges its state machine, waits for the start and tunnels the request; its retries and waits are steps of forwarding: the interface \"actor gateway routes\"."},{"name":"Management routes","why":"api-public-shim validates requests, maps each route to a grant and calls the components below: the interface \"control plane HTTP API\"."},{"name":"HTTP front","why":"guard and guard-core form one server that merges the gateway, node connection and management routers and checks tokens through the Token authority."},{"name":"Cluster coordination","why":"topology, singleton-coordinator, cluster-config and universalpubsub keep worker membership, leadership, dynamic configuration and messaging: machinery the workers use to find and reach each other, serving no area of the level above."},{"name":"Peer and operator API","why":"api-peer serves internal routes and operator repair routes on each worker: engineering tooling."},{"name":"Engine wiring and environment","why":"The rivet-engine binary, service-manager, runtime, engine-context, env and config start the services and route all I/O through the environment that clippy.toml enforces."},{"name":"Shared engine libraries","why":"keys, util, error, metrics, telemetry, tracing-utils, build-meta, object-store-util, outbound-guard, the state machine crates, auth-policy and rivet-data are libraries."},{"name":"SQLite page libraries","why":"sqlite-embedded, sqlite-embedded-filesystem, sqlite-prefetch and rivet-sqlite-types are page protocol and prefetch libraries."}],"components":[{"name":"Actor orchestration","description":"Pegboard: the records of actors, namespaces, node pools and nodes, and the decisions about each actor's lifecycle and placement.","resources":["Actor","Namespace","Node pool","Node"],"serves":[{"consumer":"Actor runtime","area":"Host actors"},{"consumer":"Workflow SDK world","area":"Reach actors"},{"consumer":"Flue target","area":"Reach actors"},{"consumer":"App developer","area":"Run actors"},{"consumer":"Control plane operator","area":"Administer namespaces"},{"consumer":"Control plane operator","area":"Configure node pools"}],"parts":[{"name":"Legacy volume fallbacks and backfill","why":"legacy_volumes.rs, legacy_backfill.rs and legacy_namespace_rows.rs are transitional paths of the two components below."},{"name":"Validation","why":"validation.rs checks names at the edge before anything is written."},{"name":"Actor index","why":"index.rs lists actors by name and nodes by pool; its actor entries are written by Actor lifecycle and its node entries by Namespaces and pools."}],"components":[{"name":"Actor lifecycle","description":"One durable state machine per actor that alone changes the actor's record: create, start, sleep, wake, alarms, forks, destroy, and key reservations kept unique by Epoxy consensus.","resources":["Actor"],"serves":[{"consumer":"Node sessions","area":"Host actors on nodes"},{"consumer":"Rivet 2 migrator","area":"Place moved actors"}],"parts":[]},{"name":"Namespaces and pools","description":"The namespace state machines and catalog, node pool configurations, and the ring of connected nodes from which actors are allocated.","resources":["Namespace","Node pool","Node"],"serves":[{"consumer":"Actor lifecycle","area":"Place actors"},{"consumer":"Node sessions","area":"Host actors on nodes"},{"consumer":"Control plane operator","area":"Administer namespaces"},{"consumer":"Control plane operator","area":"Configure node pools"}],"parts":[]}]},{"name":"Node sessions","description":"Pegboard-envoy: one session per connected node that admits it, delivers its actors' commands and traffic, drains it, and serves its actors' KV and SQLite requests.","resources":["Node"],"serves":[{"consumer":"Actor runtime","area":"Host actors"}],"parts":[{"name":"Connection","why":"connection.rs owns everything below for one node; every module of the crate is private."},{"name":"Admission and drain","why":"admission.rs and drain.rs decide when a connect is admitted and how a stopping node's actors are moved off: decisions of the connection."},{"name":"Connection record","why":"envoy_record.rs, the connection's only durable state and fencing record."},{"name":"Actor KV and SQLite sessions","why":"kv.rs and sqlite/* are connection-owned sessions on the actor's database volume."},{"name":"Lifecycle translation and index writer","why":"lifecycle.rs and connection/index_writer.rs turn node events and heartbeats into pegboard commands."}]},{"name":"Actor storage","description":"Depot: the replicated storage that keeps every actor database and every pegboard record on volumes, writes them to disks in several zones and offloads them to object storage.","resources":["Volume","Volume group","Actor database"],"serves":[{"consumer":"Actor runtime","area":"Host actors"},{"consumer":"App developer","area":"Run actors"}],"parts":[{"name":"Depot client","why":"depot-client is the transport and typed operations the other parts call."},{"name":"Worker wiring","why":"bootstrap, storage and worker services, signals, stop requests, status notifier and disk budget own the process and its plumbing."},{"name":"Durable reconciler and depot types","why":"Libraries."}],"components":[{"name":"Tablet coordinator","description":"The regional singleton that alone writes the tablet manifest: which storage workers hold each tablet's replicas and maintainer, and its grants, moves and splits.","resources":["Tablet"],"serves":[{"consumer":"Tablet maintainers","area":"Hold tablets"},{"consumer":"Node sessions","area":"Keep actor data"},{"consumer":"Actor orchestration","area":"Keep records on volumes"}],"parts":[]},{"name":"Tablet maintainers","description":"The one grant-fenced owner of each tablet, which alone changes its volumes' filesystems and runs their commands, forks, checkpoints, cold storage and repair.","resources":["Volume","Volume group","Tablet"],"serves":[{"consumer":"Node sessions","area":"Keep actor data"},{"consumer":"Actor orchestration","area":"Keep records on volumes"},{"consumer":"Rivet 2 migrator","area":"Keep migration data"}],"parts":[]},{"name":"Log shards","description":"Each storage worker's disk-backed log shard, which keeps replicas of volume write logs and decides which appends it accepts.","resources":["Volume log replica"],"serves":[{"consumer":"Tablet maintainers","area":"Replicate volume logs"},{"consumer":"Node sessions","area":"Keep actor data"},{"consumer":"Actor orchestration","area":"Keep records on volumes"}],"parts":[]}]},{"name":"Token authority","description":"The JWT key ring and the issuing and checking of scoped tokens.","resources":["Token"],"serves":[{"consumer":"Control plane operator","area":"Control access"},{"consumer":"App developer","area":"Control client access"}],"parts":[{"name":"Key ring machine","why":"The one writer of the signing key ring."},{"name":"Token encoding, verification and rotation planning","why":"codec, claims, grants, validation, verified_jwt, rotation and planner are steps of issuing and verifying."},{"name":"Persistence","why":"persistence.rs and store.rs are the adapter to object storage."}]},{"name":"Rivet 2 migrator","description":"A singleton state machine that moves one Rivet 2 namespace's actors into this control plane while they sleep, and can hand them back.","resources":["Rivet 2 migration"],"serves":[{"consumer":"Control plane operator","area":"Move actors from Rivet 2"}],"parts":[{"name":"Migrator state machine","why":"The one writer of the migration volume; every write carries the singleton's tenure."},{"name":"Import, backup, recover and delete parked","why":"Effects of the state machine."},{"name":"V2 client","why":"An adapter to Rivet 2's migration routes."}]}]},{"name":"rivet CLI","description":"The `rivet` command line that builds and deploys the app to Rivet Cloud and reads and manages its pools, builds, logs, secrets and tokens.","resources":["Build","Compute pool","Logs","Cluster secret","Token","Deploy trust","Container image"],"serves":[{"consumer":"App developer","area":"Deploy to Rivet Cloud"}],"parts":[{"name":"Commands","why":"deploy, build, logs, pool, cluster env, secret and logs, token, setup-ci, api, link and account share one credential store and one Cloud client: together they are the CLI itself."},{"name":"Cloud client","why":"cloud.rs and cloud/v2.rs are the adapter to the Rivet Cloud API."},{"name":"Engine runner","why":"engine_runner.rs passes arguments to the bundled rivet-engine binary."},{"name":"Templates and terminal helpers","why":"Libraries."}]},{"name":"Workflow SDK world","description":"A backend for Vercel's Workflow SDK made of Rivet actors: one actor per run, a run index and one actor per hook token.","resources":["Workflow SDK run","Workflow hook","Run stream"],"serves":[{"consumer":"App developer","area":"Run Workflow SDK workflows"}],"parts":[{"name":"World client","why":"src/index.ts and codec.ts map each World call to an actor action through the RivetKit client."}],"components":[{"name":"Workflow run actor","description":"One actor per Workflow SDK run that keeps the run's events, steps, hooks, waits, dispatch queue and streams in its own database.","resources":["Workflow SDK run","Run stream"],"serves":[{"consumer":"App developer","area":"Run Workflow SDK workflows"}],"parts":[{"name":"Dispatcher and streams","why":"dispatcher.ts and streams.ts share the run actor's database."}]},{"name":"Run index actor","description":"The coordinator actor that keeps the derived indexes of runs, correlation ids and hooks across all runs.","resources":["Workflow SDK run"],"serves":[{"consumer":"Workflow run actor","area":"Index runs"},{"consumer":"App developer","area":"Run Workflow SDK workflows"}],"parts":[]},{"name":"Hook token actor","description":"One actor per hook token that records which run holds the token.","resources":["Workflow hook"],"serves":[{"consumer":"Workflow run actor","area":"Own hook tokens"},{"consumer":"App developer","area":"Run Workflow SDK workflows"}],"parts":[]}]},{"name":"Flue target","description":"A Flue build target and runtime that turns each Flue agent and workflow into Rivet actors with durable sessions, submission recovery and dispatch.","resources":["Flue agent session","Flue run"],"serves":[{"consumer":"App developer","area":"Run Flue agents and workflows"}],"parts":[{"name":"Build target","why":"`rivet()` in src/target.ts generates the server entry at build time: part of the interface \"Flue target\"."},{"name":"Store adapters","why":"src/rivet-db.ts and src/stores/* implement Flue's store contracts over each actor's database."}],"components":[{"name":"Flue agent actor","description":"One actor per Flue agent instance that keeps its sessions, submissions, turn journals and stream chunks, and admits and recovers submissions.","resources":["Flue agent session"],"serves":[{"consumer":"App developer","area":"Run Flue agents and workflows"},{"consumer":"Flue workflow actor","area":"Dispatch to agents"}],"parts":[{"name":"Agent coordinator and stores","why":"agent-coordinator.ts and the submission, conversation stream, attachment and session stores share the actor's one database (createAsyncSqlStores over c.db)."}]},{"name":"Flue workflow actor","description":"One actor per Flue workflow instance that keeps its run and event stream and admits runs.","resources":["Flue run"],"serves":[{"consumer":"App developer","area":"Run Flue agents and workflows"}],"parts":[{"name":"Workflow coordinator and event stream store","why":"workflow-coordinator.ts and stores/event-stream-store.ts share the actor's one database."}]},{"name":"Flue run registry actor","description":"The actor that keeps the list of Flue runs across workflows.","resources":["Flue run"],"serves":[{"consumer":"App developer","area":"Run Flue agents and workflows"},{"consumer":"Flue workflow actor","area":"Register runs"}],"parts":[{"name":"Run store","why":"stores/run-store.ts over the actor's one database."}]}]}]}],"outsideServices":[{"name":"Object storage","description":"An S3, Google Cloud Storage or Azure Blob bucket, or a local directory, where the control plane keeps all data in the end.","resources":["Stored object"]},{"name":"Rivet 2","description":"A Rivet 2 deployment whose actors are being moved into this control plane.","resources":["Rivet 2 actor"]},{"name":"Rivet Cloud","description":"Rivet's managed service, whose API and registry the CLI uses for projects, clusters, pools, builds, logs, secrets and tokens.","resources":["Compute pool","Build","Logs","Cluster secret","Token","Deploy trust"]},{"name":"Docker","description":"The local Docker engine and command line that build and push the app's image.","resources":["Container image"]},{"name":"OpenTelemetry collector","description":"The developer's OpenTelemetry collector that receives traces from the nodes.","resources":["Trace"]}],"resources":[{"name":"Actor","description":"A long-lived Rivet Actor, found by its name and key, that holds in-memory state, runs actions and sleeps when idle.","properties":["status (starting, running, sleeping, pending, crashed, destroyed)","key","region","pool","generation","wake alarm","creation time"]},{"name":"Actor database","description":"The SQLite database each actor owns, with its key-value rows, which survives sleep, restarts and moves between nodes.","properties":["size","fork lineage"]},{"name":"Connection","description":"A client's live connection to an actor, with its parameters and state, which receives the events it subscribes to.","properties":["id","parameters","connection state","subscriptions"]},{"name":"Schedule","description":"A one-shot scheduled action or a named cron or interval job of an actor, with its run history.","properties":["next run time","cron expression","run history"]},{"name":"Workflow run","description":"An actor's durable workflow execution, whose recorded steps let it resume where it stopped.","properties":["status","step history"]},{"name":"Namespace","description":"An isolated environment on one control plane, such as production or staging, that separates actors, keys and node pools.","properties":["slug","phase (creating, live, forking, archiving, archived)","fork parent","creation time"]},{"name":"Node pool","description":"A named group of nodes within a namespace, with drain and eviction settings and metadata of its own.","properties":["drain on version upgrade","eviction delay, period and rate","metadata"]},{"name":"Node","description":"A process running the app with RivetKit that is connected to the control plane in one pool and hosts the actors placed on it.","properties":["version","pool","latest heartbeat","actor count","draining"]},{"name":"Token","description":"A credential with explicit grants in one namespace, such as a scoped JWT or a Rivet Cloud secret, public or connection token.","properties":["grants","subject","issue and expiry times","kind"]},{"name":"Region","description":"A datacenter of the control plane where actors are created and stay.","properties":["label","name"]},{"name":"Rivet 2 migration","description":"The move of one Rivet 2 namespace's actors into this control plane, with its current pass, actors in flight and pace.","properties":["create ratio","migrate ratio","current pass","actors in flight"]},{"name":"Compute pool","description":"A Rivet Cloud pool that runs the app's image as nodes, with its resources, scaling and variables.","properties":["image or build","CPU and memory","scale limits","variables","status"]},{"name":"Build","description":"An uploaded image of the app for a Rivet Cloud cluster, which a pool rolls out by its id.","properties":["id","image and tag","boot image status"]},{"name":"Logs","description":"The log lines of a Rivet Cloud pool or cluster, which can be read back or followed live.","properties":["severity","source","timestamp"]},{"name":"Cluster secret","description":"An encrypted value of a Rivet Cloud cluster that pool variables reference by name.","properties":["name","latest version","last set time"]},{"name":"Deploy trust","description":"A GitHub Actions trust on a Rivet Cloud cluster that lets one repository's workflow deploy without a stored secret.","properties":["repository","branch","workflow","scopes"]},{"name":"Workflow SDK run","description":"A run of a Vercel Workflow SDK workflow, with its events, steps and waits.","properties":["status","events","steps","correlation id"]},{"name":"Workflow hook","description":"A hook a Workflow SDK run waits on, found by its id or its token.","properties":["token","owning run"]},{"name":"Run stream","description":"A named stream of chunks that a Workflow SDK run writes and readers follow.","properties":["chunks","closed"]},{"name":"Flue agent session","description":"A Flue agent instance's durable sessions, submissions and turn history.","properties":["submissions","turn journal"]},{"name":"Flue run","description":"A run of a Flue workflow, listed in the run registry.","properties":["status","result"]},{"name":"Trace","description":"Spans of actor work stored in an OpenTelemetry collector."},{"name":"Container image","description":"A Docker image of the app, built locally and pushed to Rivet's registry.","properties":["tag","architecture"]},{"name":"Stored object","description":"An object in a bucket or directory of object storage.","properties":["ETag"]},{"name":"Rivet 2 actor","description":"An actor still held by a Rivet 2 deployment, or parked there after it moved.","properties":["parked"]},{"name":"Volume","description":"A replicated store of files and rows in Actor storage, such as an actor's database volume or the volume that holds an actor's record.","properties":["key","incarnation","checkpoints"]},{"name":"Volume group","description":"The volumes of one namespace, created, forked and archived together.","properties":["live forks"]},{"name":"Tablet","description":"A hash range of volumes with its replica set and its one maintainer, placed by the tablet coordinator.","properties":["range","grant epoch","replica set"]},{"name":"Volume log replica","description":"One log shard's copy of a volume's write log.","properties":["committed position","in sync"]}],"interfaces":[{"name":"RivetKit actor SDK","description":"The libraries a developer writes actors with and runs as a node: `rivetkit` for TypeScript, the Rust `rivetkit` crate and `@rivetkit/effect`."},{"name":"client libraries","description":"The libraries that frontends, backends and actors use to reach actors: `rivetkit/client`, `@rivetkit/react`, and the Rust, Python, Swift and SwiftUI clients."},{"name":"gateway HTTP API","description":"Plain HTTP and WebSocket requests to a running actor under `/gateway/{actor}/`: call an action, send a request, open a connection or a raw WebSocket."},{"name":"control plane HTTP API","description":"The management HTTP routes for actors, namespaces, node pools, tokens and datacenters, called with a bearer token."},{"name":"Actor Inspector","description":"The inspector each actor serves, with its State, Connections, Queue, Workflow and Database views, opened from the DevTools button or the dashboard."},{"name":"test harness","description":"`rivetkit/test`, which runs actors against a local control plane inside Vitest tests."},{"name":"rivet CLI","description":"The `rivet` command (npm `@rivetkit/cli`) that deploys to Rivet Cloud and manages its projects and clusters."},{"name":"Workflow SDK world","description":"`@rivet-dev/workflow-world`, a backend for Vercel's Workflow SDK built from Rivet actors."},{"name":"Flue target","description":"`@rivet-dev/flue`, a Flue build target that turns Flue agents and workflows into Rivet actors."},{"name":"rivet-engine command line","description":"The control plane binary's operator subcommands; on this boundary, `migrate-from-v2`."},{"name":"node connection","description":"The WebSocket a node opens to the control plane at `/envoys/connect`, carrying the versioned envoy protocol."},{"name":"actor gateway routes","description":"The control plane routes that resolve an actor, create or wake it when asked, and tunnel a request to its node."},{"name":"actor definition API","description":"`actor()`, `setup()` and the action context through which code defines the actors the runtime hosts."},{"name":"Rivet Cloud API","description":"Rivet Cloud's HTTP API at cloud-api.rivet.dev, with its container registry."},{"name":"docker CLI","description":"The local Docker command line, used to build, save and push images."},{"name":"object storage API","description":"The S3, Google Cloud Storage or Azure Blob API, or a local directory, behind one object store client."},{"name":"Rivet 2 migration API","description":"Rivet 2's `/migration/v1/` routes, through which actors are listed, exported, cut over, restored and deleted."},{"name":"Rivet 2 public API","description":"Rivet 2's public actor API, used to ask whether it holds a key."},{"name":"Rivet 2 gateway","description":"Rivet 2's gateway, where requests for actors not yet moved are forwarded."},{"name":"OTLP","description":"The OpenTelemetry protocol exporter that sends spans to a collector."},{"name":"workflow engine API","description":"`runWorkflow`, `replayWorkflowFromStep` and the workflow handle of `@rivetkit/workflow-engine`."},{"name":"pegboard commands","description":"Typed commands that run on pegboard's volumes, such as actor create, read and event, node upsert and pool heartbeats, with notices sent back on command subjects."},{"name":"volume client","description":"depot-client: typed commands run on a volume's maintainer, exclusive volume filesystems, forks and volume groups."},{"name":"run index actions","description":"The actions of the Workflow SDK world's coordinator actor."},{"name":"hook token actions","description":"The actions of the Workflow SDK world's hook token actor."},{"name":"Flue run registry actions","description":"The actions of the Flue target's run registry actor."},{"name":"Flue agent actions","description":"The dispatch and wake actions of a Flue agent actor."},{"name":"pool and namespace commands","description":"The pool, node and namespace commands of pegboard, such as `PoolPickEnvoy`, run on pool and namespace volumes."},{"name":"tablet coordinator protocol","description":"The versioned requests a storage worker sends the tablet coordinator: recover tablets and report reconfiguration progress."},{"name":"storage worker protocol","description":"The versioned batch requests a maintainer sends a storage worker's log shard: claim, append, read and change replicas."}],"boundaries":[{"consumer":"App developer","provider":"Rivet","interfaces":["RivetKit actor SDK","client libraries","gateway HTTP API","control plane HTTP API","Actor Inspector","test harness","rivet CLI","Workflow SDK world","Flue target"],"areas":[{"name":"Run actors","type":"core","description":"Define actors, run them on nodes, and create, call, connect to and manage them.","capabilities":[{"name":"Run actor registry","takes":"actor definitions with actions, events, hooks, a database and schedules, or a loader for generated actor code, and the control plane's endpoint, pool and version","gives":"a node that hosts those actors on demand, waking them for requests and alarms","acts":[{"mode":"produces","resource":"Actor"},{"mode":"mutates","resource":"Node"}],"interfaces":["RivetKit actor SDK","test harness"]},{"name":"Create actor","takes":"an actor name, a key, input, and optionally a region and pool","gives":"the actor, created on first use or found when it already exists","acts":[{"mode":"produces","resource":"Actor"}],"interfaces":["client libraries","control plane HTTP API","gateway HTTP API","test harness"]},{"name":"List actors","takes":"an actor name and key, actor ids, or nothing to list names","gives":"the actors with their status, or the actor names in use","acts":[{"mode":"observes","resource":"Actor"}],"interfaces":["client libraries","control plane HTTP API"]},{"name":"Call action","takes":"an actor and an action name with its arguments","gives":"the action's result, or the error it threw","acts":[{"mode":"mutates","resource":"Actor"},{"mode":"observes","resource":"Actor"}],"interfaces":["client libraries","gateway HTTP API","test harness"]},{"name":"Connect to actor","takes":"an actor and connection parameters, which the actor's onBeforeConnect hook checks","gives":"a live connection that receives the events it subscribes to","acts":[{"mode":"produces","resource":"Connection"}],"interfaces":["client libraries","gateway HTTP API","test harness"]},{"name":"Broadcast event","takes":"an event name and payload, for every connection or one","gives":"the event delivered to the subscribed connections","acts":[{"mode":"produces","resource":"Connection"}],"interfaces":["RivetKit actor SDK"]},{"name":"Disconnect client","takes":"a connection","gives":"the connection closed","acts":[{"mode":"mutates","resource":"Connection"}],"interfaces":["RivetKit actor SDK"]},{"name":"Send HTTP request to actor","takes":"an actor and an HTTP request","gives":"the response of the actor's request handler","acts":[{"mode":"mutates","resource":"Actor"},{"mode":"observes","resource":"Actor"}],"interfaces":["client libraries","gateway HTTP API"]},{"name":"Open WebSocket to actor","takes":"an actor and a path","gives":"a raw WebSocket to the actor's WebSocket handler","acts":[{"mode":"produces","resource":"Connection"}],"interfaces":["client libraries","gateway HTTP API"]},{"name":"Query actor database","takes":"SQL with parameters, or a Drizzle query, inside an actor","gives":"the rows, or the changes committed","acts":[{"mode":"observes","resource":"Actor database"},{"mode":"mutates","resource":"Actor database"}],"interfaces":["RivetKit actor SDK"]},{"name":"Schedule action","takes":"an action with a delay, a time, a cron expression or an interval","gives":"a schedule that fires even after the actor slept or restarted","acts":[{"mode":"produces","resource":"Schedule"}],"interfaces":["RivetKit actor SDK"]},{"name":"List schedules","takes":"an actor","gives":"its pending schedules, cron jobs and their run history","acts":[{"mode":"observes","resource":"Schedule"}],"interfaces":["RivetKit actor SDK"]},{"name":"Change schedule","takes":"a schedule or a cron job","gives":"the schedule cancelled, or the job updated or deleted","acts":[{"mode":"mutates","resource":"Schedule"}],"interfaces":["RivetKit actor SDK"]},{"name":"Run workflow","takes":"a workflow function as the actor's run handler","gives":"steps that each run once and resume where they stopped after a sleep, a crash or an upgrade","acts":[{"mode":"produces","resource":"Workflow run"}],"interfaces":["RivetKit actor SDK"]},{"name":"Keep actor awake","takes":"a promise or a region of work","gives":"the actor kept awake until the work settles","acts":[{"mode":"mutates","resource":"Actor"}],"interfaces":["RivetKit actor SDK"]},{"name":"Change actor status","takes":"an actor and sleep or reschedule","gives":"the actor asleep, or stopped so it wakes on another node","acts":[{"mode":"mutates","resource":"Actor"}],"interfaces":["RivetKit actor SDK","control plane HTTP API"]},{"name":"Destroy actor","takes":"an actor","gives":"the actor destroyed with its database","acts":[{"mode":"mutates","resource":"Actor"},{"mode":"mutates","resource":"Actor database"}],"interfaces":["RivetKit actor SDK","client libraries","control plane HTTP API"]},{"name":"Fork actor","takes":"a source actor and fork input","gives":"a new actor that starts with a copy of the source's database and runs on its own","acts":[{"mode":"produces","resource":"Actor"},{"mode":"produces","resource":"Actor database"}],"interfaces":["RivetKit actor SDK","client libraries","control plane HTTP API"]}]},{"name":"Control client access","type":"supporting","description":"Give browsers and apps tokens limited to the actors they may reach.","capabilities":[{"name":"Issue client token","takes":"grants for one actor or all actors, and a duration","gives":"a scoped token to hand to a browser or app","acts":[{"mode":"produces","resource":"Token"}],"interfaces":["client libraries","control plane HTTP API"]}]},{"name":"Inspect actors","type":"supporting","description":"Look inside a running actor while building and debugging it.","capabilities":[{"name":"Inspect actor","takes":"an actor","gives":"its state, connections, queue, schedules, workflow history and database","acts":[{"mode":"observes","resource":"Actor"},{"mode":"observes","resource":"Connection"},{"mode":"observes","resource":"Actor database"},{"mode":"observes","resource":"Workflow run"},{"mode":"observes","resource":"Schedule"}],"interfaces":["Actor Inspector"]},{"name":"Replay workflow from step","takes":"a step of an actor's workflow","gives":"the workflow run again from that step","acts":[{"mode":"mutates","resource":"Workflow run"}],"interfaces":["Actor Inspector"]}]},{"name":"Observe actors","type":"supporting","description":"Follow actor work in the developer's own tracing.","capabilities":[{"name":"Export traces","takes":"an OpenTelemetry endpoint","gives":"spans for actions, workflow steps and calls between actors, linked by ray id","acts":[{"mode":"observes","resource":"Actor"}],"interfaces":["RivetKit actor SDK"]}]},{"name":"Deploy to Rivet Cloud","type":"supporting","description":"Build the app, roll it out on Rivet Cloud, and manage what runs there.","capabilities":[{"name":"Deploy app","takes":"a Dockerfile, a pool, and resource, scaling and variable flags","gives":"the app's image built and pushed, and the pool running it or rolled out to the new build","acts":[{"mode":"produces","resource":"Build"},{"mode":"mutates","resource":"Compute pool"}],"interfaces":["rivet CLI"]},{"name":"Prepare build","takes":"a cluster and a Dockerfile","gives":"a build id to roll out later","acts":[{"mode":"produces","resource":"Build"}],"interfaces":["rivet CLI"]},{"name":"List compute pools","takes":"a namespace or cluster","gives":"its pools with status, image and resources","acts":[{"mode":"observes","resource":"Compute pool"}],"interfaces":["rivet CLI"]},{"name":"Delete compute pool","takes":"a pool","gives":"the pool torn down","acts":[{"mode":"mutates","resource":"Compute pool"}],"interfaces":["rivet CLI"]},{"name":"Set pool variables","takes":"a pool and variables or secret references","gives":"the pool rolled out with the new variables","acts":[{"mode":"mutates","resource":"Compute pool"}],"interfaces":["rivet CLI"]},{"name":"Read logs","takes":"a pool or cluster, and filters","gives":"log lines, followed live when asked","acts":[{"mode":"observes","resource":"Logs"}],"interfaces":["rivet CLI"]},{"name":"List cluster secrets","takes":"a cluster","gives":"each secret's name, latest version and last change","acts":[{"mode":"observes","resource":"Cluster secret"}],"interfaces":["rivet CLI"]},{"name":"Change cluster secret","takes":"a secret name and a value read from a prompt, stdin or a variable","gives":"the secret set or deleted, and the pools that use it rolled","acts":[{"mode":"mutates","resource":"Cluster secret"}],"interfaces":["rivet CLI"]},{"name":"Mint namespace token","takes":"a namespace and a token kind","gives":"a secret, public or connection token","acts":[{"mode":"produces","resource":"Token"}],"interfaces":["rivet CLI"]},{"name":"Set up CI deploys","takes":"a cluster, a repository and a branch","gives":"a GitHub Actions workflow and a cluster trust that let it deploy without a stored secret","acts":[{"mode":"produces","resource":"Deploy trust"}],"interfaces":["rivet CLI"]}]},{"name":"Run Workflow SDK workflows","type":"supporting","description":"Use Rivet as the backend of Vercel's Workflow SDK.","capabilities":[{"name":"Record run event","takes":"a run event such as run created, step started or hook created","gives":"the run, its step or hook updated","acts":[{"mode":"produces","resource":"Workflow SDK run"},{"mode":"mutates","resource":"Workflow SDK run"}],"interfaces":["Workflow SDK world"]},{"name":"List workflow runs","takes":"filters such as workflow name and status","gives":"a page of runs","acts":[{"mode":"observes","resource":"Workflow SDK run"}],"interfaces":["Workflow SDK world"]},{"name":"Get workflow run","takes":"a run id","gives":"the run with its steps and events","acts":[{"mode":"observes","resource":"Workflow SDK run"}],"interfaces":["Workflow SDK world"]},{"name":"Find hook","takes":"a hook id or token","gives":"the hook and the run it belongs to","acts":[{"mode":"observes","resource":"Workflow hook"}],"interfaces":["Workflow SDK world"]},{"name":"Queue workflow message","takes":"a queue name and a message","gives":"the message delivered to the app's workflow handler, redelivered until handled","acts":[{"mode":"mutates","resource":"Workflow SDK run"}],"interfaces":["Workflow SDK world"]},{"name":"Write run stream","takes":"a run, a stream name and a chunk","gives":"the chunk appended, or the stream closed","acts":[{"mode":"mutates","resource":"Run stream"}],"interfaces":["Workflow SDK world"]},{"name":"Read run stream","takes":"a run, a stream name and a start index","gives":"the stream's chunks, followed live","acts":[{"mode":"observes","resource":"Run stream"}],"interfaces":["Workflow SDK world"]}]},{"name":"Run Flue agents and workflows","type":"supporting","description":"Run Flue agents and workflows as durable actors.","capabilities":[{"name":"Run agent session","takes":"requests to a Flue agent","gives":"the agent's replies, with its session kept across restarts","acts":[{"mode":"mutates","resource":"Flue agent session"}],"interfaces":["Flue target"]},{"name":"Dispatch to agent","takes":"an agent name, an instance id and input","gives":"the submission admitted and recovered after a crash","acts":[{"mode":"produces","resource":"Flue agent session"}],"interfaces":["Flue target"]},{"name":"Start Flue workflow","takes":"a workflow name and input","gives":"a run id and, when waited on, the result","acts":[{"mode":"produces","resource":"Flue run"}],"interfaces":["Flue target"]},{"name":"List Flue runs","takes":"a run id, or filters","gives":"the run, or a page of runs","acts":[{"mode":"observes","resource":"Flue run"}],"interfaces":["Flue target"]}]}],"evidence":[{"path":"README.md","shows":"Rivet Actors' features (state, SQLite, WebSockets, scheduling, forks, scoped JWTs, OpenTelemetry) and deployment options"},{"path":"docs/actors/content/docs/crash-course.mdx","shows":"The developer's actor features: state, keys, actions, events, connections, workflows, schedules, destroy, lifecycle"},{"path":"docs/api/content/index.mdx","shows":"The gateway and control plane HTTP surfaces and how client calls map to them"},{"path":"rivetkit-typescript/packages/rivetkit/package.json","shows":"The SDK's entry points: actor, client, db, workflow, test, inspector, dynamic"},{"path":"engine/packages/api-public-shim/src/lib.rs","shows":"The served actor routes: list, create, get or create, names, get, destroy, sleep, fork, reschedule, tokens"},{"path":"rivetkit-rust/packages/rivetkit-core/src/registry/http.rs","shows":"The routes an actor serves through the gateway: action, queue, request, metadata, health, inspector"},{"path":"rivetkit-rust/packages/rivetkit-core/src/actor/schedule.rs","shows":"Schedules and cron jobs kept by the actor runtime"},{"path":"rivetkit-rust/packages/rivetkit-core/src/inspector/mod.rs","shows":"The Inspector the actor serves"},{"path":"docs/general/content/cli.mdx","shows":"The rivet CLI's deploy, build, logs, pool, cluster env and secret, token and setup-ci commands"},{"path":"engine/packages/cli/src/main.rs","shows":"The CLI's commands in code"},{"path":"integrations/workflow-world/src/index.ts","shows":"The Workflow SDK World operations: runs, steps, events, hooks, queue, streams"},{"path":"integrations/flue-runtime/src/target.ts","shows":"The Flue target: agent and workflow actors, dispatch and run registry"},{"path":"docs/general/content/tracing.mdx","shows":"Tracing of actor work exported to OpenTelemetry"}]},{"consumer":"Control plane operator","provider":"Rivet","interfaces":["control plane HTTP API","rivet-engine command line"],"areas":[{"name":"Administer namespaces","type":"core","description":"Create, list and archive the namespaces actors live in.","capabilities":[{"name":"Create namespace","takes":"a name, and optionally a namespace to fork from","gives":"the namespace, or a fork that starts with the parent's actors and shares their data","acts":[{"mode":"produces","resource":"Namespace"}],"interfaces":["control plane HTTP API"]},{"name":"List namespaces","takes":"an optional name filter and cursor","gives":"a page of namespaces","acts":[{"mode":"observes","resource":"Namespace"}],"interfaces":["control plane HTTP API"]},{"name":"Archive namespace","takes":"a namespace with no connected nodes and no live fork","gives":"the namespace archived","acts":[{"mode":"mutates","resource":"Namespace"}],"interfaces":["control plane HTTP API"]}]},{"name":"Configure node pools","type":"supporting","description":"Set up the pools nodes join, and see which nodes are connected.","capabilities":[{"name":"Configure node pool","takes":"a pool name, drain and eviction settings, and metadata","gives":"the pool's configuration, kept whether or not nodes are connected","acts":[{"mode":"mutates","resource":"Node pool"}],"interfaces":["control plane HTTP API"]},{"name":"List node pools","takes":"a namespace, or a pool name","gives":"the pools and their configuration","acts":[{"mode":"observes","resource":"Node pool"}],"interfaces":["control plane HTTP API"]},{"name":"Delete node pool","takes":"a pool with no connected nodes","gives":"the pool removed","acts":[{"mode":"mutates","resource":"Node pool"}],"interfaces":["control plane HTTP API"]},{"name":"List connected nodes","takes":"a pool","gives":"its connected nodes with their versions","acts":[{"mode":"observes","resource":"Node"}],"interfaces":["control plane HTTP API"]}]},{"name":"Control access","type":"supporting","description":"Issue and check the tokens applications use.","capabilities":[{"name":"Issue scoped token","takes":"a namespace, grants and a duration","gives":"a token with its issue and expiry times","acts":[{"mode":"produces","resource":"Token"}],"interfaces":["control plane HTTP API"]},{"name":"Inspect token","takes":"a token","gives":"its namespace, grants, subject and times","acts":[{"mode":"observes","resource":"Token"}],"interfaces":["control plane HTTP API"]}]},{"name":"See regions","type":"supporting","description":"See where actors can run.","capabilities":[{"name":"List datacenters","takes":"nothing","gives":"the control plane's datacenters","acts":[{"mode":"observes","resource":"Region"}],"interfaces":["control plane HTTP API"]}]},{"name":"Move actors from Rivet 2","type":"supporting","description":"Move a Rivet 2 namespace's actors into this control plane, and back if needed.","capabilities":[{"name":"Check migration status","takes":"nothing","gives":"the current pass and every actor in flight","acts":[{"mode":"observes","resource":"Rivet 2 migration"}],"interfaces":["rivet-engine command line"]},{"name":"Move actor from Rivet 2","takes":"a Rivet 2 actor id","gives":"the actor moved here, or why it is not eligible yet","acts":[{"mode":"mutates","resource":"Rivet 2 migration"},{"mode":"produces","resource":"Actor"}],"interfaces":["rivet-engine command line"]},{"name":"Return actor to Rivet 2","takes":"a moved actor","gives":"the actor served by Rivet 2 again as it was when it moved","acts":[{"mode":"mutates","resource":"Actor"},{"mode":"mutates","resource":"Rivet 2 migration"}],"interfaces":["rivet-engine command line"]},{"name":"Delete moved actors from Rivet 2","takes":"nothing","gives":"Rivet 2's parked copies deleted, with any skipped actor listed","acts":[{"mode":"mutates","resource":"Rivet 2 migration"}],"interfaces":["rivet-engine command line"]},{"name":"Change migration pace","takes":"overrides of the migration settings, such as the share of actors to move","gives":"the settings applied by every process within about a minute","acts":[{"mode":"mutates","resource":"Rivet 2 migration"}],"interfaces":["rivet-engine command line"]}]}],"evidence":[{"path":"docs/general/content/namespaces.mdx","shows":"Creating, listing and forking namespaces with the admin token"},{"path":"docs/general/content/nodes.mdx","shows":"Node pool configuration, settings, deletion and node listing"},{"path":"docs/general/content/jwt.mdx","shows":"Scoped tokens, grants, inspection"},{"path":"docs/general/content/migrating-from-v2.mdx","shows":"Moving actors from Rivet 2 to Rivet 3"},{"path":"engine/packages/api-public-shim/src/lib.rs","shows":"The namespace, pool, datacenter and token routes"},{"path":"engine/packages/engine/src/depot_command/migrate_from_v2.rs","shows":"The migrate-from-v2 subcommands: set and clear config, status, migrate, recover, delete parked"}]},{"consumer":"Actor runtime","provider":"Control plane","interfaces":["node connection"],"areas":[{"name":"Host actors","type":"core","description":"Connect as a node, receive actors and their traffic, report their status, and keep their data.","capabilities":[{"name":"Serve actors on node","takes":"the node's namespace, pool, version and actor names","gives":"start and stop commands for the actors placed on it, with their clients' HTTP and WebSocket traffic","acts":[{"mode":"mutates","resource":"Node"},{"mode":"observes","resource":"Actor"}]},{"name":"Drain node","takes":"the node's notice that it is stopping","gives":"paced stop commands for its actors","acts":[{"mode":"mutates","resource":"Node"}]},{"name":"Report actor status","takes":"an actor's intent to sleep or stop, or its running or stopped state","gives":"the actor's status updated","acts":[{"mode":"mutates","resource":"Actor"}]},{"name":"Set wake alarm","takes":"a time","gives":"the alarm recorded, so the actor wakes then","acts":[{"mode":"mutates","resource":"Actor"}]},{"name":"Read and write actor KV","takes":"keys, values or ranges","gives":"the values, or the write confirmed","acts":[{"mode":"observes","resource":"Actor database"},{"mode":"mutates","resource":"Actor database"}]},{"name":"Read database pages","takes":"page numbers of the actor's database","gives":"the pages","acts":[{"mode":"observes","resource":"Actor database"}]},{"name":"Commit database pages","takes":"dirty pages","gives":"the new committed generation","acts":[{"mode":"mutates","resource":"Actor database"}]},{"name":"Run SQL on actor database","takes":"SQL statements and parameters","gives":"rows or execution results","acts":[{"mode":"observes","resource":"Actor database"},{"mode":"mutates","resource":"Actor database"}]}]}],"evidence":[{"path":"engine/sdks/rust/envoy-protocol/schemas/v10.bare","shows":"The versioned node connection protocol: commands, events, KV, SQLite and tunnel messages"},{"path":"engine/packages/pegboard-envoy/src/routes.rs","shows":"The control plane end of the node connection"},{"path":"engine/sdks/rust/envoy-client/Cargo.toml","shows":"The node end: the envoy client transport for actor hosts"},{"path":"docs/api/content/worker-connect.mdx","shows":"The node connection as documented"}]},{"consumer":"Workflow SDK world","provider":"Actor runtime","interfaces":["actor definition API"],"areas":[{"name":"Host actors","type":"core","description":"Have the runtime host the world's actors and keep their data.","capabilities":[{"name":"Host actor","takes":"actor definitions with actions and hooks","gives":"actors that run their actions when called and wake when needed","acts":[{"mode":"produces","resource":"Actor"}]},{"name":"Query actor database","takes":"SQL, or a transaction","gives":"the rows, or the changes committed","acts":[{"mode":"observes","resource":"Actor database"},{"mode":"mutates","resource":"Actor database"}]},{"name":"Schedule action","takes":"an action and a delay or a time","gives":"a schedule that survives sleep","acts":[{"mode":"produces","resource":"Schedule"}]},{"name":"Broadcast event","takes":"an event name and payload","gives":"the event delivered to every connection","acts":[{"mode":"produces","resource":"Connection"}]},{"name":"Keep actor awake","takes":"a promise","gives":"the actor kept awake until it settles","acts":[{"mode":"mutates","resource":"Actor"}]}]}],"evidence":[{"path":"integrations/workflow-world/src/actors/workflow-run.ts","shows":"The run actor's definition: database, actions, schedules, broadcast, keep awake"},{"path":"rivetkit-typescript/packages/rivetkit/src/actor/definition.ts","shows":"The actor definition contract"}]},{"consumer":"Flue target","provider":"Actor runtime","interfaces":["actor definition API"],"areas":[{"name":"Host actors","type":"core","description":"Have the runtime host each agent, workflow and registry actor.","capabilities":[{"name":"Host actor","takes":"actor definitions with actions, a request handler and a wake hook","gives":"actors that run when called and wake when needed","acts":[{"mode":"produces","resource":"Actor"}]},{"name":"Handle actor HTTP request","takes":"a request routed to the actor","gives":"the response of its request handler","acts":[{"mode":"observes","resource":"Actor"}]},{"name":"Query actor database","takes":"SQL","gives":"the rows, or the changes committed","acts":[{"mode":"observes","resource":"Actor database"},{"mode":"mutates","resource":"Actor database"}]},{"name":"Schedule action","takes":"an action and a delay or a time","gives":"a schedule that survives sleep","acts":[{"mode":"produces","resource":"Schedule"}]},{"name":"Keep actor awake","takes":"a promise","gives":"the actor kept awake until it settles","acts":[{"mode":"mutates","resource":"Actor"}]}]}],"evidence":[{"path":"integrations/flue-runtime/src/target.ts","shows":"The generated agent, workflow and registry actors and the actor context they use"}]},{"consumer":"Workflow SDK world","provider":"Control plane","interfaces":["actor gateway routes"],"areas":[{"name":"Reach actors","type":"core","description":"Reach the world's actors by name and key.","capabilities":[{"name":"Call actor","takes":"an actor name and key, or an id, and an action or request","gives":"the actor's reply, after it is created when asked and woken","acts":[{"mode":"mutates","resource":"Actor"}]}]}],"evidence":[{"path":"engine/packages/pegboard-gateway/src/lib.rs","shows":"The gateway routes"},{"path":"engine/packages/pegboard-gateway/src/acquire.rs","shows":"Creating, waking and reaching an actor for a request"},{"path":"integrations/workflow-world/src/index.ts","shows":"The World client calling its actors through the RivetKit client"}]},{"consumer":"Flue target","provider":"Control plane","interfaces":["actor gateway routes"],"areas":[{"name":"Reach actors","type":"core","description":"Reach agent, workflow and registry actors by name and key.","capabilities":[{"name":"Call actor","takes":"an actor name and key, and an action or request","gives":"the actor's reply, after it is created when asked and woken","acts":[{"mode":"mutates","resource":"Actor"}]}]}],"evidence":[{"path":"integrations/flue-runtime/src/target.ts","shows":"The client calls: registry handle, dispatch action, forwarded fetch"},{"path":"engine/packages/pegboard-gateway/src/routes.rs","shows":"The gateway's routing and hand-off to the tunnel"}]},{"consumer":"rivet CLI","provider":"Rivet Cloud","interfaces":["Rivet Cloud API"],"areas":[{"name":"Deploy to Rivet Cloud","type":"core","description":"Roll the app out on Rivet Cloud and manage its pools, builds, logs, secrets and tokens.","capabilities":[{"name":"Deploy project","takes":"an image reference, pool settings and variables","gives":"the managed pool running the image","acts":[{"mode":"mutates","resource":"Compute pool"}]},{"name":"Upload cluster build","takes":"an image archive","gives":"a build id","acts":[{"mode":"produces","resource":"Build"}]},{"name":"Roll out cluster pool","takes":"a build, a region, a pool and variables","gives":"the pool rolled out to the build","acts":[{"mode":"mutates","resource":"Compute pool"}]},{"name":"List compute pools","takes":"a project namespace or cluster","gives":"its pools","acts":[{"mode":"observes","resource":"Compute pool"}]},{"name":"Delete compute pool","takes":"a pool","gives":"the pool torn down","acts":[{"mode":"mutates","resource":"Compute pool"}]},{"name":"Read logs","takes":"a pool or cluster and filters","gives":"log lines, live when following","acts":[{"mode":"observes","resource":"Logs"}]},{"name":"List cluster secrets","takes":"a cluster","gives":"the secrets' names and versions","acts":[{"mode":"observes","resource":"Cluster secret"}]},{"name":"Change cluster secret","takes":"a secret name and value","gives":"the secret set or deleted","acts":[{"mode":"mutates","resource":"Cluster secret"}]},{"name":"Mint namespace token","takes":"a namespace and a kind","gives":"the token","acts":[{"mode":"produces","resource":"Token"}]},{"name":"Trust GitHub deploys","takes":"a repository, branch and workflow","gives":"an OIDC trust on the cluster","acts":[{"mode":"produces","resource":"Deploy trust"}]}]}],"evidence":[{"path":"engine/packages/cli/src/cloud.rs","shows":"Project, namespace, pool, token and registry calls to the Cloud API"},{"path":"engine/packages/cli/src/cloud/v2.rs","shows":"Cluster, build, region, runner pool, log and secret calls to Cloud API v2"},{"path":"engine/packages/cli/src/auth.rs","shows":"Device sign-in against the Cloud API"}]},{"consumer":"rivet CLI","provider":"Docker","interfaces":["docker CLI"],"areas":[{"name":"Build images","type":"core","description":"Build the app's image and get it to Rivet's registry.","capabilities":[{"name":"Build image","takes":"a Dockerfile and build context","gives":"a tagged image","acts":[{"mode":"produces","resource":"Container image"}]},{"name":"Push image","takes":"an image and registry credentials","gives":"the image in Rivet's registry","acts":[{"mode":"mutates","resource":"Container image"}]},{"name":"Export image","takes":"an image","gives":"an archive to upload as a build","acts":[{"mode":"produces","resource":"Container image"}]}]}],"evidence":[{"path":"engine/packages/cli/src/util.rs","shows":"docker login and docker buildx build"},{"path":"engine/packages/cli/src/commands/deploy.rs","shows":"docker push of the built image"},{"path":"engine/packages/cli/src/commands/deploy/cluster.rs","shows":"docker image save for cluster builds"}]},{"consumer":"Control plane","provider":"Object storage","interfaces":["object storage API"],"areas":[{"name":"Keep objects","type":"core","description":"Read and write objects, conditionally where leases and manifests need it.","capabilities":[{"name":"Read object","takes":"an object key","gives":"the object and its ETag","acts":[{"mode":"observes","resource":"Stored object"}]},{"name":"Write object","takes":"an object key, bytes and an expected ETag","gives":"the object written, or a conflict","acts":[{"mode":"mutates","resource":"Stored object"}]},{"name":"List objects","takes":"a prefix","gives":"the objects under it","acts":[{"mode":"observes","resource":"Stored object"}]},{"name":"Delete object","takes":"an object key and an expected ETag","gives":"the object deleted, or a conflict","acts":[{"mode":"mutates","resource":"Stored object"}]}]}],"evidence":[{"path":"engine/packages/config/src/config/object_storage.rs","shows":"The supported backends: in-memory, local directory, S3, Azure, GCS"},{"path":"engine/packages/engine-context/src/production/object_storage.rs","shows":"The object store client the control plane builds"},{"path":"engine/packages/engine-context/src/production/local_object_store.rs","shows":"Conditional updates and deletes that heartbeats, leases and the tablet manifest need"}]},{"consumer":"Control plane","provider":"Rivet 2","interfaces":["Rivet 2 migration API","Rivet 2 public API","Rivet 2 gateway"],"areas":[{"name":"Move actors from Rivet 2","type":"core","description":"Take over a Rivet 2 namespace's actors, and reach those not moved yet.","capabilities":[{"name":"List movable actors","takes":"a datacenter and a cursor","gives":"Rivet 2 actors that can move","acts":[{"mode":"observes","resource":"Rivet 2 actor"}],"interfaces":["Rivet 2 migration API"]},{"name":"Export actor","takes":"a Rivet 2 actor","gives":"its KV entries and SQLite pages","acts":[{"mode":"observes","resource":"Rivet 2 actor"}],"interfaces":["Rivet 2 migration API"]},{"name":"Cut actor over","takes":"a Rivet 2 actor","gives":"the actor parked in Rivet 2, so this control plane serves it","acts":[{"mode":"mutates","resource":"Rivet 2 actor"}],"interfaces":["Rivet 2 migration API"]},{"name":"Restore actor in Rivet 2","takes":"a moved actor","gives":"the actor served by Rivet 2 again","acts":[{"mode":"mutates","resource":"Rivet 2 actor"}],"interfaces":["Rivet 2 migration API"]},{"name":"Delete parked actors","takes":"a datacenter","gives":"Rivet 2's parked copies deleted","acts":[{"mode":"mutates","resource":"Rivet 2 actor"}],"interfaces":["Rivet 2 migration API"]},{"name":"Check key in Rivet 2","takes":"an actor name and key","gives":"whether Rivet 2 already holds an actor with that key","acts":[{"mode":"observes","resource":"Rivet 2 actor"}],"interfaces":["Rivet 2 public API"]},{"name":"Forward request to Rivet 2","takes":"a gateway request for an actor still in Rivet 2","gives":"Rivet 2's response","acts":[{"mode":"observes","resource":"Rivet 2 actor"}],"interfaces":["Rivet 2 gateway"]}]}],"evidence":[{"path":"engine/packages/pegboard-v2-migrator/src/v2_client.rs","shows":"The migration routes the migrator calls"},{"path":"engine/packages/pegboard/src/migrate_from_v2.rs","shows":"Asking Rivet 2 whether it holds a key"},{"path":"engine/packages/pegboard-gateway/src/migrate_from_v2/proxy.rs","shows":"Forwarding gateway requests to Rivet 2"},{"path":"engine/packages/config/src/config/migrate_from_v2.rs","shows":"Rivet 2's endpoint, API URLs and token in the configuration"}]},{"consumer":"Actor runtime","provider":"OpenTelemetry collector","interfaces":["OTLP"],"areas":[{"name":"Export traces","type":"core","description":"Send spans of actor work to the developer's collector.","capabilities":[{"name":"Export spans","takes":"spans of actions, workflow steps and outbound calls","gives":"the spans stored in the collector","acts":[{"mode":"produces","resource":"Trace"}]}]}],"evidence":[{"path":"rivetkit-rust/packages/rivetkit-core/src/telemetry/export.rs","shows":"The OTLP span exporter and its OTEL_* settings"}]},{"consumer":"Actor host","provider":"Workflow engine","interfaces":["workflow engine API"],"areas":[{"name":"Run workflows","type":"core","description":"Run an actor's workflow durably, feed it messages, and replay it.","capabilities":[{"name":"Run workflow","takes":"a workflow id, function and input, with the host's storage driver","gives":"a handle whose result resolves when the workflow completes","acts":[{"mode":"produces","resource":"Workflow run"}]},{"name":"Send message to workflow","takes":"a message name and data","gives":"the message queued for the running workflow","acts":[{"mode":"mutates","resource":"Workflow run"}]},{"name":"Replay workflow from step","takes":"a workflow and a step entry","gives":"the history snapshot, replayed from that step","acts":[{"mode":"mutates","resource":"Workflow run"}]}]}],"evidence":[{"path":"rivetkit-typescript/packages/workflow-engine/src/index.ts","shows":"runWorkflow and replayWorkflowFromStep"},{"path":"rivetkit-typescript/packages/workflow-engine/src/driver.ts","shows":"The EngineDriver contract the host fulfils"},{"path":"rivetkit-typescript/packages/workflow-engine/architecture.md","shows":"Single writer of the workflow's KV, replay from history"},{"path":"rivetkit-typescript/packages/rivetkit/src/workflow/mod.ts","shows":"The host's call of runWorkflow and replayWorkflowFromStep"}]},{"consumer":"Actor host","provider":"OpenTelemetry collector","interfaces":["OTLP"],"areas":[{"name":"Export traces","type":"core","description":"Send spans of actor work to the developer's collector.","capabilities":[{"name":"Export spans","takes":"spans of actions, workflow steps and outbound calls","gives":"the spans stored in the collector","acts":[{"mode":"produces","resource":"Trace"}]}]}],"evidence":[{"path":"rivetkit-rust/packages/rivetkit-core/src/telemetry/export.rs","shows":"The OTLP span exporter"}]},{"consumer":"Node sessions","provider":"Actor orchestration","interfaces":["pegboard commands"],"areas":[{"name":"Host actors on nodes","type":"core","description":"Register nodes, report what their actors do, and receive the actors' commands.","capabilities":[{"name":"Register node","takes":"the connection's namespace, pool, version and actor names","gives":"the node admitted and allocatable, with start and stop commands for its actors sent back on its subject","acts":[{"mode":"mutates","resource":"Node"}]},{"name":"Report actor event","takes":"an actor's intent, state or alarm","gives":"the actor's record updated","acts":[{"mode":"mutates","resource":"Actor"}]},{"name":"Report lost actor","takes":"an actor the node no longer hosts","gives":"the actor re-allocated","acts":[{"mode":"mutates","resource":"Actor"}]}]}],"evidence":[{"path":"engine/packages/pegboard/src/commands.rs","shows":"EnvoyUpsert, ActorEvent and ActorRead commands"},{"path":"engine/packages/pegboard/src/envoy_ring.rs","shows":"PoolHeartbeats and the node ring"},{"path":"engine/packages/pegboard-envoy/src/lifecycle.rs","shows":"Node events translated into actor state machine events"},{"path":"engine/packages/pegboard-envoy/src/connection/index_writer.rs","shows":"Heartbeats written to the pools' ring index"}]},{"consumer":"Node sessions","provider":"Actor storage","interfaces":["volume client"],"areas":[{"name":"Keep actor data","type":"core","description":"Own an actor's database volume while its node hosts it, and read and write it.","capabilities":[{"name":"Open actor database volume","takes":"the actor's database volume key","gives":"an exclusive filesystem on it, fencing any other owner","acts":[{"mode":"mutates","resource":"Volume"}]},{"name":"Read volume files","takes":"file paths or pages","gives":"their contents","acts":[{"mode":"observes","resource":"Volume"}]},{"name":"Write volume files","takes":"file edits, KV rows or staged pages","gives":"the writes durably committed","acts":[{"mode":"mutates","resource":"Volume"}]}]}],"evidence":[{"path":"engine/packages/depot-client/src/volumes/mod.rs","shows":"open_filesystem and open_or_create_filesystem"},{"path":"engine/packages/depot-client/src/filesystem/mod.rs","shows":"Filesystem calls and KV transactions over one exclusively owned volume log"},{"path":"engine/packages/pegboard-envoy/src/kv.rs","shows":"Actor KV rows in the database volume"},{"path":"engine/packages/sqlite-embedded-filesystem/src/lib.rs","shows":"The SQLite page protocol over volume files"}]},{"consumer":"Actor orchestration","provider":"Actor storage","interfaces":["volume client"],"areas":[{"name":"Keep records on volumes","type":"core","description":"Run pegboard's commands next to its records, and fork and group volumes.","capabilities":[{"name":"Run command on volume","takes":"a registered typed command and its volume","gives":"the command's reply once it is durable","acts":[{"mode":"mutates","resource":"Volume"}]},{"name":"Fork volume","takes":"a source volume","gives":"a copy that shares the source's data","acts":[{"mode":"produces","resource":"Volume"}]},{"name":"Change volume group","takes":"a namespace's group and create, fork or archive","gives":"the group record in its new state","acts":[{"mode":"mutates","resource":"Volume group"}]}]}],"evidence":[{"path":"engine/packages/depot-client/src/command.rs","shows":"Typed commands run on the volume's maintainer"},{"path":"engine/packages/depot-client/src/groups.rs","shows":"Create, fork and archive volume groups"},{"path":"engine/packages/depot-client/src/forks.rs","shows":"Fork and restore operations"},{"path":"engine/packages/engine/src/run_config.rs","shows":"pegboard, epoxy and migrator commands registered into depot's command registry"}]},{"consumer":"Actor orchestration","provider":"Rivet 2","interfaces":["Rivet 2 public API"],"areas":[{"name":"Check keys in Rivet 2","type":"core","description":"Settle which cluster owns a key while a namespace moves.","capabilities":[{"name":"Check key in Rivet 2","takes":"an actor name and key","gives":"whether Rivet 2 already holds an actor with that key","acts":[{"mode":"observes","resource":"Rivet 2 actor"}]}]}],"evidence":[{"path":"engine/packages/pegboard/src/migrate_from_v2.rs","shows":"Keyed creates ask Rivet 2 whether it holds the key"}]},{"consumer":"Rivet 2 migrator","provider":"Actor orchestration","interfaces":["pegboard commands"],"areas":[{"name":"Place moved actors","type":"core","description":"Create moved actors here, held until their data is in, then release or recall them.","capabilities":[{"name":"Hold actor for migration","takes":"a Rivet 2 actor's id, key and placement","gives":"the actor created here and held as migrating","acts":[{"mode":"produces","resource":"Actor"}]},{"name":"Change migration hold","takes":"activate, discard or recall","gives":"the actor running here, removed, or back in Rivet 2","acts":[{"mode":"mutates","resource":"Actor"}]}]}],"evidence":[{"path":"engine/packages/pegboard-v2-migrator/src/v3_actor.rs","shows":"Begin, activate, discard and recall a hold on the actor state machine"}]},{"consumer":"Rivet 2 migrator","provider":"Actor storage","interfaces":["volume client"],"areas":[{"name":"Keep migration data","type":"core","description":"Import moved actors' data and keep the migration's own state.","capabilities":[{"name":"Import actor data","takes":"a Rivet 2 actor's export","gives":"its KV entries and SQLite pages written to its database volume","acts":[{"mode":"mutates","resource":"Volume"}]},{"name":"Run command on volume","takes":"a migration-volume command with the singleton's tenure","gives":"the command committed, or refused for a newer tenure","acts":[{"mode":"mutates","resource":"Volume"}]}]}],"evidence":[{"path":"engine/packages/pegboard-v2-migrator/src/import.rs","shows":"Streaming an export into the V3 database volume as its exclusive owner"},{"path":"engine/packages/pegboard-v2-migrator/src/commands.rs","shows":"Commands on the migration volume, fenced by tenure"}]},{"consumer":"Rivet 2 migrator","provider":"Rivet 2","interfaces":["Rivet 2 migration API"],"areas":[{"name":"Move actors from Rivet 2","type":"core","description":"Drive Rivet 2's migration routes.","capabilities":[{"name":"List movable actors","takes":"a datacenter and a cursor","gives":"Rivet 2 actors that can move","acts":[{"mode":"observes","resource":"Rivet 2 actor"}]},{"name":"Export actor","takes":"a Rivet 2 actor","gives":"its KV entries and SQLite pages","acts":[{"mode":"observes","resource":"Rivet 2 actor"}]},{"name":"Cut actor over","takes":"a Rivet 2 actor","gives":"the actor parked in Rivet 2","acts":[{"mode":"mutates","resource":"Rivet 2 actor"}]},{"name":"Restore actor in Rivet 2","takes":"a moved actor","gives":"the actor served by Rivet 2 again","acts":[{"mode":"mutates","resource":"Rivet 2 actor"}]},{"name":"Delete parked actors","takes":"a datacenter","gives":"Rivet 2's parked copies deleted","acts":[{"mode":"mutates","resource":"Rivet 2 actor"}]}]}],"evidence":[{"path":"engine/packages/pegboard-v2-migrator/src/v2_client.rs","shows":"Calls to Rivet 2's /migration/v1/ routes"}]},{"consumer":"Rivet 2 migrator","provider":"Object storage","interfaces":["object storage API"],"areas":[{"name":"Keep backups","type":"core","description":"Back up each moved actor before Rivet 2's copy is deleted.","capabilities":[{"name":"Write object","takes":"a moved actor's export","gives":"the backup written","acts":[{"mode":"mutates","resource":"Stored object"}]}]}],"evidence":[{"path":"engine/packages/pegboard-v2-migrator/src/backup.rs","shows":"Backup of each export to the configured backup store"},{"path":"engine/packages/config/src/config/migrate_from_v2.rs","shows":"The optional backup object store"}]},{"consumer":"Token authority","provider":"Object storage","interfaces":["object storage API"],"areas":[{"name":"Keep objects","type":"core","description":"Keep the signing key ring.","capabilities":[{"name":"Read object","takes":"the key ring's key","gives":"the key ring and its ETag","acts":[{"mode":"observes","resource":"Stored object"}]},{"name":"Write object","takes":"the key ring and its expected ETag","gives":"the key ring written, or a conflict","acts":[{"mode":"mutates","resource":"Stored object"}]}]}],"evidence":[{"path":"engine/packages/auth-jwt/src/persistence.rs","shows":"The key ring as a typed object only the singleton writes"}]},{"consumer":"Actor storage","provider":"Object storage","interfaces":["object storage API"],"areas":[{"name":"Keep objects","type":"core","description":"Read and write objects, conditionally where leases and manifests need it.","capabilities":[{"name":"Read object","takes":"an object key","gives":"the object and its ETag","acts":[{"mode":"observes","resource":"Stored object"}]},{"name":"Write object","takes":"an object key, bytes and an expected ETag","gives":"the object written, or a conflict","acts":[{"mode":"mutates","resource":"Stored object"}]},{"name":"List objects","takes":"a prefix","gives":"the objects under it","acts":[{"mode":"observes","resource":"Stored object"}]},{"name":"Delete object","takes":"an object key and an expected ETag","gives":"the object deleted, or a conflict","acts":[{"mode":"mutates","resource":"Stored object"}]}]}],"evidence":[{"path":"clippy.toml","shows":"SlateDB writers, readers and clones only through the injected factory over object storage"},{"path":"engine/packages/depot-worker/src/object_store_first_attempt.rs","shows":"Depot's object storage requests"}]},{"consumer":"Workflow run actor","provider":"Run index actor","interfaces":["run index actions"],"areas":[{"name":"Index runs","type":"core","description":"Keep the cross-run indexes current.","capabilities":[{"name":"Update run index","takes":"a run's status, correlation id or hook change","gives":"the derived index updated","acts":[{"mode":"mutates","resource":"Workflow SDK run"}]}]}],"evidence":[{"path":"integrations/workflow-world/src/actors/coordinator.ts","shows":"The coordinator's update and lookup actions"},{"path":"integrations/workflow-world/src/actors/workflow-run.ts","shows":"The run actor calling coordinator.update"}]},{"consumer":"Workflow run actor","provider":"Hook token actor","interfaces":["hook token actions"],"areas":[{"name":"Own hook tokens","type":"core","description":"Hold a hook token for one run at a time.","capabilities":[{"name":"Reserve hook token","takes":"a token, a run and a hook","gives":"the token held for this run, or a conflict","acts":[{"mode":"mutates","resource":"Workflow hook"}]},{"name":"Release hook token","takes":"a token","gives":"the token free again","acts":[{"mode":"mutates","resource":"Workflow hook"}]}]}],"evidence":[{"path":"integrations/workflow-world/src/actors/hook-token.ts","shows":"The hook token actor's reserve, confirm, release and get actions"}]},{"consumer":"Flue workflow actor","provider":"Flue run registry actor","interfaces":["Flue run registry actions"],"areas":[{"name":"Register runs","type":"core","description":"List each run in the registry.","capabilities":[{"name":"Record run","takes":"a run's id and workflow","gives":"the run listed","acts":[{"mode":"produces","resource":"Flue run"}]},{"name":"End run","takes":"the run's outcome","gives":"the run closed","acts":[{"mode":"mutates","resource":"Flue run"}]}]}],"evidence":[{"path":"integrations/flue-runtime/src/target.ts","shows":"runRegistryActor with createRun, endRun, getRun, lookupRun, listRuns"},{"path":"integrations/flue-runtime/src/workflow-coordinator.ts","shows":"The workflow runtime's registry run store"}]},{"consumer":"Flue workflow actor","provider":"Flue agent actor","interfaces":["Flue agent actions"],"areas":[{"name":"Dispatch to agents","type":"core","description":"Hand work to an agent instance.","capabilities":[{"name":"Dispatch to agent","takes":"an agent name, an instance id and input","gives":"the admitted submission","acts":[{"mode":"produces","resource":"Flue agent session"}]}]}],"evidence":[{"path":"integrations/flue-runtime/src/target.ts","shows":"dispatchQueue.enqueue calling the agent's dispatch action"},{"path":"integrations/flue-runtime/src/agent-coordinator.ts","shows":"Admitting a dispatch as a submission"}]},{"consumer":"Actor lifecycle","provider":"Namespaces and pools","interfaces":["pool and namespace commands"],"areas":[{"name":"Place actors","type":"core","description":"Choose the node each actor starts on.","capabilities":[{"name":"Pick node for actor","takes":"the actor's namespace, pool and name","gives":"a live node of the newest version, chosen by two random choices","acts":[{"mode":"observes","resource":"Node"}]}]}],"evidence":[{"path":"engine/packages/pegboard/src/envoy_ring.rs","shows":"PoolPickEnvoy handled on the pool's volume"},{"path":"engine/packages/pegboard/src/actor_machine/executor.rs","shows":"The actor state machine calling pick_envoy"}]},{"consumer":"Actor lifecycle","provider":"Rivet 2","interfaces":["Rivet 2 public API"],"areas":[{"name":"Check keys in Rivet 2","type":"core","description":"Settle which cluster owns a key while a namespace moves.","capabilities":[{"name":"Check key in Rivet 2","takes":"an actor name and key","gives":"whether Rivet 2 already holds an actor with that key","acts":[{"mode":"observes","resource":"Rivet 2 actor"}]}]}],"evidence":[{"path":"engine/packages/pegboard/src/migrate_from_v2.rs","shows":"A keyed create's reservation asks Rivet 2 whether it holds the key"}]},{"consumer":"Tablet maintainers","provider":"Tablet coordinator","interfaces":["tablet coordinator protocol"],"areas":[{"name":"Hold tablets","type":"core","description":"Get the grants to serve tablets and move reconfigurations along.","capabilities":[{"name":"Recover tablet grants","takes":"the worker's tablets after a restart","gives":"the grants it may serve","acts":[{"mode":"observes","resource":"Tablet"}]},{"name":"Report reconfiguration progress","takes":"a replica's catch-up, a prepared split, an imported parent log, a deleted retired tablet or version marks","gives":"the reconfiguration advanced in the manifest","acts":[{"mode":"mutates","resource":"Tablet"}]}]}],"evidence":[{"path":"engine/sdks/schemas/data/depot.tablet_coordinator_protocol.v1.bare","shows":"TabletCoordinatorRequest and its responses"},{"path":"engine/packages/depot-worker/src/tablet_coordinator_machine/mod.rs","shows":"Placement and grants acknowledged after conditional manifest writes"},{"path":"engine/packages/depot-worker/src/coordinator_requests.rs","shows":"Typed requests to the coordinator"}]},{"consumer":"Tablet maintainers","provider":"Log shards","interfaces":["storage worker protocol"],"areas":[{"name":"Replicate volume logs","type":"core","description":"Write each volume's log to replicas on several workers.","capabilities":[{"name":"Claim volume log","takes":"a volume and the writer's epoch","gives":"the replica fenced to this writer","acts":[{"mode":"mutates","resource":"Volume log replica"}]},{"name":"Append log entries","takes":"log entries","gives":"the entries accepted, or a rejection naming the conflict","acts":[{"mode":"mutates","resource":"Volume log replica"}]},{"name":"Read log entries","takes":"a volume and a position","gives":"the entries","acts":[{"mode":"observes","resource":"Volume log replica"}]},{"name":"Change replica state","takes":"load, mark in sync, truncate, mark deleted or forget","gives":"the replica in that state","acts":[{"mode":"mutates","resource":"Volume log replica"}]},{"name":"List tablet replicas","takes":"a tablet","gives":"the replicas the shard holds for it","acts":[{"mode":"observes","resource":"Volume log replica"}]}]}],"evidence":[{"path":"engine/sdks/schemas/data/depot.storage_worker_protocol.v1.bare","shows":"StorageWorkerBatchItem and RejectResponse"},{"path":"engine/packages/depot-worker/src/services/log_shard.rs","shows":"The worker's single disk-backed log shard"},{"path":"engine/packages/depot-log/src/lib.rs","shows":"Replica rules owned by the log shard state machine"},{"path":"engine/packages/depot-volume/src/lib.rs","shows":"Replicated volume writes from the maintainer's side"}]},{"consumer":"Tablet coordinator","provider":"Object storage","interfaces":["object storage API"],"areas":[{"name":"Keep objects","type":"core","description":"Keep the tablet manifest.","capabilities":[{"name":"Read object","takes":"the manifest's key","gives":"the manifest and its ETag","acts":[{"mode":"observes","resource":"Stored object"}]},{"name":"Write object","takes":"the manifest and its expected ETag","gives":"the manifest written, or a conflict","acts":[{"mode":"mutates","resource":"Stored object"}]}]}],"evidence":[{"path":"engine/packages/depot-worker/src/tablet_coordinator_machine/mod.rs","shows":"Conditional manifest writes"},{"path":"engine/packages/engine-context/src/production/local_object_store.rs","shows":"The tablet manifest needs conditional updates"}]},{"consumer":"Tablet maintainers","provider":"Object storage","interfaces":["object storage API"],"areas":[{"name":"Keep objects","type":"core","description":"Read and write objects, conditionally where leases and manifests need it.","capabilities":[{"name":"Read object","takes":"an object key","gives":"the object and its ETag","acts":[{"mode":"observes","resource":"Stored object"}]},{"name":"Write object","takes":"an object key, bytes and an expected ETag","gives":"the object written, or a conflict","acts":[{"mode":"mutates","resource":"Stored object"}]},{"name":"List objects","takes":"a prefix","gives":"the objects under it","acts":[{"mode":"observes","resource":"Stored object"}]},{"name":"Delete object","takes":"an object key and an expected ETag","gives":"the object deleted, or a conflict","acts":[{"mode":"mutates","resource":"Stored object"}]}]}],"evidence":[{"path":"clippy.toml","shows":"SlateDB writers through the factory that binds storage fencing to the committed grant"},{"path":"engine/packages/depot-worker/src/filesystem/mod.rs","shows":"Filesystem storage owned by a tablet grant"}]}],"places":[{"place":"Actor runtime","kind":"component","paths":["engine/sdks/rust/envoy-client/**","rivetkit-rust/packages/engine-process/**","rivetkit-rust/packages/rivetkit-core/src/development_process.rs","rivetkit-rust/packages/rivetkit-core/src/services_process.rs","rivetkit-rust/packages/rivetkit-core/src/engine_process.rs"]},{"place":"Actor host","kind":"component","paths":["rivetkit-rust/packages/rivetkit-core/**","rivetkit-rust/packages/actor-persist/**","rivetkit-typescript/packages/rivetkit/src/**","rivetkit-typescript/packages/rivetkit/runtime/**","rivetkit-typescript/packages/rivetkit-napi/**","rivetkit-typescript/packages/rivetkit-wasm/**"]},{"place":"Workflow engine","kind":"component","paths":["rivetkit-typescript/packages/workflow-engine/**","rivetkit-typescript/packages/rivetkit/src/workflow/**"]},{"place":"Actor Inspector","kind":"interface","paths":["rivetkit-rust/packages/rivetkit-core/src/inspector/**","rivetkit-rust/packages/rivetkit-core/src/inspector_bundle/**","rivetkit-rust/packages/rivetkit-core/src/registry/inspector.rs","rivetkit-rust/packages/rivetkit-core/src/registry/inspector_ws.rs","rivetkit-rust/packages/rivetkit-core/inspector-dist/**","rivetkit-rust/packages/rivetkit-core/scripts/stage-inspector-bundle.mjs","rivetkit-rust/packages/rivetkit-core/scripts/verify-inspector-bundle.mjs","rivetkit-rust/packages/inspector-protocol/**","rivetkit-typescript/packages/rivetkit/src/inspector/**","rivetkit-typescript/packages/rivetkit/src/inspector-tab/**","rivetkit-typescript/packages/rivetkit/src/devtools-loader/**","rivetkit-typescript/packages/rivetkit/src/common/inspector-transport.ts","rivetkit-typescript/packages/devtools/**"]},{"place":"client libraries","kind":"interface","paths":["rivetkit-typescript/packages/rivetkit/src/client/**","rivetkit-typescript/packages/rivetkit/src/engine-client/**","rivetkit-typescript/packages/rivetkit/src/engine-api/**","rivetkit-typescript/packages/react/**","rivetkit-typescript/packages/framework-base/**","rivetkit-rust/packages/client/**","rivetkit-rust/packages/client-protocol/**","rivetkit-python/**","rivetkit-swift/**"]},{"place":"test harness","kind":"interface","paths":["rivetkit-typescript/packages/rivetkit/src/test/**"]},{"place":"RivetKit actor SDK","kind":"interface","paths":["rivetkit-rust/packages/rivetkit/**","rivetkit-typescript/packages/effect/**"]},{"place":"RivetKit libraries","kind":"library","paths":["rivetkit-rust/packages/shared-types/**","rivetkit-typescript/packages/sql-loader/**","shared/typescript/**"]},{"place":"Control plane","kind":"component","paths":["engine/packages/**","engine/sdks/rust/**","engine/sdks/schemas/**"]},{"place":"Actor orchestration","kind":"component","paths":["engine/packages/pegboard/**","engine/sdks/schemas/data/pegboard.*"]},{"place":"Actor lifecycle","kind":"component","paths":["engine/packages/pegboard/src/actor_machine/**","engine/packages/pegboard/src/actor_key.rs","engine/packages/pegboard/src/commands.rs","engine/packages/pegboard/src/epoch.rs","engine/packages/pegboard/src/envoy_check.rs","engine/packages/pegboard/src/sealed.rs","engine/packages/pegboard/src/migrate_from_v2.rs","engine/packages/epoxy/**","engine/sdks/rust/epoxy-protocol/**","engine/sdks/schemas/epoxy-protocol/**","engine/sdks/schemas/data/epoxy.*","engine/sdks/schemas/data/pegboard.actor*"]},{"place":"Namespaces and pools","kind":"component","paths":["engine/packages/pegboard/src/namespace_machine/**","engine/packages/pegboard/src/catalog.rs","engine/packages/pegboard/src/namespace_waits.rs","engine/packages/pegboard/src/pool_admin.rs","engine/packages/pegboard/src/envoy_ring.rs","engine/packages/pegboard/src/services/**","engine/sdks/schemas/data/pegboard.namespace.v1.bare","engine/sdks/schemas/data/pegboard.pool.v1.bare"]},{"place":"Node sessions","kind":"component","paths":["engine/packages/pegboard-envoy/**"]},{"place":"Actor storage","kind":"component","paths":["engine/packages/depot-worker/**","engine/packages/depot-client/**","engine/packages/depot-types/**","engine/packages/durable-reconciler/**","engine/sdks/rust/depot-protocol/**","engine/sdks/schemas/data/depot.*","engine/sdks/schemas/data/shared/depot.*"]},{"place":"Tablet coordinator","kind":"component","paths":["engine/packages/depot-worker/src/tablet_coordinator_machine/**","engine/packages/depot-worker/src/coordinator_requests.rs","engine/packages/depot-worker/src/services/coordinator.rs","engine/sdks/schemas/data/depot.tablet_coordinator_protocol.v1.bare","engine/sdks/schemas/data/depot.tablet_manifest.v1.bare"]},{"place":"Tablet maintainers","kind":"component","paths":["engine/packages/depot-worker/src/tablet_maintainer_machine/**","engine/packages/depot-worker/src/filesystem/**","engine/packages/depot-worker/src/command/**","engine/packages/depot-worker/src/group_events/**","engine/packages/depot-worker/src/alarms.rs","engine/packages/depot-worker/src/tablet_supervisor.rs","engine/packages/depot-worker/src/services/tablet.rs","engine/packages/depot-volume/**","engine/packages/depot-fs-core/**","engine/sdks/schemas/data/depot.client_protocol.*","engine/sdks/schemas/data/depot.fs_*","engine/sdks/schemas/data/depot.maintainer_log.*"]},{"place":"Log shards","kind":"component","paths":["engine/packages/depot-worker/src/services/log_shard.rs","engine/packages/depot-log/**","engine/sdks/schemas/data/depot.storage_worker_protocol.v1.bare","engine/sdks/schemas/data/depot.log_shard.v1.bare"]},{"place":"Token authority","kind":"component","paths":["engine/packages/auth-jwt/**","engine/sdks/schemas/data/auth.*"]},{"place":"Rivet 2 migrator","kind":"component","paths":["engine/packages/pegboard-v2-migrator/**","engine/sdks/rust/migrate-from-v2-protocol/**","engine/sdks/schemas/migrate-from-v2-protocol/**","engine/sdks/schemas/data/pegboard.v2_*"]},{"place":"actor gateway routes","kind":"interface","paths":["engine/packages/pegboard-gateway/**"]},{"place":"control plane HTTP API","kind":"interface","paths":["engine/packages/api-public-shim/**"]},{"place":"node connection","kind":"interface","paths":["engine/sdks/rust/envoy-protocol/**","engine/sdks/typescript/envoy-protocol/**"]},{"place":"rivet-engine command line","kind":"interface","paths":["engine/packages/engine/src/depot_command/migrate_from_v2.rs"]},{"place":"Engine libraries","kind":"library","paths":["engine/packages/keys/**","engine/packages/keys-macros/**","engine/packages/util/**","engine/packages/util-id/**","engine/packages/util-serde/**","engine/packages/error/**","engine/packages/error-macros/**","engine/packages/metrics/**","engine/packages/metrics-server/**","engine/packages/telemetry/**","engine/packages/tracing-utils/**","engine/packages/build-meta/**","engine/packages/object-store-util/**","engine/packages/outbound-guard/**","engine/packages/state-machine/**","engine/packages/state-machine-durable/**","engine/packages/state-machine-ephemeral/**","engine/packages/state-machine-util/**","engine/packages/auth-policy/**","engine/packages/sqlite-embedded/**","engine/packages/sqlite-embedded-filesystem/**","engine/packages/sqlite-prefetch/**","engine/packages/rivet-sqlite-types/**","engine/sdks/rust/data/**","engine/sdks/schemas/data/sqlite.*","engine/sdks/schemas/data/shared/uuid_v4.v1.bare"]},{"place":"Operator, repair and diagnostic commands","kind":"tooling","paths":["engine/packages/api-peer/**","engine/packages/engine/src/depot_command.rs","engine/packages/engine/src/depot_command/**","engine/packages/engine/src/object_store_canary/**","engine/packages/engine/src/services/object_store_canary.rs","engine/packages/config-schema-gen/**"]},{"place":"rivet CLI","kind":"component","paths":["engine/packages/cli/**","rivetkit-typescript/packages/cli/**"]},{"place":"Workflow SDK world","kind":"component","paths":["integrations/workflow-world/**"]},{"place":"Workflow run actor","kind":"component","paths":["integrations/workflow-world/src/actors/workflow-run.ts","integrations/workflow-world/src/actors/dispatcher.ts","integrations/workflow-world/src/actors/streams.ts","integrations/workflow-world/src/actors/shared.ts","integrations/workflow-world/src/actors/db.ts"]},{"place":"Run index actor","kind":"component","paths":["integrations/workflow-world/src/actors/coordinator.ts"]},{"place":"Hook token actor","kind":"component","paths":["integrations/workflow-world/src/actors/hook-token.ts"]},{"place":"Flue target","kind":"component","paths":["integrations/flue-runtime/**"]},{"place":"Flue agent actor","kind":"component","paths":["integrations/flue-runtime/src/agent-coordinator.ts","integrations/flue-runtime/src/stores/submission-store.ts","integrations/flue-runtime/src/stores/conversation-stream-store.ts","integrations/flue-runtime/src/stores/attachment-store.ts"]},{"place":"Flue workflow actor","kind":"component","paths":["integrations/flue-runtime/src/workflow-coordinator.ts","integrations/flue-runtime/src/stores/event-stream-store.ts","integrations/flue-runtime/src/run-store-composite.ts"]},{"place":"Flue run registry actor","kind":"component","paths":["integrations/flue-runtime/src/stores/run-store.ts"]},{"place":"Unused public API crates","kind":"cleanup","paths":["engine/packages/api-public/**","engine/packages/api-types/**","engine/packages/api-builder/**","engine/packages/alloc-count/**"]},{"place":"Legacy volume layout","kind":"cleanup","paths":["engine/packages/pegboard/src/legacy_backfill.rs","engine/packages/pegboard/src/legacy_namespace_rows.rs","engine/packages/pegboard/src/legacy_volumes.rs"]},{"place":"Disabled serverless mode","kind":"cleanup","paths":["rivetkit-typescript/packages/rivetkit/src/serverless/**","rivetkit-rust/packages/rivetkit-core/src/serverless.rs","rivetkit-rust/packages/rivetkit-core/src/serverless_http.rs"]},{"place":"Removed agentOS entry point","kind":"cleanup","paths":["rivetkit-typescript/packages/rivetkit/src/agent-os/**"]},{"place":"Unused traces package","kind":"cleanup","paths":["rivetkit-typescript/packages/traces/**"]},{"place":"Build, CI and release","kind":"tooling","paths":["*",".cargo/**",".github/**","docker/**","scripts/**","rivetkit-typescript/packages/engine-cli/**","rivetkit-typescript/packages/rivetkit/*","rivetkit-typescript/packages/rivetkit/scripts/**","rivetkit-rust/packages/rivetkit-core/scripts/check-event-driven-drains.sh"]},{"place":"Documentation","kind":"tooling","paths":["docs/**"]},{"place":"Examples","kind":"tooling","paths":["**/examples/**"]},{"place":"Generated output","kind":"excluded","paths":["engine/artifacts/**","engine/sdks/typescript/api-full/**","rivetkit-openapi/**","rivetkit-asyncapi/**","rivetkit-json-schema/**","rivetkit-typescript/artifacts/**"]},{"place":"Vendored dependencies","kind":"excluded","paths":["vendor/**"]}],"questions":[{"question":"Is Rivet one Level 1 provider, or two (RivetKit in the developer's process and the control plane)?","answer":"One provider, Rivet, rather than two; the docs present actors, the local control plane, self-hosting and Rivet Cloud as one product ('Every option runs the same control plane'), and RivetKit starts a local control plane itself, but the two halves are separate deployment units, so a reader could argue for two."},{"question":"Should the person who runs a self-hosted control plane be a consumer apart from the app developer?","answer":"Two consumers, App developer and Control plane operator, rather than one; namespaces, node pools, admin-issued tokens, datacenters and the move from Rivet 2 went to the operator, actors and client tokens to the developer. In a small team one person holds both roles, and on Rivet Cloud the developer manages namespaces and tokens through the dashboard, which is not in this repository."},{"question":"Is Rivet Cloud a provider of its own or an outside service?","answer":"An outside service reached by the rivet CLI, which is a component of Rivet, rather than a Level 1 provider; the managed service's code is not in the repository, so only the CLI's side of its contract can be mapped."},{"question":"Are the Workflow SDK world and the Flue target parts of Rivet, or applications built on it?","answer":"Components of Rivet that the App developer reaches through two more interfaces, rather than separate consumers; they ship from this repository as @rivet-dev packages and serve the same developer, but they use the actor runtime exactly as an application would."},{"question":"Is Depot, the storage engine, a component, given that the model calls storage 'how a component keeps things'?","answer":"A component (Actor storage) rather than storage behind pegboard; it keeps the actor databases that the node writes, not only pegboard's records, makes replication, placement and offload decisions of its own, and is reached only through depot-client's typed commands. Epoxy, used only for pegboard's key reservations, stayed a part of Actor lifecycle."},{"question":"Are cluster membership, singleton leadership, dynamic configuration and the worker pub/sub a component?","answer":"Machinery inside the Control plane rather than a component; topology, singleton-coordinator, cluster-config and universalpubsub keep state only they change, but that state is how workers find and reach each other, and no consumer comes for it."},{"question":"Are pegboard-envoy (Node sessions) and pegboard (Actor orchestration) one component?","answer":"Two components rather than one; Node sessions alone writes the connection record and decides admission and drain, and reaches pegboard through commands, but it stores its record through pegboard's EnvoyUpsert command and calls `pegboard::actor_machine::executor::prove_inherited_database_tail` and executor constants directly (pegboard-envoy/src/sqlite/routing.rs, connection.rs), outside the command contract."},{"question":"Are namespaces and node pools two Level 4 components?","answer":"One, Namespaces and pools, rather than two; pool_admin writes the namespace catalog's copy of each pool through `catalog::catalog_pool_command` and the catalog reads pool records back, so they share a store and change each other's records. Without that copy they would split."},{"question":"Does the workflow engine's storage driver make a second boundary from the Workflow engine to the Actor host?","answer":"No: one boundary, Actor host to Workflow engine, with the EngineDriver calls folded into Run workflow as how the engine keeps its history through the host, rather than a reverse boundary; the driver is injected by the host for the run it asked for."},{"question":"Which way does the boundary between tablet maintainers and the tablet coordinator point?","answer":"Maintainers consume the coordinator (recover grants, report reconfiguration progress) rather than the coordinator consuming maintainers; the requests are addressed to the coordinator's protocol, and its placement orders reach maintainers through the manifest. The progress reports could also be read as steps of reconfigurations that operators and the balancer start."},{"question":"Should the deprecated actor APIs (c.state, c.kv, queues, run, preventSleep) be capabilities?","answer":"Cleanup candidates rather than capabilities; they still work (the /queue/ route and the _rivet_queue, _rivet_actor_state and _rivet_user_kv tables exist), but each has a migration guide under docs/actors/content/docs/deprecated."},{"question":"Is the Actor Inspector engineering tooling or part of the developer's boundary?","answer":"An interface of the App developer boundary rather than tooling; it reads and acts on the developer's own actors (state, connections, database, workflow), not on Rivet itself. Its UI is built outside this repository and only staged into rivetkit-core."},{"question":"Is exporting traces a capability or diagnostics?","answer":"A supporting capability (Observe actors) rather than an exclusion; the README lists OpenTelemetry as a feature and the traces describe the developer's actor work. Metrics, profiling and health routes were excluded as diagnostics."},{"question":"Should the small integration actors open at Level 3?","answer":"Opened, rather than kept closed; each actor type has its own database and is reached only through its actions, which the runtime enforces, so the Workflow SDK world and the Flue target each have three components. A reviewer may prefer to keep these small packages closed for a simpler map."},{"question":"How should the gateway's forwarding to Rivet 2 be placed?","answer":"As a part of the actor gateway (interface actor gateway routes) whose use of Rivet 2 sits on the Control plane's boundary with Rivet 2, rather than as a component; the gateway only passes those requests on."},{"question":"Does the migrator reach past Node sessions' contract when it imports KV rows?","answer":"Accepted as use of what Node sessions exposes rather than a breach; pegboard-v2-migrator/src/import.rs encodes rows with `pegboard_envoy::keys::kv::ActorKvKey`, which pegboard-envoy publishes as `pub mod keys` ('Formal keys owned by pegboard-envoy'), and writes them through Actor storage while it holds the volume exclusively. It still couples the two to one row layout."},{"question":"Where do docs and examples sit in places?","answer":"As tooling places (Documentation, Examples) rather than excluded; they are in the corpus and teach the system, but they are not part of it."},{"question":"Should Level 4's components be opened?","answer":"Not tested, by the caller's depth limit of four levels, rather than tested in a fourth round; Actor lifecycle, Namespaces and pools, Tablet coordinator, Tablet maintainers and Log shards may hold components of their own (for example the tablet maintainer machine's 70 files)."}],"cleanupCandidates":[{"name":"Old public API crates (engine/packages/api-public, api-types, api-builder)","why":"The previous management API; nothing in the workspace depends on api-public, the three are commented out of the workspace members, and api-public-shim serves the routes today."},{"name":"engine/packages/alloc-count","why":"An allocation counter crate that nothing depends on and the workspace does not build."},{"name":"rivetkit/agent-os entry point","why":"A stub that only throws: agentOS no longer ships inside RivetKit and moved to @rivet-dev/agentos-core (rivetkit-typescript/packages/rivetkit/src/agent-os/index.ts)."},{"name":"Serverless mode","why":"RivetKit throws 'serverless is disabled in this version' before configuring a serverless pool or handling a serverless request, and the control plane answers pool.serverless_unsupported; the code in rivetkit/src/serverless and rivetkit-core serverless.rs and serverless_http.rs remains."},{"name":"@rivetkit/traces","why":"A tracing storage and OTLP package that nothing in the repository imports; tracing now lives in rivetkit-core's telemetry module."},{"name":"Deprecated actor APIs","why":"c.state and connection state, c.kv, queues and the /queue/ route, plain run handlers and preventSleep still work but have migration guides (docs/actors/content/docs/deprecated), and rivetkit-core keeps a KV-to-SQLite migration (src/actor/migrate_kv_to_sqlite)."},{"name":"Legacy volume layout in pegboard","why":"legacy_volumes.rs, legacy_backfill.rs and legacy_namespace_rows.rs, and the pool adoption from the catalog (legacy_adopt_catalog_pool), keep volumes and rows made before namespaces had volume groups readable until every namespace is backfilled."},{"name":"Rivet 2 migration path","why":"pegboard-v2-migrator, the gateway's forwarding to Rivet 2 and pegboard's key checks exist only while namespaces move from Rivet 2 to Rivet 3."},{"name":"Older node connection versions","why":"Envoy protocol schemas v8 and v9 are kept beside v10, and nodes older than v10 still stop their own actors when draining (pegboard-envoy/src/drain.rs)."},{"name":"Deprecated names","why":"rvt-runner, a deprecated alias of rvt-pool (docs/api/content/actor-routing.mdx), and RIVET_ENVOY_VERSION, the older name of RIVET_NODE_VERSION (docs/general/content/environment-variables.mdx)."},{"name":"Inspector UI built outside the repository","why":"rivetkit-core embeds the Inspector UI from a frontend build that is no longer in this repository; its build falls back to ../../../frontend/dist (rivetkit-core/inspector-dist/README.md)."}],"excluded":[{"name":"Hosted Rivet MCP (mcp.rivet.dev)","why":"Documented in docs/general/content/mcp.mdx with client snippets, but its server is not in the repository."},{"name":"Rivet Cloud dashboard and Cloud API server","why":"Not in the repository; the Cloud API appears only as an outside service of the rivet CLI."},{"name":"agentOS","why":"A separate product (@rivet-dev/agentos-core) that actors can use; not in the repository."},{"name":"Durable Streams","why":"Documented in docs/durable-streams as an implementation backed by actors, with an experimental example, but no package in the repository implements it."},{"name":"Coding-assistant skills","why":"Installed from the separate rivet-dev/skills repository."},{"name":"First-party services process","why":"RivetKit can start a rivet-services binary for a 'services' pool in local development (rivetkit-core/src/services_process.rs); the binary is not in the repository."},{"name":"End users of developers' apps","why":"They use the developer's application, not Rivet."},{"name":"Running and configuring the control plane","why":"Starting rivet-engine with its configuration files, storage, admin token and self-hosting guides sets the system up; engineering tooling."},{"name":"Storage operator commands and repair routes","why":"rivet-engine storage (tablet, volume, kv, coordinator, balancing, provision, health, show) and api-peer's repair routes work on the system's own storage."},{"name":"JWT key inspection and emergency rotation","why":"rivet-engine auth jwt operates the system's own signing keys."},{"name":"Object store canary","why":"rivet-engine object-store-canary probes object storage latency: diagnostics."},{"name":"rivet engine and rivet api passthroughs","why":"rivet engine runs the bundled engine binary for local tooling (nuke, workflow listing); rivet api sends raw requests to the Cloud API, another interface to capabilities already listed."},{"name":"Health, readiness, metadata, metrics and profiling","why":"/health, /ready, /metadata, Prometheus metrics, page-cache and SQLite profiling metrics are diagnostics."},{"name":"Sentry error reporting","why":"The engine reports its own errors to Rivet's Sentry (engine/packages/telemetry): provider behavior."},{"name":"Provider behavior","why":"Placement, wake on request, eviction pacing on drain, version-based placement, automatic tablet balancing and splits, offload to object storage, rescheduling after a lost node, crash-policy sleep and key rotation happen without a consumer asking."},{"name":"Build, CI, release and publishing","why":".github, docker, scripts, justfile, root configuration and the engine-cli npm packaging work on the system itself."},{"name":"Generated output","why":"engine/artifacts, engine/sdks/typescript/api-full, rivetkit-openapi, rivetkit-asyncapi, rivetkit-json-schema and rivetkit-typescript/artifacts are generated."},{"name":"Documentation and examples","why":"docs and examples describe and demonstrate the system; read as evidence, not mapped as parts."},{"name":"vendor/","why":"Vendored dependencies (slatedb, object_store and others), outside the corpus."}]}</script>
+<script>
+// Draws a boundary map one open box at a time. Each screen shows who uses the open box, its
+// interfaces, its capabilities, the components inside it, and what it uses; every box lists the
+// resources it keeps. A click lights what the clicked thing connects to and explains it in the
+// panel; Open, at the foot of a box, makes it the open box. With ?still in the address the page
+// draws one screen for a still image, with what the panel would say written under the drawing.
+
+// ---------- the map ----------
+
+const RAW = JSON.parse(document.getElementById("map-data").textContent);
+const params = new URLSearchParams(location.search);
+const STILL = params.has("still");
+if (STILL) document.documentElement.classList.add("still");
+const MODE_WORD = { produces: "creates", mutates: "changes", observes: "reads", reacts: "reacts to" };
+const KIND_WORD = {
+  consumer: "Consumer",
+  provider: "Provider",
+  component: "Component",
+  outside: "Outside service",
+};
+
+function el(tag, attrs = {}, ...children) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v === undefined || v === null || v === false) continue;
+    if (k === "class") e.className = v;
+    else if (k === "html") e.innerHTML = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v);
+  }
+  for (const c of children.flat(3)) if (c !== null && c !== undefined && c !== false) e.append(c);
+  return e;
+}
+
+function svgEl(tag, attrs = {}) {
+  const e = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const [k, v] of Object.entries(attrs)) if (v !== undefined && v !== null) e.setAttribute(k, v);
+  return e;
+}
+
+const escapeHtml = (s) =>
+  s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const inline = (s) =>
+  escapeHtml(s)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+const sentence = (s) => s.replace(/^[a-z]/, (c) => c.toUpperCase());
+const text = (tag, s, cls) => el(tag, { class: cls, html: inline(sentence(s)) });
+const unique = (xs) => [...new Set(xs)];
+
+const nodes = new Map();
+for (const c of RAW.consumers) nodes.set(c.name, { ...c, kind: "consumer", children: [], shared: [], also: [] });
+const addComponent = (c, parent) => {
+  const n = {
+    name: c.name,
+    description: c.description,
+    kind: parent ? "component" : "provider",
+    parent: parent ?? null,
+    resources: c.resources,
+    parts: c.parts,
+    serves: [...(c.serves ?? [])],
+    children: (c.components ?? []).map((k) => k.name),
+    shared: [],
+    also: [],
+  };
+  nodes.set(c.name, n);
+  for (const k of c.components ?? []) addComponent(k, c.name);
+};
+for (const p of RAW.providers) addComponent(p, null);
+for (const s of RAW.outsideServices)
+  nodes.set(s.name, { ...s, kind: "outside", children: [], shared: [], also: [], parts: [] });
+// A component can sit inside a second provider or component at any level.
+const defined = (c) => [c, ...(c.components ?? []).flatMap(defined)];
+for (const p of RAW.providers.flatMap(defined))
+  for (const s of p.sharedComponents ?? []) {
+    nodes.get(p.name).shared.push(s.name);
+    nodes.get(s.name).also.push(p.name);
+    nodes.get(s.name).serves.push(...s.serves);
+  }
+
+const boundaries = RAW.boundaries.map((b) => {
+  const boundary = { ...b, id: `${b.consumer} → ${b.provider}` };
+  boundary.areas = b.areas.map((a) => {
+    const area = { ...a, key: `${b.consumer} › ${a.name}`, boundary };
+    area.capabilities = a.capabilities.map((c) => ({
+      ...c,
+      area,
+      id: `${area.key} › ${c.name}`,
+      via: c.interfaces ?? b.interfaces,
+    }));
+    return area;
+  });
+  return boundary;
+});
+const allAreas = boundaries.flatMap((b) => b.areas);
+const allCapabilities = allAreas.flatMap((a) => a.capabilities);
+const capabilityById = new Map(allCapabilities.map((c) => [c.id, c]));
+const resourceByName = new Map(RAW.resources.map((r) => [r.name, r]));
+const interfaceText = new Map(RAW.interfaces.map((i) => [i.name, i.description]));
+
+const node = (name) => nodes.get(name);
+const incoming = (name) => boundaries.filter((b) => b.provider === name);
+const subtree = (name) => [name, ...node(name).children.flatMap(subtree)];
+const ancestors = (name) => {
+  const p = node(name).parent;
+  return p ? [...ancestors(p), p] : [];
+};
+const handlers = (area) => {
+  const serving = [...nodes.values()]
+    .filter((n) => n.serves?.some((s) => `${s.consumer} › ${s.area}` === area.key))
+    .map((n) => n.name);
+  return serving.length ? serving : [area.boundary.provider];
+};
+// A boundary drawn on a whole component that one of its inner components carries in detail.
+const refinedBy = (b) =>
+  boundaries.find((o) => o !== b && o.provider === b.provider && node(b.consumer).children.includes(o.consumer));
+const capabilitiesThrough = (b, iface) => b.areas.flatMap((a) => a.capabilities).filter((c) => c.via.includes(iface));
+
+// ---------- motion ----------
+
+// Moves things to their new place where the browser can, and just redraws where it cannot.
+const NO_MOTION = STILL || matchMedia("(prefers-reduced-motion: reduce)").matches;
+const cssName = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+function transition(fn) {
+  if (!document.startViewTransition || NO_MOTION || document.visibilityState === "hidden") return fn();
+  const t = document.startViewTransition(fn);
+  // A transition that a quicker click cuts short still runs its update; only the motion is lost.
+  t.ready.catch(() => {});
+  t.updateCallbackDone.catch(() => {});
+  t.finished.catch(() => {});
+}
+
+// ---------- screens ----------
+
+// One open box per screen, in fixed columns: who uses it, its interfaces, its capabilities, its
+// components, and what it uses. Blue dots are the interfaces of the open box only; each box lists
+// the resources it keeps. Lines join who uses the box to its interfaces, its interfaces to its
+// capabilities, and each component to what it depends on; they light with whatever is in focus.
+// All providers, above every open box, shows each provider with the consumers that use it.
+const TOP = "";
+// Keep in step with addressOf in render-map.mjs, which refuses a map where two names share an address.
+const slugOf = (s) => s.normalize("NFC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "");
+const bySlug = new Map([...nodes.keys()].map((n) => [slugOf(n), n]));
+// The page opens on the provider named after the system, when there is one, else on All providers.
+const HOME = RAW.providers.some((p) => p.name === RAW.system.name) ? [RAW.system.name] : [];
+
+let openBox = TOP;
+let trail = []; // the boxes opened from All providers down to the open one, as you came
+const visited = []; // earlier trails, most recent last, for Back
+const memory = new Map(); // a screen's address -> its scroll and selection when it was left
+let selected = null; // the data-key of what is selected
+let current = null; // what the selection lights, from lineage
+let screen; // what the open box shows, from screenOf
+let reg; // what the screen drew, by data-key: the first element drawn for each
+let drawn; // every element drawn with a data-key, as [key, element]; a shared resource is drawn twice
+
+const servedBy = (name) =>
+  allAreas.filter((a) => node(name).serves?.some((s) => `${s.consumer} › ${s.area}` === a.key));
+const actedOn = (g) => unique(g.members.flatMap((a) => a.capabilities.flatMap((c) => c.acts.map((x) => x.resource))));
+const actingOn = (r) => allCapabilities.filter((c) => c.acts.some((a) => a.resource === r));
+// A box and everything in it, components it shares with another provider included.
+const within = (name) => [name, ...[...node(name).children, ...node(name).shared].flatMap(within)];
+// A box opens when its screen has something of its own: components inside it, or capabilities it
+// offers across a boundary of its own. Otherwise its screen would repeat the level above.
+const opens = (name) => {
+  const n = node(name);
+  return n.kind !== "consumer" && (n.children.length + n.shared.length > 0 || incoming(name).some((b) => !refinedBy(b)));
+};
+// Who keeps a resource, leaving out a box when one of its inner components keeps it too.
+const keepersOf = (r) => {
+  const keepers = [...nodes.values()].filter((n) => n.resources?.includes(r)).map((n) => n.name);
+  return keepers.filter((k) => !keepers.some((o) => o !== k && subtree(k).includes(o)));
+};
+const kindClass = (name) => `k-${node(name).kind === "provider" ? "component" : node(name).kind}`;
+
+function screenOf(name) {
+  const top = name === TOP;
+  const n = top ? null : node(name);
+  const into = top ? [] : incoming(name).filter((b) => !refinedBy(b));
+  const reached = top ? [] : into.length ? into.flatMap((b) => b.areas) : servedBy(name);
+  const areas = [];
+  for (const a of reached) {
+    const same = areas.find((g) => g.name === a.name);
+    if (same) same.members.push(a);
+    else areas.push({ name: a.name, type: a.type, members: [a] });
+  }
+  for (const g of areas) {
+    g.ports = unique(g.members.flatMap((a) => a.capabilities.flatMap((c) => c.via)));
+    g.consumers = unique(g.members.map((a) => a.boundary.consumer));
+    // Consumers may reach areas of the same name; each capability is listed once.
+    g.capabilities = g.members
+      .flatMap((a) => a.capabilities)
+      .filter((c, i, all) => all.findIndex((o) => o.name === c.name) === i);
+  }
+  const inner = top ? [] : [...n.children, ...n.shared];
+  const consumers = top ? RAW.consumers.map((c) => c.name) : unique(areas.flatMap((g) => g.consumers));
+  const calls = top ? [] : boundaries.filter((b) => !refinedBy(b) && (b.consumer === name || inner.includes(b.consumer)));
+  // An outside service that a component inside calls sits with the components, in the column after
+  // its callers, so its links stay short; what the open box itself calls sits to the right of it.
+  const outside = unique(calls.filter((b) => inner.includes(b.consumer) && node(b.provider).kind === "outside").map((b) => b.provider));
+  const boxes = top ? RAW.providers.map((p) => p.name) : [...inner, ...outside];
+  const uses = unique(calls.filter((b) => !within(name).includes(b.provider) && !outside.includes(b.provider)).map((b) => b.provider));
+  // Each resource kept inside the open box goes in the box on this screen that holds its keeper.
+  const holder = (k) => boxes.find((b) => subtree(b).includes(k)) ?? (!top && subtree(name).includes(k) ? name : null);
+  const kept = new Map();
+  for (const r of RAW.resources)
+    for (const h of unique(keepersOf(r.name).map(holder)).filter(Boolean)) kept.set(h, [...(kept.get(h) ?? []), r.name]);
+  return {
+    top,
+    consumers,
+    ports: unique(areas.flatMap((g) => g.ports)),
+    areas,
+    through: !top && !into.length ? reached[0]?.boundary.provider : null,
+    columns: top ? [boxes] : columnsOf(boxes),
+    boxes,
+    uses,
+    visible: new Set([...consumers, ...boxes, ...uses]),
+    kept,
+    // What each component, or the open box, depends on among the boxes on this screen.
+    links: calls.filter((b) => boxes.includes(b.provider) || uses.includes(b.provider)),
+  };
+}
+
+function columnsOf(ids) {
+  const depth = new Map();
+  const visit = (id, seen) => {
+    if (depth.has(id)) return depth.get(id);
+    const before = boundaries.filter((b) => b.provider === id && ids.includes(b.consumer) && !seen.has(b.consumer));
+    const d = Math.max(-1, ...before.map((b) => visit(b.consumer, new Set([...seen, id])))) + 1;
+    depth.set(id, d);
+    return d;
+  };
+  ids.forEach((id) => visit(id, new Set([id])));
+  const columns = [];
+  for (const id of ids) (columns[depth.get(id)] ??= []).push(id);
+  return columns.filter(Boolean);
+}
+
+// ---------- what a selection lights ----------
+
+// What leads to the selection and what it leads to, on this screen. A component that is not on the
+// screen lights the box that holds it, which then says which components it stands for.
+function lineage(key) {
+  const s = screen;
+  const keys = new Set([key]);
+  const cut = key.indexOf(":");
+  const kind = key.slice(0, cut);
+  const id = key.slice(cut + 1);
+  // Components to light, with what each does; each lights the box on this screen that holds it.
+  const requests = [];
+  const lightBox = (name, role) => name && requests.push([name, role]);
+  const holders = (name) => (s.visible.has(name) ? [name] : [...s.visible].filter((v) => within(v).includes(name)));
+  const upstream = (g) => {
+    keys.add(`a:${g.name}`);
+    g.ports.forEach((p) => keys.add(`p:${p}`));
+    g.consumers.forEach((c) => keys.add(`b:${c}`));
+  };
+  if (kind === "a") {
+    const g = s.areas.find((x) => x.name === id);
+    if (g) {
+      upstream(g);
+      g.members.flatMap(handlers).forEach((h) => lightBox(h, "handles"));
+      actedOn(g).forEach((r) => keys.add(`r:${r}`));
+    }
+  }
+  if (kind === "c") {
+    const c = capabilityById.get(id);
+    const g = s.areas.find((x) => x.members.includes(c.area));
+    if (g) keys.add(`a:${g.name}`);
+    c.via.filter((p) => s.ports.includes(p)).forEach((p) => keys.add(`p:${p}`));
+    lightBox(c.area.boundary.consumer, "asks");
+    handlers(c.area).forEach((h) => lightBox(h, "handles"));
+    c.acts.forEach((a) => keys.add(`r:${a.resource}`));
+  }
+  if (kind === "p")
+    for (const g of s.areas.filter((x) => x.ports.includes(id))) {
+      keys.add(`a:${g.name}`);
+      g.members.filter((a) => a.boundary.interfaces.includes(id)).forEach((a) => keys.add(`b:${a.boundary.consumer}`));
+    }
+  if (kind === "r") {
+    const caps = actingOn(id);
+    for (const g of s.areas) if (g.members.some((a) => caps.some((c) => c.area === a))) keys.add(`a:${g.name}`);
+    keepersOf(id).forEach((o) => lightBox(o, "keeps"));
+    unique(caps.flatMap((c) => handlers(c.area))).forEach((h) => lightBox(h, "acts"));
+  }
+  if (kind === "b") {
+    const inside = within(id);
+    if (s.consumers.includes(id))
+      for (const g of s.areas.filter((x) => x.consumers.includes(id))) {
+        keys.add(`a:${g.name}`);
+        g.members.filter((a) => a.boundary.consumer === id).forEach((a) => a.capabilities.forEach((c) => c.via.forEach((p) => keys.add(`p:${p}`))));
+      }
+    for (const g of s.areas) if (g.members.some((a) => handlers(a).some((h) => inside.includes(h)))) upstream(g);
+    for (const b of boundaries) {
+      if (refinedBy(b)) continue;
+      for (const [near, far, role] of [
+        [b.provider, b.consumer, "calls"],
+        [b.consumer, b.provider, "called"],
+      ]) {
+        if (!inside.includes(near) || inside.includes(far)) continue;
+        // A call to a component that the other box also contains stays inside both.
+        if (holders(far).some((o) => within(o).includes(near))) continue;
+        lightBox(far, role);
+      }
+    }
+    (s.kept.get(id) ?? []).forEach((r) => keys.add(`r:${r}`));
+  }
+  // A shared component sits in more than one box on the screen: it lights the one already lit, else
+  // the one holding the selection, else the one it is defined in.
+  const home = kind === "r" ? [...s.kept].find(([, rs]) => rs.includes(id))?.[0] : kind === "b" ? id : null;
+  const notes = new Map(); // a lit box -> what the components inside it do, by role
+  const assign = (at, name, role) => {
+    keys.add(`b:${at}`);
+    if (at === name || at === id) return;
+    const roles = notes.get(at) ?? notes.set(at, new Map()).get(at);
+    (roles.get(role) ?? roles.set(role, new Set()).get(role)).add(name);
+  };
+  const later = [];
+  for (const [name, role] of requests) {
+    const c = holders(name);
+    if (c.length === 1) assign(c[0], name, role);
+    else if (c.length > 1) later.push([name, role, c]);
+  }
+  for (const [name, role, c] of later)
+    assign(c.find((v) => keys.has(`b:${v}`)) ?? c.find((v) => v === home) ?? c.find((v) => ancestors(name).includes(v)) ?? c[0], name, role);
+  return { keys, notes };
+}
+
+// What the components inside a lit box do with the selection: "Run controller keeps it; Conversations
+// and Execution kits act on it."
+const VERBS = { keeps: ["keeps it", "keep it"], acts: ["acts on it", "act on it"], handles: ["handles it", "handle it"], calls: ["calls it", "call it"], asks: ["asks for it", "ask for it"] };
+function noteOf(roles) {
+  const keepers = roles.get("keeps") ?? new Set();
+  const parts = [...roles].map(([role, names]) => {
+    const list = [...names].filter((n) => role === "keeps" || !keepers.has(n));
+    if (!list.length) return null;
+    const who = list.length > 1 ? `${list.slice(0, -1).join(", ")} and ${list.at(-1)}` : list[0];
+    return role === "called" ? `It calls ${who}` : `${who} ${VERBS[role][list.length > 1 ? 1 : 0]}`;
+  });
+  return `${parts.filter(Boolean).join("; ")}.`;
+}
+
+// ---------- drawing ----------
+
+const pick = (key) => (event) => {
+  event.stopPropagation();
+  selected = key;
+  render();
+};
+
+const register = (key, e) => {
+  e.dataset.key = key;
+  if (!reg.has(key)) reg.set(key, e);
+  drawn.push([key, e]);
+  return e;
+};
+
+const kindLine = (kind, qualifier) =>
+  el("span", { class: "b-top" }, el("span", { class: "b-kind" }, kind), qualifier && el("span", { class: "b-qual" }, qualifier));
+
+function chips(names) {
+  if (!names.length) return null;
+  return el(
+    "span",
+    { class: "b-chips" },
+    names.map((r) => register(`r:${r}`, el("button", { type: "button", class: "b-chip", onclick: pick(`r:${r}`) }, r))),
+  );
+}
+
+function box(name, where) {
+  const n = node(name);
+  const key = `b:${name}`;
+  const inner = n.children.length + n.shared.length;
+  const shared = where === "inside" && n.also.includes(openBox) ? `Shared with ${n.parent}` : null;
+  const canOpen = opens(name);
+  const enter = (e) => (e.stopPropagation(), go(name));
+  const note = current?.notes.get(name);
+  return register(
+    key,
+    el(
+      "section",
+      { class: `b-box ${kindClass(name)}${n.kind === "provider" ? " provider" : ""}${canOpen ? " opens" : ""}`, onclick: pick(key), ondblclick: canOpen ? enter : null },
+      kindLine(shared ?? KIND_WORD[n.kind]),
+      el("button", { type: "button", class: "b-name", onclick: pick(key) }, name),
+      note && el("span", { class: "b-via" }, noteOf(note)),
+      where === "inside" && chips(screen.kept.get(name) ?? []),
+      canOpen && el("button", { type: "button", class: "b-go", onclick: enter }, el("span", {}, inner ? `Open, ${inner} components` : "Open"), el("span", {}, "›")),
+    ),
+  );
+}
+
+function areaBox(g) {
+  return register(
+    `a:${g.name}`,
+    el(
+      "button",
+      { type: "button", class: "b-box k-capability b-area", onclick: pick(`a:${g.name}`) },
+      kindLine("Capabilities", `${g.type}, ${g.capabilities.length}`),
+      el("span", { class: "b-name" }, g.name),
+    ),
+  );
+}
+
+const zone = (cls, title, ...content) => el("div", { class: `b-zone ${cls}` }, el("h3", {}, title), el("div", { class: "b-zone-body" }, content));
+
+function frame(name) {
+  const n = node(name);
+  const s = screen;
+  const keeps = s.kept.get(name) ?? [];
+  const body = [
+    zone("z-interface", "Interfaces", s.ports.map((iface) => register(`p:${iface}`, el("button", { type: "button", class: "b-port edge", onclick: pick(`p:${iface}`) }, iface)))),
+    zone("z-capability", "Capabilities", s.areas.map(areaBox)),
+    s.columns.length > 0 &&
+      zone("z-component", "Components", el("div", { class: "b-cols" }, s.columns.map((c) => el("div", { class: "b-col b-placed" }, c.map((id) => box(id, "inside")))))),
+  ];
+  return el(
+    "section",
+    { class: `b-frame ${kindClass(name)}` },
+    el(
+      "header",
+      { class: "b-frame-head" },
+      el("span", { class: "b-kind" }, KIND_WORD[n.kind] + (n.also.length ? `, shared with ${n.also.join(", ")}` : "")),
+      el("h2", {}, name),
+      text("p", n.description),
+      s.through && el("p", { class: "b-through" }, `Reached through ${s.through}'s interfaces.`),
+      keeps.length > 0 && el("div", { class: "b-keeps" }, el("span", { class: "b-keeps-label" }, "Keeps"), chips(keeps)),
+    ),
+    el("div", { class: "b-body" }, body),
+  );
+}
+
+// Places absolutely positioned items, each as close as it can to the height it wants its centre at.
+// Items that would overlap form a block, kept in order and centred on what its items want on
+// average, so that several boxes linked to one thing sit around it rather than below it. Returns
+// the height used.
+function settle(items, gap) {
+  const blocks = [...items].sort((a, b) => a.want - b.want).map((it) => ({ items: [it] }));
+  const place = (b) => {
+    let off = 0;
+    const tops = b.items.map((it) => {
+      const want = it.want - it.el.offsetHeight / 2 - off;
+      off += it.el.offsetHeight + gap;
+      return want;
+    });
+    b.height = off - gap;
+    b.top = Math.max(0, avg(tops));
+  };
+  blocks.forEach(place);
+  for (let i = 1; i < blocks.length; ) {
+    const [a, b] = [blocks[i - 1], blocks[i]];
+    if (a.top + a.height + gap <= b.top) i++;
+    else {
+      a.items.push(...b.items);
+      blocks.splice(i, 1);
+      place(a);
+      i = 1;
+    }
+  }
+  for (const b of blocks) {
+    let y = b.top;
+    for (const it of b.items) {
+      it.el.style.top = `${y}px`;
+      y += it.el.offsetHeight + gap;
+    }
+  }
+  const last = blocks.at(-1);
+  return last ? last.top + last.height : 0;
+}
+
+function render() {
+  reg = new Map();
+  drawn = [];
+  screen = screenOf(openBox);
+  const s = screen;
+  current = null;
+  if (selected)
+    try {
+      current = lineage(selected);
+    } catch {
+      selected = null;
+    }
+  const stage = el("div", { class: `b-stage${s.top ? " top" : ""}` });
+  const wires = svgEl("svg", { class: "b-wires" });
+  const left = zone("z-consumer b-left", "Used by", s.consumers.map((c) => box(c, "left")));
+  const middle = s.top ? zone("z-component b-mid", "Providers", el("div", { class: "b-col b-placed" }, s.boxes.map((p) => box(p, "inside")))) : frame(openBox);
+  const right = s.uses.length > 0 && zone("z-uses b-right", "Uses", s.uses.map((u) => box(u, "right")));
+  stage.append(wires, left, middle, ...[right].filter(Boolean));
+  document.getElementById("scroll").replaceChildren(stage);
+  drawNav();
+  if (selected && !reg.has(selected) && !selected.startsWith("c:")) {
+    selected = null;
+    return render();
+  }
+
+  const o = stage.getBoundingClientRect();
+  const mid = (e) => {
+    const r = e.getBoundingClientRect();
+    return { l: r.left - o.left, r: r.right - o.left, t: r.top - o.top, b: r.bottom - o.top, y: (r.top + r.bottom) / 2 - o.top };
+  };
+  const bodyOf = (cls) => stage.querySelector(`.${cls} > .b-zone-body`);
+
+  // Capabilities stack in the order of the interfaces that reach them, each interface sits level
+  // with its capabilities, each component level with the capabilities it handles, and each
+  // consumer level with what it uses. A group linked to one thing is centred on it.
+  if (!s.top) {
+    const first = (g) => Math.min(...g.ports.map((p) => s.ports.indexOf(p)));
+    let y = 0;
+    for (const g of [...s.areas].sort((a, b) => first(a) - first(b))) {
+      const e = reg.get(`a:${g.name}`);
+      e.style.top = `${y}px`;
+      g.y = y + e.offsetHeight / 2;
+      y += e.offsetHeight + 12;
+    }
+    const h = settle(s.ports.map((p) => ({ el: reg.get(`p:${p}`), want: avg(s.areas.filter((g) => g.ports.includes(p)).map((g) => g.y)) })), 6);
+    bodyOf("z-capability").style.height = `${Math.max(y, h)}px`;
+    bodyOf("z-interface").style.height = `${Math.max(y, h)}px`;
+    // A component without capabilities on this screen sits level with what calls it. Columns go
+    // left to right, so callers are already placed.
+    const capTop = mid(bodyOf("z-capability")).t;
+    for (const col of stage.querySelectorAll(".b-cols > .b-col")) {
+      const t = mid(col).t;
+      const items = [...col.children].map((e) => {
+        const inside = subtree(e.dataset.key.slice(2));
+        const served = s.areas.filter((g) => g.members.some((a) => handlers(a).some((x) => inside.includes(x))));
+        const callers = s.links.filter((b) => b.provider === inside[0] && s.boxes.includes(b.consumer)).map((b) => mid(reg.get(`b:${b.consumer}`)).y);
+        const want = served.length ? avg(served.map((g) => capTop + g.y)) : callers.length ? avg(callers) : t;
+        return { el: e, want: want - t };
+      });
+      col.style.height = `${settle(items, 14)}px`;
+    }
+  }
+  const targetsOf = (c) =>
+    unique(
+      s.top
+        ? boundaries.filter((b) => b.consumer === c && s.boxes.includes(b.provider)).map((b) => reg.get(`b:${b.provider}`))
+        : boundaries.filter((b) => b.consumer === c).flatMap((b) => b.interfaces).filter((i) => s.ports.includes(i)).map((i) => reg.get(`p:${i}`)),
+    );
+  const leftBody = bodyOf("b-left");
+  if (s.top) {
+    // Each provider and the consumers that use it form a row, centred on each other.
+    const col = stage.querySelector(".b-mid .b-col");
+    const firstUse = (c) => s.boxes.find((p) => boundaries.some((b) => b.consumer === c && b.provider === p));
+    const rows = [...s.boxes.map((p) => [reg.get(`b:${p}`), s.consumers.filter((c) => firstUse(c) === p)]), [null, s.consumers.filter((c) => !firstUse(c))]];
+    let y = 0;
+    for (const [pe, cs] of rows) {
+      const ces = cs.map((c) => reg.get(`b:${c}`));
+      const ph = pe?.offsetHeight ?? 0;
+      const ch = ces.reduce((n, e) => n + e.offsetHeight + 14, -14);
+      const rh = Math.max(ph, ch);
+      if (rh <= 0) continue;
+      if (pe) pe.style.top = `${y + (rh - ph) / 2}px`;
+      let cy = y + (rh - Math.max(ch, 0)) / 2;
+      for (const e of ces) {
+        e.style.top = `${cy}px`;
+        cy += e.offsetHeight + 14;
+      }
+      y += rh + 28;
+    }
+    col.style.height = leftBody.style.height = `${Math.max(0, y - 28)}px`;
+  } else {
+    const lt = mid(leftBody).t;
+    leftBody.style.height = `${settle(
+      s.consumers.map((c) => {
+        const to = targetsOf(c);
+        return { el: reg.get(`b:${c}`), want: (to.length ? avg(to.map((p) => mid(p).y)) : 0) - lt };
+      }),
+      14,
+    )}px`;
+  }
+  // What the open box uses is centred, as a block, on the open box's body.
+  // Each box to the right sits level with what calls it; the open box calls from its body's middle.
+  if (right) {
+    const body = right.querySelector(".b-zone-body");
+    const rt = mid(body).t;
+    const frameMid = mid(stage.querySelector(".b-body")).y;
+    const items = s.uses.map((u) => {
+      const ys = s.links.filter((b) => b.provider === u).map((b) => (b.consumer === openBox ? frameMid : mid(reg.get(`b:${b.consumer}`)).y));
+      return { el: reg.get(`b:${u}`), want: (ys.length ? avg(ys) : frameMid) - rt };
+    });
+    body.style.height = `${settle(items, 14)}px`;
+  }
+
+  wires.setAttribute("width", stage.scrollWidth);
+  wires.setAttribute("height", stage.scrollHeight);
+  const curve = (a, b) => {
+    const dx = Math.max(20, Math.abs(b[0] - a[0]) / 2);
+    return `M${a[0]},${a[1]} C${a[0] + dx},${a[1]} ${b[0] - dx},${b[1]} ${b[0]},${b[1]}`;
+  };
+  const wire = (from, to, a, b) => wires.append(svgEl("path", { d: curve(a, b), "data-from": from, "data-to": to }));
+  for (const c of s.consumers)
+    for (const t of targetsOf(c)) {
+      const from = mid(reg.get(`b:${c}`));
+      const to = mid(t);
+      wire(`b:${c}`, t.dataset.key, [from.r, from.y], [to.l - (s.top ? 0 : 4), to.y]);
+    }
+  for (const g of s.areas) {
+    const at = mid(reg.get(`a:${g.name}`));
+    for (const p of g.ports) {
+      const from = mid(reg.get(`p:${p}`));
+      wire(`p:${p}`, `a:${g.name}`, [from.r, from.y], [at.l, at.y]);
+    }
+  }
+  // Dependencies, from the right edge of a component, or of the open box, to what it depends on. A
+  // line that passes a column in between goes straight through the nearest gap between its boxes,
+  // so that it never seems to leave from a box it only passes behind.
+  const frameEl = stage.querySelector(".b-frame");
+  const cols = [...stage.querySelectorAll(".b-cols > .b-col")].map((c) => ({ ...mid(c), boxes: [...c.children].map(mid).sort((a, b) => a.t - b.t) }));
+  const colOf = (e) => cols.findIndex((c) => e.l >= c.l - 1 && e.r <= c.r + 1);
+  const gapAt = (c, want) => {
+    const gaps = [[-Infinity, c.boxes[0]?.t ?? Infinity], ...c.boxes.map((x, i) => [x.b, c.boxes[i + 1]?.t ?? Infinity])];
+    const ys = gaps.map(([lo, hi]) => (hi - lo < 40 ? (lo + hi) / 2 : Math.min(Math.max(want, lo + 12), hi - 12)));
+    return ys.reduce((best, y) => (Math.abs(y - want) < Math.abs(best - want) ? y : best));
+  };
+  for (const b of s.links) {
+    const own = b.consumer === openBox;
+    const from = mid(own ? frameEl : reg.get(`b:${b.consumer}`));
+    const to = mid(reg.get(`b:${b.provider}`));
+    const y = own ? Math.min(Math.max(to.y, from.t + 40), from.b - 20) : from.y;
+    const start = own ? -1 : colOf(from);
+    const end = colOf(to) === -1 ? cols.length : colOf(to);
+    let d = "";
+    let at = [from.r, y];
+    for (let k = start + 1; k < end && start !== -1; k++) {
+      const gy = gapAt(cols[k], at[1] + ((to.y - at[1]) * (cols[k].l - at[0])) / Math.max(1, to.l - at[0]));
+      d += `${d ? " " : ""}${curve(at, [cols[k].l - 10, gy])} L${cols[k].r + 10},${gy}`;
+      at = [cols[k].r + 10, gy];
+    }
+    wires.append(svgEl("path", { d: `${d}${d ? " " : ""}${curve(at, [to.l, to.y])}`, "data-from": `b:${b.consumer}`, "data-to": `b:${b.provider}` }));
+  }
+  paint(stage);
+  drawPanel();
+  if (selected && reg.has(selected)) reg.get(selected).scrollIntoView({ block: "nearest", inline: "nearest" });
+  if (STILL) drawLegend(stage);
+}
+
+function paint(stage) {
+  const keys = current?.keys;
+  for (const [key, e] of drawn) {
+    const on = Boolean(keys?.has(key));
+    e.classList.toggle("lit", on);
+    e.classList.toggle("chosen", key === selected);
+    e.classList.toggle("dim", Boolean(keys) && !on);
+  }
+  // A resource in a lit box is part of that box, so it does not fade; it is outlined only when it is
+  // linked to the selection. In the box of a selected resource, the other resources still fade.
+  if (keys)
+    for (const chip of stage.querySelectorAll(".b-chip.dim")) {
+      const box = chip.closest(".b-box");
+      if (!box?.classList.contains("lit")) continue;
+      if (selected.startsWith("r:") && box.querySelector(`[data-key="${CSS.escape(selected)}"]`)) continue;
+      chip.classList.remove("dim");
+    }
+  // A line lights when both its ends are; the open box counts as lit.
+  const end = (k) => keys.has(k) || k === `b:${openBox}`;
+  for (const p of stage.querySelectorAll(".b-wires path")) {
+    const on = Boolean(keys) && end(p.dataset.from) && keys.has(p.dataset.to);
+    p.classList.toggle("lit", on);
+    p.classList.toggle("dim", Boolean(keys) && !on);
+  }
+}
+
+// ---------- the panel: only what the map does not already show ----------
+
+function capabilityList(caps) {
+  return el(
+    "ul",
+    { class: "b-caps" },
+    caps.map((c) =>
+      el(
+        "li",
+        { class: selected === `c:${c.id}` ? "on" : "" },
+        el("button", { type: "button", onclick: pick(`c:${c.id}`) }, c.name),
+        el("span", {}, c.acts.map((a) => `${MODE_WORD[a.mode]} ${a.resource}`).join(", ")),
+      ),
+    ),
+  );
+}
+
+function panelOf(key) {
+  const s = screen;
+  const cut = key.indexOf(":");
+  const kind = key.slice(0, cut);
+  const id = key.slice(cut + 1);
+  const head = (k, cls, title) => [el("span", { class: `b-kind ${cls}` }, k), el("h2", {}, title)];
+  if (kind === "a") {
+    const g = s.areas.find((x) => x.name === id);
+    return [head(`Capabilities, ${g.type}`, "k-capability", g.name), text("p", g.members[0].description), capabilityList(g.capabilities)];
+  }
+  if (kind === "p") {
+    const b = incoming(s.through ?? openBox).find((x) => x.interfaces.includes(id));
+    return [head("Interface", "k-interface", id), text("p", interfaceText.get(id)), b && capabilityList(capabilitiesThrough(b, id))];
+  }
+  if (kind === "c") {
+    const c = capabilityById.get(id);
+    const g = s.areas.find((x) => x.members.includes(c.area));
+    return [
+      g && el("button", { type: "button", class: "b-back", onclick: pick(`a:${g.name}`) }, `‹ ${g.name}`),
+      head("Capability", "k-capability", c.name),
+      el("h3", {}, "Takes"),
+      el("p", {}, c.takes),
+      el("h3", {}, "Gives"),
+      el("p", {}, c.gives),
+    ];
+  }
+  if (kind === "r") {
+    const r = resourceByName.get(id);
+    const hidden = keepersOf(id).flatMap((k) => {
+      const at = [...s.kept].find(([b, rs]) => rs.includes(id) && subtree(b).includes(k))?.[0];
+      return at && at !== k ? [`Kept by ${k}, inside ${at}.`] : [];
+    });
+    return [
+      head("Resource", "k-resource", id),
+      text("p", r.description),
+      hidden.map((t) => el("p", { class: "b-note" }, t)),
+      r.properties?.length > 0 && [el("h3", {}, "Properties"), el("ul", { class: "b-props" }, r.properties.map((x) => el("li", {}, x)))],
+      el("h3", {}, "Capabilities that act on it"),
+      // Two consumers may have the same capability, such as Start a run; list it once.
+      capabilityList(actingOn(id).filter((c, i, all) => all.findIndex((o) => o.name === c.name) === i)),
+    ];
+  }
+  const n = node(id);
+  return [
+    head(KIND_WORD[n.kind], kindClass(id), n.name),
+    n.description && [n.kind === "consumer" ? null : el("h3", {}, "Responsibilities"), text("p", n.description)],
+    opens(id) && id !== openBox && el("button", { type: "button", class: "b-go wide", onclick: () => go(id) }, el("span", {}, `Open ${id}`), el("span", {}, "›")),
+  ];
+}
+
+function drawPanel() {
+  const panel = document.getElementById("panel");
+  panel.hidden = !selected;
+  if (!selected) return;
+  panel.replaceChildren(
+    el("button", { type: "button", class: "b-close", "aria-label": "Close", onclick: clear }, "×"),
+    ...[panelOf(selected)].flat(3).filter(Boolean),
+  );
+}
+
+function clear() {
+  if (!selected) return;
+  selected = null;
+  render();
+}
+
+// ---------- where you are ----------
+
+function drawNav() {
+  const crumbs = [["All providers", 0], ...trail.map((n, i) => [n, i + 1])];
+  document.getElementById("nav").replaceChildren(
+    el("button", { type: "button", class: "b-back-nav", disabled: !visited.length && !trail.length ? "" : null, onclick: back }, "‹ Back"),
+    ...crumbs
+      .flatMap(([label, depth], i) => [
+        i > 0 && el("span", { class: "b-sep" }, "›"),
+        i === crumbs.length - 1 ? el("strong", {}, label) : el("button", { type: "button", onclick: () => navigate(trail.slice(0, depth)) }, label),
+      ])
+      .filter(Boolean),
+  );
+}
+
+// The path to a box when nothing says how you came: its parents, or, for an outside service, the
+// screen that shows a component calling it.
+function trailFor(name) {
+  if (name === TOP) return [];
+  const n = node(name);
+  if (n.kind !== "outside") return [...ancestors(name), name];
+  const caller = boundaries.find((b) => b.provider === name && !refinedBy(b) && nodes.has(b.consumer) && node(b.consumer).kind !== "consumer");
+  if (!caller) return [name];
+  const at = node(caller.consumer).parent;
+  return [...trailFor(at ?? caller.consumer), name];
+}
+
+// Opening a box from the screen it is on adds it to the path you came by; a box elsewhere gets the
+// path trailFor gives it.
+function go(name) {
+  if (name === TOP) return navigate([]);
+  const i = trail.indexOf(name);
+  if (i >= 0) return navigate(trail.slice(0, i + 1));
+  navigate(screen.visible.has(name) || screen.boxes.includes(name) ? [...trail, name] : trailFor(name));
+}
+
+// Back returns to the previous screen as it was left: same scroll, same selection.
+function back() {
+  if (visited.length) navigate(visited.pop(), { remember: false, restore: true });
+  else if (trail.length) navigate(trail.slice(0, -1), { remember: false, restore: true });
+}
+
+// Changes screen. Opening a box grows it into the new screen's frame; going back shrinks the frame
+// into the box it came from. Everything else fades.
+const addressOf = (t) => `#${t.length ? t.map(slugOf).join("/") : "all"}`;
+function navigate(next, { remember = true, fromAddress = false, restore = false } = {}) {
+  const before = trail;
+  if (before.length === next.length && before.every((x, i) => x === next[i])) return;
+  if (remember) visited.push(before);
+  const scroller = document.getElementById("scroll");
+  memory.set(addressOf(before), { left: scroller.scrollLeft, top: scroller.scrollTop, selected });
+  const kept = restore ? memory.get(addressOf(next)) : null;
+  const deeper = next.length > before.length && before.every((x, i) => next[i] === x);
+  const shallower = before.length > next.length && next.every((x, i) => before[i] === x);
+  const frameEl = () => document.querySelector(".b-frame");
+  // Only one element may carry the name at a time; the last landing still has it.
+  for (const e of document.querySelectorAll(".b-frame, .b-box")) e.style.viewTransitionName = "";
+  const grow = deeper ? reg.get(`b:${next[before.length]}`) : shallower ? frameEl() : null;
+  if (grow) grow.style.viewTransitionName = "zoom";
+  // A box on both screens travels from its place on this one to its place on the next, such as a
+  // component that moves from Components to Used by when a component it calls opens.
+  const nextOpen = next.at(-1) ?? TOP;
+  const nextVisible = screenOf(nextOpen).visible;
+  const travellers = [...screen.visible].filter((n) => n !== nextOpen && nextVisible.has(n));
+  const travel = () => {
+    for (const n of travellers) {
+      const e = reg.get(`b:${n}`);
+      if (e) e.style.viewTransitionName = `b-${cssName(n)}`;
+    }
+  };
+  travel();
+  if (!fromAddress) {
+    const hash = addressOf(next);
+    // A sandboxed viewer may refuse to change the address; the screen changes all the same.
+    try {
+      if (decodeURIComponent(location.hash) !== hash) history.pushState(null, "", hash);
+    } catch {}
+  }
+  transition(() => {
+    trail = next;
+    openBox = next.at(-1) ?? TOP;
+    selected = kept?.selected ?? null;
+    render();
+    scroller.scrollTo(kept?.left ?? 0, kept?.top ?? 0);
+    const landing = deeper ? frameEl() : shallower ? reg.get(`b:${before[next.length]}`) : null;
+    if (grow && landing) landing.style.viewTransitionName = "zoom";
+    travel();
+  });
+}
+
+function fromHash() {
+  const parts = decodeURIComponent(location.hash.slice(1)).split("/").filter(Boolean);
+  if (parts[0] === "all") return [];
+  const names = parts.map((p) => bySlug.get(p));
+  if (!names.length || names.some((n) => !n)) return HOME;
+  return names.length === 1 ? trailFor(names[0]) : names;
+}
+
+// ---------- still images ----------
+
+// Every screen once: All providers, then each box that opens, in the order the map lists them.
+const screens = () => [[], ...[...nodes.keys()].filter(opens).map(trailFor)];
+
+// A still image cannot be clicked, so it carries under the drawing what the panel would say about
+// what the screen shows.
+function legendOf(s) {
+  const entry = (name, about) => el("li", { html: inline(`**${name}**: ${sentence(about ?? "")}`) });
+  const section = (title, about, items) =>
+    items.length > 0 && el("section", {}, el("h3", {}, title), about && text("p", about), el("ul", {}, items));
+  const acts = (c) => c.acts.map((a) => `${MODE_WORD[a.mode]} ${a.resource}`).join(", ");
+  return el(
+    "div",
+    { class: "b-legend" },
+    section("On this screen", null, [...s.consumers, ...s.boxes, ...s.uses].map((n) => entry(n, node(n).description))),
+    section("Interfaces", null, s.ports.map((p) => entry(p, interfaceText.get(p)))),
+    s.areas.map((g) =>
+      section(
+        `${g.name} (${g.type})`,
+        g.members[0].description,
+        g.capabilities.map((c) => entry(c.name, `takes ${c.takes}; gives ${c.gives}; ${acts(c)}.`)),
+      ),
+    ),
+    section("Resources", null, unique([...s.kept.values()].flat()).map((r) => entry(r, resourceByName.get(r).description))),
+  );
+}
+
+// Writes the size the image needs, and the addresses of every screen, on the page for shoot-map.mjs.
+function drawLegend(stage) {
+  const legend = legendOf(screen);
+  legend.style.width = `${Math.max(stage.offsetWidth, 1200)}px`;
+  document.querySelector(".b-legend")?.remove();
+  document.querySelector("main").after(legend);
+  const right = Math.max(stage.getBoundingClientRect().right, legend.getBoundingClientRect().right) + 16;
+  const bottom = legend.getBoundingClientRect().bottom + window.scrollY;
+  document.documentElement.dataset.stillSize = `${Math.ceil(right)}x${Math.ceil(bottom)}`;
+  document.documentElement.dataset.screens = screens().map(addressOf).join(" ");
+}
+
+const avg = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
+window.addEventListener("popstate", () => navigate(fromHash(), { fromAddress: true, remember: false, restore: true }));
+document.getElementById("scroll").addEventListener("click", clear);
+document.addEventListener("keydown", (e) => e.key === "Escape" && clear());
+window.addEventListener("resize", () => render());
+trail = fromHash();
+openBox = trail.at(-1) ?? TOP;
+render();
+document.fonts?.ready.then(render);
+</script>
+</body>
+</html>

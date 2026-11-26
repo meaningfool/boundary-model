@@ -1,0 +1,29 @@
+# Website prototypes
+
+Throwaway prototypes for the boundary model website, issue #7. They answered design questions in conversation. The site itself will be built with Astro and Starlight in `site/`. Remove this folder before the website pull request merges.
+
+Open each file in a browser. They need no build.
+
+## Files
+
+- `site-draft.html`: the current draft of the five pages, in the chosen layout. Use the sidebar to move between pages. The text is a draft. Pages 02 to 04 were checked against the skills.
+- `sidebar-proposals.html`: the chosen navigation. Numbered pages in the left sidebar, one level. The current page's sections on the right.
+- `landing-proposals.html`: three early layouts for a separate home page. Superseded, since page 01 is now the home page, but its sections fed page 01.
+- `map-candidates.html`: open-source projects checked as candidates for maps, with a compare view.
+- `five-boundary-maps.html`: the interactive maps of Executor, T3 Code, Rivet, LangChain and Pi, embedded from `maps/`. They are drawn from the draft maps in `../maps/`.
+
+## Decisions so far
+
+- **Stack, hosting and look:** as in issue #7. Astro with Starlight, the static build served by Cloudflare Workers, and executor.sh's quiet monochrome style with Geist and Geist Mono.
+- **Navigation:** one numbered list of pages in the left sidebar, with no Docs link. The right column lists the current page's sections, on every page. GitHub, the version and the licence sit at the foot of the sidebar. There is no search box and no theme switch: the site follows the device's light or dark setting.
+- **Pages:** 01 What it is and why, which is the home page; 02 The boundary model; 03 How the skills work together; 04 Install; 05 An example.
+- **Page 01:** the headline "A shared map of your system, for you and your agent." Then four problems shown one at a time, each with a sketch; one vertical flow from behavior changes to implementation details; and boundaries level by level, as a drill-down diagram. Page 01 names no skill.
+- **The skills own the rules.** The docs explain them, link to them, and never state a rule a skill does not.
+- **Writing:** plain words, short sentences, active voice, sentence-case headings, no em dashes, no promotional words, and no hard-wrapped prose.
+
+## Open questions
+
+- The value proposition, and the line under the headline, are still to be written.
+- Page 05: a tutorial on a simple invented example, and a separate page of maps of real projects, are proposed.
+- Which real maps the site shows, and which ones are reviewed first.
+- Issue #7 still asks for a separate landing page, a search and one real map. It needs updating once these are settled.
