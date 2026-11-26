@@ -135,6 +135,43 @@ function checkReferences(file, problems) {
     for (const { name } of shared)
       if (!components.has(name)) problems.push(`${component.name} shares "${name}", which no provider defines`);
   }
+
+  // A component that relies on an outside service through a component inside it, defined there or
+  // shared into it, has its own boundary with the service, so the level where it is one box shows
+  // what it relies on. A Level 1 provider needs none, since Level 1 holds only external boundaries;
+  // it is still walked through, as a component that shares it holds what it holds.
+  const holders = new Map(); // a component -> the components it sits directly inside
+  const holds = (outer, inner) => holders.set(inner, [...(holders.get(inner) ?? []), outer]);
+  for (const { component, parent } of owners) {
+    if (parent) holds(parent.name, component.name);
+    for (const { name } of component.sharedComponents ?? []) holds(component.name, name);
+  }
+  const above = (name, seen = new Set()) => {
+    for (const outer of holders.get(name) ?? [])
+      if (!seen.has(outer)) {
+        seen.add(outer);
+        above(outer, seen);
+      }
+    return seen;
+  };
+  const levelOne = new Set(file.providers.map((p) => p.name));
+  const labels = new Set(file.boundaries.map(label));
+  const unmet = new Map(); // a missing boundary's label -> its component, its service, and the callers inside
+  for (const b of file.boundaries) {
+    if (!outside.has(b.provider) || !components.has(b.consumer)) continue;
+    for (const outer of above(b.consumer)) {
+      const missing = label({ consumer: outer, provider: b.provider });
+      if (levelOne.has(outer) || labels.has(missing)) continue;
+      if (!unmet.has(missing)) unmet.set(missing, { component: outer, service: b.provider, callers: [] });
+      unmet.get(missing).callers.push(b.consumer);
+    }
+  }
+  const listed = (xs) => (xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}` : xs[0]);
+  for (const { component, service, callers } of unmet.values()) {
+    // Name the callers nearest the component: one inside another caller reaches the service through it.
+    const nearest = callers.filter((c) => !callers.some((o) => o !== c && above(c).has(o)));
+    problems.push(`${component} relies on ${service} through ${listed(nearest.length ? nearest : callers)} but has no boundary with it`);
+  }
 }
 
 // Gives the map, or the problems that keep it from being used.
