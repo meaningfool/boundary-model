@@ -25,4 +25,4 @@ npm run dev
 
 ## Writing
 
-Plain words, short sentences, active voice, sentence-case headings, no em dashes and no promotional words. Write each paragraph on one line. Write each boundary concept and each skill name as inline code, as `prototypes/README.md` lists them. The skills own the rules: a page explains them and links to them, and never states a rule a skill does not.
+Plain words, short sentences, active voice, sentence-case headings, no em dashes and no promotional words. Write each paragraph on one line. Write each boundary concept, in its singular form, and each skill name as inline code, as `prototypes/README.md` lists them. The skills own the rules: a page explains them and links to them, and never states a rule a skill does not.
