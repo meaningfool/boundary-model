@@ -17,40 +17,29 @@ The blind men and the elephant, from an image model, with no text in it. The tag
 
 ## Intro
 
-A repository holds code, not the model you have in your head: who uses the system, for what, and which part is responsible for what. From the code alone, agents can write code, but they are not reliable coworkers on what to build.
+A good conversation is one where you and your agent understand each other, one where you are presented with consequential decisions first and drill down once the foundations are solid. The trajectory of a conversation is quite chaotic and depends on decisions the agent made when gathering context and making assumptions. And there may be the appearance of a mutual understanding when it's actually a mirage. 
+
+The solution is a shared map, so that each new conversation starts from a known place.
+
+Title: "Problems without a shared map"
 
 ## Problem 1
 
 - Tab: Agents go deep before they go wide.
-- Text: Ask for a change and an agent dives into the first part it sees, down to schemas and error messages, while the rest of the change is still unclear.
+- Text: High-leverage questions sit at the top of the decision tree. Agents get drawn into implementation details, losing sight of the behavior changes.
 - Sketch: "Pay with gift cards" at the top. Below it, "Place order", drilled three levels down: gift_cards table, POST /orders, error codes. Beside it, three parts left open: Balance? · Charges? · Mobile app?
-- Caption: Three levels down on one part. The other three are still open.
-- With the skills: Every behavior change is laid out first. The details wait until the whole change is agreed.
+- With the skills: Boundary changes are laid out first, from outside in during the shaping phase. The details are refined later.
 
 ## Problem 2
-
-- Tab: Behavior changes get drawn into implementation details.
-- Text: You want to agree on what people will be able to do. The conversation turns to tables, endpoints and files before you have.
-- Sketch:
-  - You: Shoppers should be able to pay with gift cards.
-  - Agent: I'll add a gift_cards table with a balance column.
-  - Agent: Then a POST /gift-cards/redeem endpoint.
-  - Agent: And split the amount in charge.ts.
-- Caption: What shoppers can do was never agreed. The talk moved to how.
-- With the skills: Each change is stated as what changes for the people using the system, marked against the map, and you confirm it before any code.
-
-## Problem 3
 
 - Tab: Agents reinvent concepts between sessions.
 - Text: One session says gift card, the next says voucher, the one after that adds a prepaid balance. Nothing holds the names you agreed on.
 - Sketch: Session 1: Gift card · Session 2: Voucher · Session 3: Prepaid balance
-- Caption: One concept, three names.
-- With the skills: You settle the names when you review the map. Every change is then planned in those names, and fuzzy words get questioned.
+- With the skills: Concepts are settled in the map. Every change is then planned in those names, and fuzzy words get questioned.
 
-## Problem 4
+## Problem 3
 
-- Tab: The code's structure drifts from your mental model.
-- Text: The parts you have in mind stop lining up with the folders and services in the code, and nobody notices until a change gets hard.
+- Tab: The code's structure does not match your mental model.
+- Text: You agreed on a model, but the agent did not mirror it in code. Nobody checked. The source of truth is has drifted from your understanding.
 - Sketch: In your head: Storefront, Payments. In the code: src/shop/, src/checkout/, src/billing/. Lines cross between them.
-- Caption: Two parts in your head, three folders in the code, and no clean line between them.
-- With the skills: The map cites the code behind each boundary. Updating it shows what changed in the code since the last review.
+- With the skills: The agent detects discrepancies between the shared map and the code base, allowing you to realign when drift is detected.
