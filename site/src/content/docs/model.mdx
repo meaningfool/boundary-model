@@ -3,7 +3,6 @@ title: The boundary model
 description: The boundary model describes a system as the people and systems using it see it. This page explains its terms and the map that records them. The `use-boundary-model` skill holds the full definitions.
 ---
 
-import RepoLink from "../../components/RepoLink.astro";
 import StoreFigure from "../../components/model/StoreFigure.astro";
 
 ## What a `boundary` lists
@@ -16,61 +15,3 @@ A `boundary` is the line across which a `provider` offers resources and capabili
 - **Resources:** things with a state the `consumer` cares about, such as an order. A `provider` lists each `resource` once, under one name.
 
 <StoreFigure />
-
-In text, the same `boundary` reads:
-
-```text
-Resources of Store: Product · Order · Loyalty balance
-Shopper <-> Store
-  Interfaces: web shop · mobile app
-  Shop (core)
-    Browse products: observes Product
-    Place order: produces Order · mutates Loyalty balance
-    List past orders: observes Order
-  See loyalty balance (supporting)
-    See loyalty balance: observes Loyalty balance [mobile app]
-```
-
-## Consumers and providers
-
-- A `consumer` is a role, not a person. One person can hold several roles, and roles that share goals and capabilities are one `consumer`.
-- The `provider` is what the `consumer` believes it is using. The apps, servers and outside services that deliver it stay inside it until you open it.
-- A `boundary` points one way: from the `consumer`, who wants something, to the `provider`, who delivers it. A callback that delivers a result belongs to the `boundary` whose `capability` it completes.
-
-## Levels
-
-Level 1 shows the people and systems that use your system, and the system itself. Those boundaries are external. Every `boundary` below them is internal.
-
-A `provider` is also a `consumer` one level down. To deliver what it promises, it relies on its own components and on outside services. Opening it shows that next level: its components, what each one keeps, and the boundaries between them.
-
-A part of a `provider` is a `component` when it keeps state that only it changes, or makes decisions that only it makes, and the other parts reach it only through what it exposes. Storage, libraries and adapters to outside services are how a `component` keeps or reaches things, not components of their own.
-
-```text
-Inside Store                                         Level 2
-  Storefront: shopping and loyalty; serves Shopper › Shop, See loyalty balance
-  Payments: charging orders; serves Shopper › Shop
-  Storefront <-> Payments
-    Interfaces: charges API
-    Charge orders (core)
-      Charge order: produces Charge
-      Refund order: mutates Charge
-  Payments <-> Card network
-    Interfaces: card network API
-    Authorize card payment (core)
-      Authorize card payment: produces Card authorization
-```
-
-## What stays out
-
-- **How the system is built.** A runtime, a framework, a database or a deployment unit does not make a `boundary` by itself.
-- **Steps of a `capability`.** Checking a coupon is part of paying. It gives the `consumer` nothing of its own.
-- **What the `provider` does on its own.** A nightly job that builds a report is not something the `consumer` does. Reading the report is.
-- **Tools that work on the system rather than with it.** Build, deploy and migration tools, health checks and clean-up jobs are not boundaries. The map lists them as exclusions.
-
-## The `boundary map`
-
-- One JSON file records a system's current boundaries, at every level. A system has one map.
-- The map describes one revision of the code. A planned change does not go in it.
-- It lives at `docs/boundary-map.json` by default. A project that keeps it elsewhere records the path in its agent instructions, such as `AGENTS.md`.
-- A map is finished once a person has reviewed it.
-- The <RepoLink path="skills/use-boundary-model/references/map-format.md">map format</RepoLink> has a JSON schema and a checker, which needs Node 18 or later.
