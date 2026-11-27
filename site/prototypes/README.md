@@ -36,7 +36,7 @@ Open each file in a browser. They need no build.
 
 - Step 11 of the walkthrough says the card network "shows up once Payments opens". The 0.2.0 renderer also draws it on the Store screen, in the column of outside services, so the sentence may need rewording.
 - A Level 2 screen of the full map is about 1,500 pixels wide. In the walkthrough's text column it shows at 70% and scrolls sideways inside its frame. Steps 10 and 11 open on Catalog and on Shipping partner instead, which fit.
-- The value proposition, and the line under the headline, are still to be written. Page 01 shows the draft's line for now.
+- The value proposition is still to be written. The line under page 01's headline is set from a review comment: "From the idea to the spec: the Boundary model skills provide the agent with a roadmap on what to ask and clarify."
 - Pages 01 and 02 still use their own versions of the Store. Page 02's Storefront keeps products, where the walkthrough's Catalog does, and page 01 calls slices increments.
 - Whether the walkthrough's material is written by hand, like the README's Store map, or comes from running the skills on a small invented Store codebase. A real run makes every artifact on the page genuine output.
 - Which real maps page 06 shows, and which ones are reviewed first.
