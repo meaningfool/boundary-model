@@ -1,67 +1,86 @@
 ---
 // Page 02: one boundary of the Store, drawn, with a numbered key to the core concepts the page
-// defines above it. The key names them, as code, without definitions.
+// defines above it. The key names them, as code, without definitions. The boundary is its own line
+// between the Shopper and the Store, with the interfaces as dots on it. Inside the Store, a dashed
+// line keeps what shoppers can do apart from the components inside. Capabilities and resources
+// are both small chips: capabilities in the text face, resources in the mono face, each listed
+// under its label.
 const terms = [
-  ["consumer", [86, 131]],
-  ["provider", [120, 8]],
-  ["boundary", [120, 230]],
-  ["interface", [106, 120]],
-  ["capability", [292, 177]],
-  ["resource", [446, 258]],
+  ["consumer", [100, 118]],
+  ["provider", [210, 10]],
+  ["boundary", [150, 78]],
+  ["interface", [164, 106]],
+  ["capability", [418, 168]],
+  ["resource", [569, 154]],
+] as const;
+const capabilities = ["Browse products", "Place order", "List past orders", "See loyalty balance"];
+const storefront = [
+  ["Product", 490, 54],
+  ["Order", 548, 42],
+  ["Loyalty balance", 594, 96],
 ] as const;
 ---
 
 <figure class="fig not-content">
   <div class="scrollx">
-    <svg viewBox="-10 -10 700 322" role="img" aria-label="The Store example. The Shopper uses the Store through the web shop and the mobile app, to Shop and to See loyalty balance. Inside the Store: Storefront and Payments, and Payments uses the Card network.">
-      <text class="s-k" x="0" y="20">LEVEL 1</text>
-      <rect class="s-box" x="0.5" y="131" width="86" height="48" rx="3"></rect>
-      <text class="s-k" x="10" y="148">CONSUMER</text>
-      <text class="s-n" x="10" y="166">Shopper</text>
-      <path class="s-line" d="M86.5 155 C104 155 104 135 120 135"></path>
-      <path class="s-line" d="M86.5 155 C104 155 104 181 120 181"></path>
-      <rect class="s-frame" x="120" y="8" width="558" height="294" rx="2"></rect>
-      <text class="s-k" x="134" y="30">PROVIDER</text>
-      <text class="s-n" x="134" y="48">Store</text>
-      <text class="s-s" x="134" y="64">The shop as shoppers know it, on the web and in the mobile app.</text>
-      <line class="s-rule" x1="121" y1="78" x2="677" y2="78"></line>
-      <text class="s-k" x="130" y="100">INTERFACES</text>
-      <text class="s-k" x="212" y="100">CAPABILITIES</text>
-      <text class="s-k" x="388" y="100">COMPONENTS · LEVEL 2</text>
-      <circle class="s-dot" cx="120" cy="135" r="4"></circle>
-      <circle class="s-dot" cx="120" cy="181" r="4"></circle>
-      <text class="s-s" x="130" y="139">web shop</text>
-      <text class="s-s" x="130" y="185">mobile app</text>
-      <path class="s-line" d="M180 135 C196 135 196 165 212 165"></path>
-      <path class="s-line" d="M188 181 C200 181 200 165 212 165"></path>
-      <path class="s-line" d="M188 181 C200 181 200 252 212 252"></path>
-      <rect class="s-area" x="212" y="114" width="150" height="98" rx="3"></rect>
-      <text class="s-k" x="222" y="130">CORE AREA</text>
-      <text class="s-n" x="222" y="147">Shop</text>
-      <text class="s-s" x="222" y="166">Browse products</text>
-      <text class="s-s" x="222" y="181">Place order</text>
-      <text class="s-s" x="222" y="196">List past orders</text>
-      <rect class="s-area" x="212" y="226" width="150" height="52" rx="3"></rect>
-      <text class="s-k" x="222" y="242">SUPPORTING AREA</text>
-      <text class="s-n" x="222" y="260">See loyalty balance</text>
-      <path class="s-line" d="M362 165 C375 165 375 151 388 151"></path>
-      <path class="s-line" d="M362 165 C375 165 375 243 388 243"></path>
-      <path class="s-line" d="M362 252 C375 252 375 151 388 151"></path>
-      <rect class="s-box" x="388" y="114" width="128" height="74" rx="3"></rect>
-      <text class="s-k" x="398" y="130">COMPONENT</text>
-      <text class="s-n" x="398" y="148">Storefront</text>
-      <text class="s-r" x="398" y="165">Product · Order</text>
-      <text class="s-r" x="398" y="179">Loyalty balance</text>
-      <line class="s-line" x1="452" y1="188" x2="452" y2="210"></line>
-      <rect class="s-box" x="388" y="210" width="128" height="66" rx="3"></rect>
-      <text class="s-k" x="398" y="226">COMPONENT</text>
-      <text class="s-n" x="398" y="244">Payments</text>
-      <text class="s-r" x="398" y="262">Charge</text>
-      <line class="s-line" x1="516" y1="243" x2="536" y2="243"></line>
-      <rect class="s-out" x="536" y="210" width="130" height="66" rx="3"></rect>
-      <text class="s-k" x="546" y="226">OUTSIDE SERVICE</text>
-      <text class="s-n" x="546" y="244">Card network</text>
-      <text class="s-r" x="546" y="262">Card authorization</text>
+    <svg viewBox="0 0 720 316" role="img" aria-label="The Store example. The Shopper uses the Store across one boundary, through two interfaces, the web shop and the mobile app. The Store offers four capabilities: Browse products, Place order, List past orders and See loyalty balance. Inside the Store, at Level 2, Storefront keeps Product, Order and Loyalty balance, Payments keeps Charge, and Payments uses an outside service, the Card network.">
+      <text class="s-k" x="0" y="14">LEVEL 1</text>
+      <rect class="s-box" x="0.5" y="118" width="100" height="48" rx="4"></rect>
+      <text class="s-k" x="10" y="135">CONSUMER</text>
+      <text class="s-n" x="10" y="154">Shopper</text>
+      <path class="s-line" d="M101 142 C125 142 125 118 150 118"></path>
+      <path class="s-line" d="M101 142 C125 142 125 166 150 166"></path>
+      <line class="s-bnd" x1="150" y1="86" x2="150" y2="198"></line>
+      <circle class="s-dot" cx="150" cy="118" r="4.5"></circle>
+      <circle class="s-dot" cx="150" cy="166" r="4.5"></circle>
+      <text class="s-s" x="142" y="106" text-anchor="end">web shop</text>
+      <text class="s-s" x="142" y="186" text-anchor="end">mobile app</text>
+      <text class="s-k" x="150" y="214" text-anchor="middle">BOUNDARY</text>
+      <path class="s-line" d="M155 118 C200 118 200 150 236 150"></path>
+      <path class="s-line" d="M155 166 C200 166 200 170 236 170"></path>
+      <rect class="s-frame" x="210" y="10" width="508" height="300" rx="4"></rect>
+      <text class="s-k" x="226" y="30">PROVIDER</text>
+      <text class="s-n" x="226" y="48">Store</text>
+      <text class="s-s" x="226" y="64">Home goods, sold online</text>
+      <line class="s-div" x1="462" y1="84" x2="462" y2="298"></line>
+      <text class="s-k" x="236" y="96">WHAT SHOPPERS CAN DO</text>
+      <text class="s-k" x="478" y="96">INSIDE · COMPONENTS · LEVEL 2</text>
+      <rect class="s-group" x="236" y="106" width="206" height="136" rx="4"></rect>
+      <text class="s-k" x="248" y="122">CAPABILITIES</text>
+      {
+        capabilities.map((name, i) => (
+          <g>
+            <rect class="s-chip" x="248" y={132 + i * 26} width="170" height="20" rx="2" />
+            <text class="s-c" x="256" y={146 + i * 26}>
+              {name}
+            </text>
+          </g>
+        ))
+      }
+      <rect class="s-comp" x="478" y="106" width="226" height="86" rx="4"></rect>
+      <text class="s-k" x="490" y="122">COMPONENT</text>
+      <text class="s-n" x="490" y="140">Storefront</text>
+      <text class="s-k" x="490" y="160">RESOURCES</text>
+      {
+        storefront.map(([name, x, w]) => (
+          <g>
+            <rect class="s-chip" x={x} y="166" width={w} height="16" rx="2" />
+            <text class="s-r" x={x + 6} y="177">
+              {name}
+            </text>
+          </g>
+        ))
+      }
+      <line class="s-line" x1="591" y1="192" x2="591" y2="206"></line>
+      <rect class="s-comp" x="478" y="206" width="226" height="54" rx="4"></rect>
+      <text class="s-k" x="490" y="222">COMPONENT</text>
+      <text class="s-n" x="490" y="240">Payments</text>
+      <rect class="s-chip" x="600" y="229" width="50" height="16" rx="2"></rect>
+      <text class="s-r" x="606" y="240">Charge</text>
+      <line class="s-line" x1="591" y1="260" x2="591" y2="272"></line>
+      <rect class="s-out" x="478" y="272" width="226" height="30" rx="4"></rect>
+      <text class="s-k" x="490" y="285">OUTSIDE SERVICE</text>
+      <text class="s-c" x="490" y="297">Card network</text>
       {
         terms.map(([, [x, y]], i) => (
           <g class="s-mk">
@@ -99,7 +118,7 @@ const terms = [
   svg {
     display: block;
     width: 100%;
-    min-width: 540px;
+    min-width: 560px;
     height: auto;
   }
   .s-frame {
@@ -107,19 +126,21 @@ const terms = [
     stroke: var(--bm-fg);
     stroke-width: 1.4;
   }
-  .s-rule {
-    stroke: var(--bm-line);
-    stroke-width: 1;
-  }
-  .s-box {
+  .s-box,
+  .s-chip {
     fill: var(--bm-bg);
     stroke: var(--bm-line2);
     stroke-width: 1;
   }
-  .s-area {
+  .s-group {
     fill: var(--bm-panel);
     stroke: var(--bm-line2);
     stroke-width: 1;
+  }
+  .s-comp {
+    fill: var(--bm-bg);
+    stroke: var(--bm-fg2);
+    stroke-width: 1.2;
   }
   .s-out {
     fill: var(--bm-bg);
@@ -132,10 +153,20 @@ const terms = [
     stroke: var(--bm-fg4);
     stroke-width: 1;
   }
+  .s-div {
+    stroke: var(--bm-line2);
+    stroke-width: 1;
+    stroke-dasharray: 3 3;
+  }
+  .s-bnd {
+    stroke: var(--bm-fg);
+    stroke-width: 2.5;
+    stroke-linecap: round;
+  }
   .s-dot {
     fill: var(--bm-bg);
     stroke: var(--bm-fg);
-    stroke-width: 1.4;
+    stroke-width: 1.5;
   }
   .s-k {
     fill: var(--bm-fg3);
@@ -154,10 +185,16 @@ const terms = [
     font-family: var(--__sl-font);
     font-size: 10.5px;
   }
+  .s-c {
+    fill: var(--bm-fg);
+    font-family: var(--__sl-font);
+    font-size: 10.5px;
+    font-weight: 500;
+  }
   .s-r {
     fill: var(--bm-fg2);
     font-family: var(--__sl-font-mono);
-    font-size: 9.5px;
+    font-size: 9px;
   }
   .s-mk circle {
     fill: var(--bm-fg);
