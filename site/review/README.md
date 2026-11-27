@@ -36,6 +36,7 @@ Text from frontmatter carries a key instead of a line: the page title (`#title`)
 ## The overlay
 
 - Browse is the site as visitors see it. In Edit, click tagged text to change its source line. In Note, click anything, figures included, to leave a note about it. Escape closes a pop-up, then returns to Browse.
+- Text typed in a pop-up is kept as a draft in the viewer's browser at every keystroke, in `localStorage` under `bm-review-drafts`. Escape, Close, a mode change, a link or a reload, including the one a new version of the preview causes, never loses it. After a reload, the pop-up that was open reopens with its text, on its page. Only Save and Discard clear a draft, and Discard asks twice. Drafts also show under Changes, with Open and Discard.
 - In Edit mode the site's header and sidebar still navigate, so you can move between pages. Text without a tag is not editable, and a click on it offers a note instead.
 - A saved edit shows in place, its Markdown marks stripped, marked as pending until Claude answers.
 - Changes opens the list: each change's page, location, before and after or the note, its status and Claude's reply. A pending change can be deleted.

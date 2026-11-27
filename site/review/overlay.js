@@ -52,6 +52,8 @@
     collapsed: false,
     pop: null,
     reveal: null,
+    drafts: {}, // unsaved text, by draft key, kept on this device
+    openDraft: null, // the key of the pop-up to reopen after a reload or a new version
     view: { doc: null, page: null, info: null, rendered: new Map(), originals: new Map(), hover: null, focusable: [] },
   };
 
@@ -59,6 +61,78 @@
   const now = () => new Date().toISOString();
   const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
   const fileName = (path) => path.replace(/^src\/content\/docs\//, "");
+
+  // ---------------------------------------------------------------------------------------------
+  // Drafts: text typed in a pop-up is kept on this device at every keystroke, so a reload, a new
+  // version of the page, Escape, a mode change or a click on a link never loses it. Only Save and
+  // Discard clear it. The page that was open with a draft reopens it after a reload.
+
+  const DRAFTS = "bm-review-drafts";
+  const OPEN = "bm-review-open";
+  function loadDrafts() {
+    try {
+      state.drafts = JSON.parse(localStorage.getItem(DRAFTS) || "{}") || {};
+      state.openDraft = localStorage.getItem(OPEN) || null;
+    } catch {}
+    try {
+      const hot = window.claude?.hot?.data;
+      if (hot?.drafts) state.drafts = { ...hot.drafts, ...state.drafts };
+      if (!state.openDraft && hot?.openDraft) state.openDraft = hot.openDraft;
+    } catch {}
+  }
+  function storeDrafts() {
+    try {
+      localStorage.setItem(DRAFTS, JSON.stringify(state.drafts));
+      localStorage.setItem(OPEN, state.openDraft ?? "");
+    } catch {}
+  }
+  function keepDraft(key, draft) {
+    if (draft) state.drafts[key] = draft;
+    else {
+      delete state.drafts[key];
+      if (state.openDraft === key) state.openDraft = null;
+    }
+    storeDrafts();
+    render();
+  }
+  function setOpenDraft(key) {
+    if (state.openDraft === key) return;
+    state.openDraft = key;
+    storeDrafts();
+  }
+  try {
+    window.claude?.hot?.snapshot?.(() => ({ drafts: state.drafts, openDraft: state.openDraft }));
+  } catch {}
+
+  /** Where an element sits under the page's body, as child positions, to find it again later. */
+  function pathOf(el) {
+    const parts = [];
+    for (let e = el; e && e !== e.ownerDocument.body && e.parentElement; e = e.parentElement) parts.unshift([...e.parentElement.children].indexOf(e));
+    return parts.join(".");
+  }
+  function atPath(doc, path) {
+    let e = doc.body;
+    for (const i of path ? path.split(".") : []) e = e?.children?.[Number(i)];
+    return e ?? null;
+  }
+
+  /** A button that acts at once when there is nothing to lose, and asks once more when there is. */
+  function twoStep(button, label, risky, act) {
+    let armed = 0;
+    button.addEventListener("click", () => {
+      if (!risky() || armed) {
+        clearTimeout(armed);
+        armed = 0;
+        act();
+        return;
+      }
+      button.textContent = "Click again to discard";
+      armed = setTimeout(() => {
+        armed = 0;
+        button.textContent = label;
+      }, 4000);
+    });
+  }
 
   /** Build an element: attributes as properties or attributes, strings as text nodes. */
   function h(tag, attrs, ...children) {
@@ -292,6 +366,7 @@
         applyEdits();
         render();
         refreshSend();
+        resumeDraft();
       },
       (e) => {
         clearTimeout(timer);
@@ -421,6 +496,7 @@
       revealIn(src);
     }
     render();
+    resumeDraft();
   }
 
   function applyMode() {
@@ -448,7 +524,7 @@
 
   function setMode(mode) {
     if (mode !== "browse" && !canEditHere()) mode = "browse";
-    if (state.pop) closePop(false);
+    if (state.pop) closeKeeping(false);
     state.mode = mode;
     applyMode();
     render();
@@ -533,7 +609,7 @@
 
   function onKey(ev) {
     if (ev.key === "Escape") {
-      if (state.pop) closePop(true);
+      if (state.pop) closeKeeping();
       else if (state.panelOpen) togglePanel(false);
       else if (state.mode !== "browse") setMode("browse");
       else return;
@@ -619,6 +695,42 @@
     }
   }
 
+  /** Close the open pop-up on purpose: its text stays as a draft, but it will not reopen by itself. */
+  function closeKeeping(returnFocus = true) {
+    const pop = state.pop;
+    if (!pop) return;
+    const kept = pop.dirty?.();
+    if (pop.key && state.openDraft === pop.key) setOpenDraft(null);
+    closePop(returnFocus);
+    if (kept) flash("Your text is kept as a draft. Open the same spot again, or find it under Changes.");
+  }
+
+  /** Reopen the pop-up that was open with a draft before a reload, when its page is shown. */
+  function resumeDraft() {
+    const key = state.openDraft;
+    const d = key ? state.drafts[key] : null;
+    if (!d || state.pop || !state.view.doc || d.page !== state.view.page || !canChange()) return;
+    if (d.kind === "edit" && !state.sources) return;
+    const el = d.kind === "edit" ? [...state.view.doc.querySelectorAll("[data-src]")].find((e) => e.dataset.src === d.src) : atPath(state.view.doc, d.path);
+    if (!el) return;
+    if (state.mode !== d.kind) setMode(d.kind);
+    if (state.mode !== d.kind) return;
+    el.scrollIntoView({ block: "center" });
+    if (d.kind === "edit") openEdit(el);
+    else openNote(el);
+    flash("Your unsaved text is back.");
+  }
+
+  /** Open a draft from the list: go to its page, then reopen it there. */
+  function openDraftFromList(key) {
+    const d = state.drafts[key];
+    if (!d) return;
+    setOpenDraft(key);
+    togglePanel(false);
+    if (state.view.page === d.page) resumeDraft();
+    else frame.src = `site/${d.page}`;
+  }
+
   function placePop() {
     const pop = state.pop;
     if (!pop) return;
@@ -659,27 +771,47 @@
     const { cur, last } = chainFor(src);
     const initial = textOfLine(src, cur);
     const where = src.includes("#") ? `${fileName(src.split("#")[0])}, frontmatter ${src.split("#")[1]}` : `${fileName(src.split(":")[0])}, line ${src.split(":")[1]}`;
+    const key = `edit:${src}`;
+    const draft = state.drafts[key];
     const area = h("textarea", { id: "rv-text", rows: 4, spellcheck: "true", maxlength: MAX_TEXT, "aria-describedby": "rv-hint" });
-    area.value = initial;
+    area.value = draft?.text ?? initial;
     const err = h("p", { class: "rv-error", role: "alert" });
     const save = h("button", { class: "rv-btn rv-btn--solid", type: "button", text: "Save" });
-    const cancel = h("button", { class: "rv-btn", type: "button", text: "Cancel", onclick: () => closePop(true) });
+    const close = h("button", { class: "rv-btn", type: "button", text: "Close", onclick: () => closeKeeping() });
+    const discard = h("button", { class: "rv-btn rv-btn--quiet", type: "button", text: "Discard text" });
+    twoStep(discard, "Discard text", () => area.value !== initial, () => {
+      keepDraft(key, null);
+      closePop(true);
+      flash("Text discarded.");
+    });
     const remove =
       last?.status === "pending"
         ? h("button", { class: "rv-btn rv-btn--quiet", type: "button", text: "Undo change", onclick: () => run(() => deleteChange(last.id), "Change removed.") })
         : null;
-    const buttons = [save, cancel, remove].filter(Boolean);
+    const buttons = [save, close, discard, remove].filter(Boolean);
+    const page = state.view.page;
+    const loc = describe(el).location;
+    const sync = () => {
+      const changed = area.value !== initial;
+      discard.hidden = !changed;
+      if (changed) {
+        keepDraft(key, { kind: "edit", page, src, where: loc, text: area.value, at: now() });
+        setOpenDraft(key);
+      } else if (state.drafts[key]) keepDraft(key, null);
+    };
+    area.addEventListener("input", sync);
     const content = [
       ...popHead("Edit text", where),
+      draft ? h("p", { class: "rv-pop-text rv-restored", text: "Your unsaved text is back. Save it, or discard it to start over." }) : null,
       last
         ? h("p", { class: "rv-pop-text", text: last.status === "pending" ? "This line has a pending change. Saving replaces it." : `This line has a change that is ${STATUS_LABEL[last.status].toLowerCase()}. Saving adds a new one.` })
         : null,
       cur !== tag.before ? h("details", {}, h("summary", { text: "Text in this preview" }), h("p", { text: tag.text })) : null,
       h("label", { class: "rv-field", for: "rv-text", text: "Source text" }),
       area,
-      h("p", { class: "rv-hint", id: "rv-hint", text: "Markdown marks stay as written. Enter saves, Escape cancels." }),
+      h("p", { class: "rv-hint", id: "rv-hint", text: "Markdown marks stay as written. Enter saves. Escape or Close keeps your text as a draft." }),
       err,
-      actions(save, cancel, h("span", { class: "rv-spacer" }), remove),
+      actions(save, close, h("span", { class: "rv-spacer" }), discard, remove),
     ];
     async function run(fn, done) {
       err.textContent = "";
@@ -701,7 +833,11 @@
         return;
       }
       save.textContent = "Saving…";
-      run(() => saveEdit(el, src, text));
+      run(async () => {
+        const msg = await saveEdit(el, src, text);
+        keepDraft(key, null);
+        return msg;
+      });
     };
     save.addEventListener("click", doSave);
     area.addEventListener("keydown", (ev) => {
@@ -710,7 +846,8 @@
         if (!ev.shiftKey) doSave();
       }
     });
-    openPop({ kind: "edit", el, src, dirty: () => area.value !== initial }, content, area);
+    openPop({ kind: "edit", el, src, key, dirty: () => area.value !== initial }, content, area);
+    discard.hidden = area.value === initial;
     area.setSelectionRange(area.value.length, area.value.length);
   }
 
@@ -746,10 +883,29 @@
 
   function openNote(el) {
     const where = describe(el);
+    const path = pathOf(el);
+    const key = `note:${state.view.page}:${path}`;
+    const draft = state.drafts[key];
     const area = h("textarea", { id: "rv-text", rows: 5, maxlength: MAX_TEXT, placeholder: "What should change here?", "aria-describedby": "rv-hint" });
+    area.value = draft?.text ?? "";
     const err = h("p", { class: "rv-error", role: "alert" });
     const save = h("button", { class: "rv-btn rv-btn--solid", type: "button", text: "Save note" });
-    const cancel = h("button", { class: "rv-btn", type: "button", text: "Cancel", onclick: () => closePop(true) });
+    const cancel = h("button", { class: "rv-btn", type: "button", text: "Close", onclick: () => closeKeeping() });
+    const discard = h("button", { class: "rv-btn rv-btn--quiet", type: "button", text: "Discard text" });
+    twoStep(discard, "Discard text", () => area.value.trim() !== "", () => {
+      keepDraft(key, null);
+      closePop(true);
+      flash("Text discarded.");
+    });
+    const sync = () => {
+      const typed = area.value.trim() !== "";
+      discard.hidden = !typed;
+      if (typed) {
+        keepDraft(key, { kind: "note", page: state.view.page, path, where: where.location, text: area.value, at: now() });
+        setOpenDraft(key);
+      } else if (state.drafts[key]) keepDraft(key, null);
+    };
+    area.addEventListener("input", sync);
     const mac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
     const doSave = async () => {
       const note = area.value.trim();
@@ -763,6 +919,7 @@
       try {
         const before = where.src ? chainFor(where.src).cur : null;
         await create({ kind: "note", ...where, before, after: null, note });
+        keepDraft(key, null);
         closePop(true);
         flash("Note saved. It is pending.");
       } catch (e) {
@@ -778,17 +935,19 @@
       }
     });
     openPop(
-      { kind: "note", el, dirty: () => area.value.trim() !== "" },
+      { kind: "note", el, key, dirty: () => area.value.trim() !== "" },
       [
         ...popHead("Note", where.location),
+        draft ? h("p", { class: "rv-pop-text rv-restored", text: "Your unsaved note is back. Save it, or discard it to start over." }) : null,
         h("label", { class: "rv-field", for: "rv-text", text: "Your note" }),
         area,
-        h("p", { class: "rv-hint", id: "rv-hint", text: `${mac ? "Command" : "Ctrl"} and Enter saves. Escape cancels.` }),
+        h("p", { class: "rv-hint", id: "rv-hint", text: `${mac ? "Command" : "Ctrl"} and Enter saves. Escape or Close keeps your text as a draft.` }),
         err,
-        actions(save, cancel),
+        actions(save, cancel, h("span", { class: "rv-spacer" }), discard),
       ],
       area,
     );
+    discard.hidden = area.value.trim() === "";
   }
 
   function openInfo(el, text) {
@@ -815,13 +974,35 @@
       ["Answered", state.changes.filter((c) => !["pending", "sent"].includes(c.status))],
     ];
     const body = [];
-    if (!state.changes.length) body.push(h("p", { class: "rv-empty", text: "No changes yet. Choose Edit or Note, then click the page." }));
+    const drafts = Object.entries(state.drafts).sort((a, b) => String(b[1].at).localeCompare(String(a[1].at)));
+    if (drafts.length) {
+      body.push(h("h3", { class: "rv-group", text: `Unsaved drafts (${drafts.length})` }));
+      body.push(h("ul", { class: "rv-list" }, drafts.map(([key, d]) => draftItem(key, d))));
+    }
+    if (!state.changes.length && !drafts.length) body.push(h("p", { class: "rv-empty", text: "No changes yet. Choose Edit or Note, then click the page." }));
     for (const [title, list] of groups) {
       if (!list.length) continue;
       body.push(h("h3", { class: "rv-group", text: `${title} (${list.length})` }));
       body.push(h("ul", { class: "rv-list" }, list.sort(byCreated).reverse().map(item)));
     }
     ui.panelBody.replaceChildren(...body);
+  }
+
+  function draftItem(key, d) {
+    const open = h("button", { class: "rv-btn", type: "button", text: "Open", onclick: () => openDraftFromList(key) });
+    const discard = h("button", { class: "rv-btn rv-btn--quiet", type: "button", text: "Discard" });
+    twoStep(discard, "Discard", () => true, () => {
+      keepDraft(key, null);
+      flash("Draft discarded.");
+    });
+    return h(
+      "li",
+      { class: "rv-item" },
+      h("div", { class: "rv-item-head" }, h("span", { class: "rv-tag", text: d.kind === "note" ? "Note" : "Edit" }), h("span", { class: "rv-tag rv-tag--status", "data-status": "draft", text: "Not saved" })),
+      h("p", { class: "rv-loc", text: String(d.where ?? d.page ?? "") }),
+      h("p", { class: "rv-note", text: excerpt(light(String(d.text ?? "")), 200) }),
+      h("div", { class: "rv-item-actions" }, canChange() ? open : null, discard),
+    );
   }
 
   function item(c) {
@@ -1002,7 +1183,7 @@
   function render() {
     const changing = canChange();
     const pending = state.changes.filter((c) => c.status === "pending").length;
-    const hasList = state.phase === "ready" && (changing || state.changes.length > 0);
+    const hasList = (state.phase === "ready" && (changing || state.changes.length > 0)) || Object.keys(state.drafts).length > 0;
 
     ui.bar.hidden = state.collapsed;
     ui.bar.classList.toggle("rv-bar--quiet", !changing && !hasList);
@@ -1018,7 +1199,7 @@
     ui.list.setAttribute("aria-expanded", String(state.panelOpen && hasList));
     ui.panel.hidden = !(state.panelOpen && hasList) || state.collapsed;
     // Rebuild the list only when what it shows changed, so focus and a pending "Confirm delete" stay.
-    const key = ui.panel.hidden ? "" : JSON.stringify([state.changes, changing, Boolean(state.sources)]);
+    const key = ui.panel.hidden ? "" : JSON.stringify([state.changes, state.drafts, changing, Boolean(state.sources)]);
     if (key && key !== panelKey) renderPanel();
     panelKey = key;
 
@@ -1067,6 +1248,11 @@
   try {
     state.collapsed = localStorage.getItem("bm-review-collapsed") === "1";
   } catch {}
+  loadDrafts();
+  {
+    const d = state.openDraft ? state.drafts[state.openDraft] : null;
+    if (d?.page && d.page !== "index.html") frame.src = `site/${d.page}`;
+  }
 
   frame.addEventListener("load", bindFrame);
   try {
