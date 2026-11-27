@@ -23,7 +23,8 @@ Open each file in a browser. They need no build.
 
 ## Decisions so far
 
-- **Stack, hosting and look:** as in issue #7. Astro with Starlight, the static build served by Cloudflare Workers, and executor.sh's quiet monochrome style with Geist and Geist Mono.
+- **Stack and hosting:** as in issue #7. Astro with Starlight, the static build served by Cloudflare Workers.
+- **Look:** a documentation site first, branded from the Codebase illustration at the top of page 01, a cut-paper elephant made with an image model. Warm off-white paper and warm greys, and a warm near-black in dark mode. The illustration's teal is the one working accent: links, the current page, the main button. Its ochre marks the logo's dot, and soft teal and ochre tints mark NEW and MODIFIED. Bricolage Grotesque, close to the illustration's lettering, sets the headline and the page titles; Geist sets the text and Geist Mono the labels. This replaces executor.sh's monochrome look. Two bolder versions, the whole site on the illustration's cream and a cream cover on page 01 only, were set aside as too much like a poster.
 - **Navigation:** one numbered list of pages in the left sidebar, with no Docs link. No right column and no list of the page's sections: if a page needs one later, it goes under that page in the left sidebar. GitHub, the version and the licence sit at the foot of the sidebar. There is no search box and no theme switch: the site follows the device's light or dark setting.
 - **Pages:** 01 What it is and why, which is the home page; 02 The boundary model; 03 How the skills work together; 04 Install; 05 In the wild. `site-draft.html` still shows the earlier single page 05, An example.
 - **The Store example lives on page 02:** a few short steps, each with a small static diagram, that illustrate the concepts the page defines, from the outside in. No map viewer, and no full walk through a change. The longer design in `walkthrough/a-store/` stays as background.
@@ -37,6 +38,7 @@ Open each file in a browser. They need no build.
 
 - The value proposition is still to be written. The line under page 01's headline is set from a review comment: "From the idea to the spec: the Boundary model skills provide the agent with a roadmap on what to ask and clarify."
 - Page 01 calls slices increments.
+- `src/assets/codebase.webp` is the first version of the illustration, with speech bubbles but no logos. The version with the agents' logos on the three figures replaces it at the same path; the alt text already describes that version.
 - The Store's maps in `../maps/store/` are still drawn on every build, but no page shows them since the walkthrough folded into page 02. Page 05's maps decide whether the map frames and the drawing script stay.
 - Which real maps page 05 shows, and which ones are reviewed first.
 - Pi's review was started at the top level, then paused on three questions. Are Pi's seven libraries separate Level 1 providers? The draft says yes, since each is its own npm product. Is Settings a resource, given that `use-boundary-model` asks to check that a resource is not a setting? And is Model response a resource, or the output of the capabilities that produce it?

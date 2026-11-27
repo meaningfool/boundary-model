@@ -43,22 +43,22 @@ tangle += " Q70 30 78 62";
           <div class="bgroup">
             <div class="bhead">
               <span class="klab">External boundary</span>
-              <span class="bname">Shopper ↔ Store<span class="tag">MODIFIED</span></span>
+              <span class="bname">Shopper ↔ Store<span class="tag mod">MODIFIED</span></span>
             </div>
             <ul>
-              <li><span class="tag">NEW</span><span class="kind">resource</span><b>Gift card</b></li>
-              <li><span class="tag">MODIFIED</span><span class="kind">capability</span><b>Place order</b><span class="mode">mutates Gift card</span></li>
-              <li><span class="tag">NEW</span><span class="kind">capability</span><b>See gift card balance</b><span class="mode">observes Gift card</span></li>
+              <li><span class="tag new">NEW</span><span class="kind">resource</span><b>Gift card</b></li>
+              <li><span class="tag mod">MODIFIED</span><span class="kind">capability</span><b>Place order</b><span class="mode">mutates Gift card</span></li>
+              <li><span class="tag new">NEW</span><span class="kind">capability</span><b>See gift card balance</b><span class="mode">observes Gift card</span></li>
             </ul>
           </div>
           <div class="bgroup">
             <div class="bhead">
               <span class="klab">Internal boundary</span>
-              <span class="bname">Storefront ↔ Payments<span class="tag">MODIFIED</span></span>
+              <span class="bname">Storefront ↔ Payments<span class="tag mod">MODIFIED</span></span>
             </div>
             <ul>
-              <li><span class="tag">MODIFIED</span><span class="kind">capability</span><b>Charge order</b><span class="mode">mutates Gift card</span></li>
-              <li><span class="tag">MODIFIED</span><span class="kind">capability</span><b>Refund order</b><span class="mode">mutates Gift card</span></li>
+              <li><span class="tag mod">MODIFIED</span><span class="kind">capability</span><b>Charge order</b><span class="mode">mutates Gift card</span></li>
+              <li><span class="tag mod">MODIFIED</span><span class="kind">capability</span><b>Refund order</b><span class="mode">mutates Gift card</span></li>
             </ul>
           </div>
         </div>
@@ -76,14 +76,14 @@ tangle += " Q70 30 78 62";
       <div class="fvis slices">
         <div class="sframe">
           <span class="klab">Increment 1 · Pay on the web</span>
-          <div class="mcard"><span class="tag">NEW</span>Gift card</div>
-          <div class="mcard"><span class="tag">MODIFIED</span>Charge order</div>
-          <div class="mcard"><span class="tag">MODIFIED</span>Refund order</div>
+          <div class="mcard"><span class="tag new">NEW</span>Gift card</div>
+          <div class="mcard"><span class="tag mod">MODIFIED</span>Charge order</div>
+          <div class="mcard"><span class="tag mod">MODIFIED</span>Refund order</div>
           <div class="mcard"><span class="tag cut">SPLIT</span>Place order<small>web shop</small></div>
         </div>
         <div class="sframe">
           <span class="klab">Increment 2 · See the balance</span>
-          <div class="mcard"><span class="tag">NEW</span>See gift card balance</div>
+          <div class="mcard"><span class="tag new">NEW</span>See gift card balance</div>
         </div>
         <div class="sframe">
           <span class="klab">Increment 3 · Pay in the app</span>
@@ -159,7 +159,7 @@ tangle += " Q70 30 78 62";
     top: 26px;
     bottom: 26px;
     width: 2px;
-    background: linear-gradient(var(--bm-line2), var(--bm-fg));
+    background: linear-gradient(var(--bm-line2), var(--bm-accent));
   }
   ol,
   ul {
@@ -247,6 +247,16 @@ tangle += " Q70 30 78 62";
     letter-spacing: 0.05em;
     line-height: 14px;
     vertical-align: 1px;
+  }
+  .tag.new {
+    border-color: transparent;
+    background: var(--bm-new-bg);
+    color: var(--bm-new-fg);
+  }
+  .tag.mod {
+    border-color: transparent;
+    background: var(--bm-mod-bg);
+    color: var(--bm-mod-fg);
   }
   .tag.cut {
     border-style: dashed;

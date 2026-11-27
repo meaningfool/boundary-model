@@ -1,10 +1,14 @@
-/* Quiet and monochrome, after executor.sh: white paper, black text, grey secondary text, hairline
-   dividers, no accent colour. Geist for text, Geist Mono for labels and indexes. The --bm-* tokens
-   hold the values; Starlight's own colour tokens are set from them, for each theme. */
+/* A documentation site first, branded from the Codebase illustration on page 01. Warm off-white
+   paper and warm greys; the illustration's teal is the one working accent, for links, the current
+   page and the main action; its ochre, teal and red tint the marks of change; Bricolage Grotesque,
+   close to the cut-paper lettering, sets the page titles only. Geist for text, Geist Mono for
+   labels. The --bm-* tokens hold the values; Starlight's own colour tokens are set from them, for
+   each theme. */
 
 :root {
   --sl-font: "Geist Variable";
   --sl-font-mono: "Geist Mono Variable";
+  --bm-font-title: "Bricolage Grotesque Variable", var(--__sl-font);
   --sl-sidebar-width: 15rem;
   --sl-content-width: 42.5rem;
   --sl-text-h2: 1.375rem;
@@ -14,33 +18,47 @@
   --sl-line-height-headings: 1.35;
 }
 
-/* Dark: Starlight's default theme. */
+/* Dark: Starlight's default theme. A warm near-black, the teal lifted so it reads. */
 :root,
 ::backdrop {
-  --bm-bg: #0b0b0b;
-  --bm-fg: #ededed;
-  --bm-fg2: #a3a3a3;
-  --bm-fg3: #858585;
-  --bm-fg4: #5f5f5f;
-  --bm-line: #222222;
-  --bm-line2: #383838;
-  --bm-panel: #121212;
-  --bm-inv-bg: #ededed;
-  --bm-inv-fg: #0b0b0b;
+  --bm-bg: #131311;
+  --bm-fg: #efe9df;
+  --bm-fg2: #b8b0a3;
+  --bm-fg3: #8f877b;
+  --bm-fg4: #645e55;
+  --bm-line: #26241f;
+  --bm-line2: #3a3730;
+  --bm-panel: #1a1916;
+  --bm-accent: #7cc2bc;
+  --bm-ochre: #e8a23a;
+  --bm-inv-bg: #7cc2bc;
+  --bm-inv-fg: #0f1e1d;
+  --bm-select: #234845;
+  --bm-new-bg: #17312f;
+  --bm-new-fg: #9fd6d0;
+  --bm-mod-bg: #3a2a0d;
+  --bm-mod-fg: #f0c26f;
 }
 
 :root[data-theme="light"],
 [data-theme="light"] ::backdrop {
-  --bm-bg: #ffffff;
-  --bm-fg: #111111;
-  --bm-fg2: #666666;
-  --bm-fg3: #888888;
-  --bm-fg4: #aaaaaa;
-  --bm-line: #ebebeb;
-  --bm-line2: #d4d4d4;
-  --bm-panel: #fafafa;
-  --bm-inv-bg: #111111;
+  --bm-bg: #fbf8f2;
+  --bm-fg: #1f1e1a;
+  --bm-fg2: #57524a;
+  --bm-fg3: #756d61;
+  --bm-fg4: #a39a8c;
+  --bm-line: #ece5d9;
+  --bm-line2: #dbd1c1;
+  --bm-panel: #f5f0e6;
+  --bm-accent: #165356;
+  --bm-ochre: #df8901;
+  --bm-inv-bg: #165356;
   --bm-inv-fg: #ffffff;
+  --bm-select: #cfe3e0;
+  --bm-new-bg: #e2eeec;
+  --bm-new-fg: #12484b;
+  --bm-mod-bg: #f8e9cc;
+  --bm-mod-fg: #7a4a00;
 }
 
 :root,
@@ -57,10 +75,10 @@
   --sl-color-gray-7: var(--bm-panel);
   --sl-color-black: var(--bm-bg);
   --sl-color-accent-low: var(--bm-panel);
-  --sl-color-accent: var(--bm-fg);
-  --sl-color-accent-high: var(--bm-fg);
+  --sl-color-accent: var(--bm-accent);
+  --sl-color-accent-high: var(--bm-accent);
   --sl-color-text: var(--bm-fg2);
-  --sl-color-text-accent: var(--bm-fg);
+  --sl-color-text-accent: var(--bm-accent);
   --sl-color-text-invert: var(--bm-inv-fg);
   --sl-color-bg: var(--bm-bg);
   --sl-color-bg-nav: var(--bm-bg);
@@ -70,6 +88,15 @@
   --sl-color-hairline-light: var(--bm-line);
   --sl-color-hairline: var(--bm-line);
   --sl-color-hairline-shade: var(--bm-line);
+}
+
+::selection {
+  background: var(--bm-select);
+  color: var(--bm-fg);
+}
+
+:focus-visible {
+  outline-color: var(--bm-accent);
 }
 
 body {
@@ -116,11 +143,11 @@ body {
 .sl-markdown-content a:not(:where(.not-content *)) {
   color: var(--bm-fg);
   text-decoration: underline;
-  text-decoration-color: var(--bm-line2);
+  text-decoration-color: color-mix(in srgb, var(--bm-accent) 55%, transparent);
   text-underline-offset: 3px;
 }
 .sl-markdown-content a:not(:where(.not-content *)):hover {
-  text-decoration-color: var(--bm-fg);
+  text-decoration-color: var(--bm-accent);
 }
 .sl-markdown-content code:not(:where(.not-content *, pre *)) {
   padding: 0.1em 0.3em;

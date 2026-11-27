@@ -1,12 +1,15 @@
 ---
-// Page 01's headline, whose second part turns grey, then one solid button and one dashed button.
-// The title may hold a <span class="dim"> for the grey part. An action with a `data-copy` attribute
+// Page 01's headline, whose second part turns to the accent, then one solid button and one
+// outlined button, then the hero image, framed at the text's width. The title may hold a
+// <span class="dim"> for the accent part. An action with a `data-copy` attribute
 // becomes a button that copies that text, a prompt for your agent; its link is the fallback when
 // the browser refuses to copy. The tagline may hold `code` spans.
+import { Image } from "astro:assets";
 import { inline } from "../inline";
 
 const { data } = Astro.locals.starlightRoute.entry;
-const { title = data.title, tagline, actions = [] } = data.hero ?? {};
+const { title = data.title, tagline, image, actions = [] } = data.hero ?? {};
+const file = image && "file" in image ? image.file : undefined;
 ---
 
 <header class="hero">
@@ -30,6 +33,13 @@ const { title = data.title, tagline, actions = [] } = data.hero ?? {};
           ),
         )}
       </div>
+    )
+  }
+  {
+    file && (
+      <figure class="art">
+        <Image src={file} alt={image?.alt ?? ""} widths={[680, 1020, 1360]} sizes="(min-width: 50rem) 680px, 100vw" loading="eager" />
+      </figure>
     )
   }
 </header>
@@ -57,19 +67,21 @@ const { title = data.title, tagline, actions = [] } = data.hero ?? {};
   h1 {
     margin: 0;
     color: var(--bm-fg);
-    font-size: 42px;
-    font-weight: 600;
-    letter-spacing: -0.03em;
-    line-height: 1.12;
+    font-family: var(--bm-font-title);
+    font-size: 35px;
+    font-stretch: 94%;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
     text-wrap: balance;
   }
   h1 :global(.dim) {
-    color: var(--bm-fg4);
+    color: var(--bm-accent);
   }
   .lede {
     max-width: 600px;
     margin: 22px 0 0;
-    color: var(--bm-fg3);
+    color: var(--bm-fg2);
     font-size: 17px;
     line-height: 1.65;
   }
@@ -100,12 +112,11 @@ const { title = data.title, tagline, actions = [] } = data.hero ?? {};
     cursor: pointer;
   }
   .btn-dash {
-    border: 1px dashed var(--bm-line2);
+    border: 1px solid var(--bm-line2);
     background: transparent;
-    color: var(--bm-fg2);
+    color: var(--bm-fg);
   }
   .btn-dash:hover {
-    color: var(--bm-fg);
     border-color: var(--bm-fg3);
   }
   .glyph {
@@ -116,9 +127,21 @@ const { title = data.title, tagline, actions = [] } = data.hero ?? {};
     font-family: var(--__sl-font-mono);
     font-size: 12px;
   }
+  .art {
+    margin: 36px 0 0;
+  }
+  .art img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 12px;
+  }
+  :global([data-theme="dark"]) .art img {
+    box-shadow: 0 0 0 1px var(--bm-line2);
+  }
   @media (max-width: 40rem) {
     h1 {
-      font-size: 31px;
+      font-size: 30px;
     }
     .lede {
       font-size: 16px;

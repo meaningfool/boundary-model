@@ -26,7 +26,12 @@ export default defineConfig({
         "install",
         "in-the-wild",
       ],
-      customCss: ["@fontsource-variable/geist", "@fontsource-variable/geist-mono", "./src/styles/theme.css"],
+      customCss: [
+        "@fontsource-variable/geist",
+        "@fontsource-variable/geist-mono",
+        "@fontsource-variable/bricolage-grotesque/standard.css",
+        "./src/styles/theme.css",
+      ],
       components: {
         Header: "./src/components/starlight/Header.astro",
         Hero: "./src/components/starlight/Hero.astro",
@@ -38,14 +43,14 @@ export default defineConfig({
       },
       expressiveCode: {
         themes: ["min-dark", "min-light"],
-        // No colour: text in the theme's ink, comments and markup punctuation in grey.
+        // No colour: text in the site's ink, comments and markup punctuation in its warm grey.
         customizeTheme(theme) {
           const dark = theme.type === "dark";
           for (const rule of theme.settings) {
             if (!rule.settings?.foreground) continue;
             const scopes = [rule.scope ?? []].flat().join(" ");
             const quiet = /comment|punctuation/.test(scopes);
-            rule.settings.foreground = quiet ? (dark ? "#858585" : "#888888") : dark ? "#ededed" : "#111111";
+            rule.settings.foreground = quiet ? (dark ? "#8f877b" : "#756d61") : dark ? "#efe9df" : "#1f1e1a";
           }
           return theme;
         },
