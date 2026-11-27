@@ -1,10 +1,11 @@
 ---
-// Page 01: boundaries level by level, as a drill-down. Each level opens the provider above it.
+// Page 01: boundaries level by level, as a drill-down. Each level opens the provider above it. At
+// level 1 the two interfaces are named beside their dots on the boundary.
 ---
 
 <figure class="cmodel not-content">
   <div class="scrollx">
-    <svg viewBox="0 0 680 366" role="img" aria-label="Level 1: a user reaches your system through two interfaces on the external boundary, and your system holds components A, B and C. Opening your system shows level 2: component A uses component B through two interfaces on an internal boundary, and B holds B1 and B2. Opening B shows level 3, faded: B1 uses B2 across another internal boundary.">
+    <svg viewBox="0 0 680 366" role="img" aria-label="Level 1: a user reaches your system through two interfaces, a UI and a CLI, on the external boundary, and your system holds components A, B and C. Opening your system shows level 2: component A uses component B across an internal boundary, and B holds B1 and B2. Opening B shows level 3, faded: B1 uses B2 across another internal boundary.">
       <text class="m-kb" x="0" y="11">LEVEL 1 · EXTERNAL BOUNDARY</text>
       <rect class="m-box" x="0.5" y="26" width="100" height="58" rx="6"></rect>
       <text class="m-k" x="12" y="43">CONSUMER</text>
@@ -19,8 +20,9 @@
       <text class="m-k" x="136" y="102" text-anchor="middle">BOUNDARY</text>
       <path class="m-line" d="M140 44 L212 44"></path>
       <path class="m-line" d="M140 66 L212 66"></path>
-      <text class="m-i" x="145" y="40">interface</text>
-      <text class="m-i" x="145" y="62">interface</text>
+      <text class="m-k" x="145" y="26">INTERFACES</text>
+      <text class="m-i" x="145" y="40">UI</text>
+      <text class="m-i" x="145" y="62">CLI</text>
       <rect class="m-box" x="212" y="20" width="220" height="72" rx="6"></rect>
       <text class="m-k" x="226" y="37">PROVIDER</text>
       <text class="m-n" x="226" y="56">Your system</text>
@@ -39,16 +41,14 @@
       <line class="m-bnd" x1="326" y1="152" x2="326" y2="222"></line>
       <circle class="m-dot" cx="326" cy="176" r="4"></circle>
       <circle class="m-dot" cx="326" cy="196" r="4"></circle>
-      <path class="m-line" d="M330 176 L392 176"></path>
-      <path class="m-line" d="M330 196 L392 196"></path>
-      <text class="m-i" x="335" y="172">interface</text>
-      <text class="m-i" x="335" y="192">interface</text>
-      <rect class="m-box" x="392" y="152" width="218" height="72" rx="6"></rect>
-      <text class="m-k" x="406" y="169">PROVIDER</text>
-      <text class="m-n" x="406" y="188">B</text>
-      <rect class="m-in" x="406" y="196" width="68" height="20" rx="3"></rect><text class="m-c" x="440" y="210">B1</text>
-      <rect class="m-in" x="482" y="196" width="68" height="20" rx="3"></rect><text class="m-c" x="516" y="210">B2</text>
-      <path class="m-zoom" d="M392 224 L416 262"></path>
+      <path class="m-line" d="M330 176 L356 176"></path>
+      <path class="m-line" d="M330 196 L356 196"></path>
+      <rect class="m-box" x="356" y="152" width="254" height="72" rx="6"></rect>
+      <text class="m-k" x="370" y="169">PROVIDER</text>
+      <text class="m-n" x="370" y="188">B</text>
+      <rect class="m-in" x="370" y="196" width="68" height="20" rx="3"></rect><text class="m-c" x="404" y="210">B1</text>
+      <rect class="m-in" x="446" y="196" width="68" height="20" rx="3"></rect><text class="m-c" x="480" y="210">B2</text>
+      <path class="m-zoom" d="M356 224 L416 262"></path>
       <path class="m-zoom" d="M610 224 L678 262"></path>
       <g class="m-l3">
         <rect class="m-zone" x="416" y="262" width="262" height="100" rx="8"></rect>
@@ -63,7 +63,6 @@
       </g>
     </svg>
   </div>
-  <figcaption>Each level has the same shape: a <code>consumer</code>, a <code>boundary</code>, a <code>provider</code>. Level 1 boundaries, with the people and systems that use yours, are external. Every <code>boundary</code> below is internal.</figcaption>
 </figure>
 
 <style>
@@ -81,13 +80,6 @@
     width: 100%;
     min-width: 520px;
     height: auto;
-  }
-  figcaption {
-    margin-top: 10px;
-    color: var(--bm-fg3);
-    font-family: var(--__sl-font-mono);
-    font-size: 11.5px;
-    line-height: 1.6;
   }
   .m-box {
     fill: var(--bm-bg);
@@ -132,11 +124,11 @@
     font-size: 8.5px;
     letter-spacing: 0.08em;
   }
-  /* An interface, named beside its dot on the boundary. */
+  /* An interface's name, beside its dot on the boundary. */
   .m-i {
-    fill: var(--bm-fg2);
+    fill: var(--bm-fg);
     font-family: var(--__sl-font-mono);
-    font-size: 8px;
+    font-size: 9px;
   }
   .m-kb {
     fill: var(--bm-fg);
