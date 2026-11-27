@@ -134,23 +134,6 @@ body {
   color: var(--bm-fg3);
 }
 
-/* On this page */
-starlight-toc h2,
-mobile-starlight-toc .toggle {
-  color: var(--bm-fg);
-  font-size: 14px;
-  font-weight: 500;
-}
-starlight-toc a {
-  color: var(--bm-fg3);
-  font-size: 13.5px;
-  line-height: 1.4;
-}
-starlight-toc a:hover,
-starlight-toc a[aria-current="true"] {
-  color: var(--bm-fg);
-}
-
 /* Previous and next */
 .pagination-links a {
   border-color: var(--bm-line);
@@ -193,11 +176,6 @@ starlight-tabs [role="tab"] {
 starlight-tabs [role="tab"][aria-selected="true"] {
   color: var(--bm-fg);
   border-color: var(--bm-fg);
-}
-
-/* The page title is already at the top: list only the page's sections. */
-starlight-toc li:has(> a[href="#_top"]) {
-  display: none;
 }
 
 /* The menu button, at phone and tablet width: a quiet outlined button, not a floating disc. */

@@ -17,7 +17,8 @@ export default defineConfig({
       description: "Agent skills that keep a shared map of your system, for you and your agent, and plan changes against it.",
       // No search box: the site has six pages.
       pagefind: false,
-      tableOfContents: { minHeadingLevel: 2, maxHeadingLevel: 3 },
+      // No list of the page's sections, on the right or at the top on phones.
+      tableOfContents: false,
       sidebar: [
         { label: "What it is and why", link: "/" },
         "model",

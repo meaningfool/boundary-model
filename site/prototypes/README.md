@@ -24,7 +24,7 @@ Open each file in a browser. They need no build.
 ## Decisions so far
 
 - **Stack, hosting and look:** as in issue #7. Astro with Starlight, the static build served by Cloudflare Workers, and executor.sh's quiet monochrome style with Geist and Geist Mono.
-- **Navigation:** one numbered list of pages in the left sidebar, with no Docs link. The right column lists the current page's sections, on every page. GitHub, the version and the licence sit at the foot of the sidebar. There is no search box and no theme switch: the site follows the device's light or dark setting.
+- **Navigation:** one numbered list of pages in the left sidebar, with no Docs link. No right column and no list of the page's sections: if a page needs one later, it goes under that page in the left sidebar. GitHub, the version and the licence sit at the foot of the sidebar. There is no search box and no theme switch: the site follows the device's light or dark setting.
 - **Pages:** 01 What it is and why, which is the home page; 02 The boundary model; 03 How the skills work together; 04 Install; 05 A walkthrough; 06 In the wild. `site-draft.html` still shows the earlier single page 05, An example.
 - **05 A walkthrough:** a simple invented example, the Store, taught outside in and then followed through one change, gift cards, from its shape to the issues. The design is in `walkthrough/a-store/`. It stands on its own: the examples on pages 01 and 02 are not final and may change to match it.
 - **06 In the wild:** maps of real open-source projects, embedded as interactive pages, like `boundary-maps.html`. Nine draft maps exist so far, in `../maps/`.
