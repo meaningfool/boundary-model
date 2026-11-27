@@ -29,8 +29,6 @@ Three kinds of people use the Store, each with a `boundary` of its own:
 - **Fraud analyst**: reviews the orders the Store holds as risky, and decides whether each one goes ahead.
 - **Store manager**: keeps the catalog's products, prices and stock right.
 
-A `consumer` is a role, not a person. Analysts and managers work for the Store, but they use it to get their work done, so they stand outside it, like shoppers.
-
 <Example step="consumers" />
 
 ### Interfaces
@@ -38,44 +36,38 @@ A `consumer` is a role, not a person. Analysts and managers work for the Store, 
 Shoppers reach the Store through two interfaces, on one `boundary`:
 
 - **Web shop**: the Store's website, in a browser.
-- **Mobile app**: the Store's app on their phone. Only the app can show a product in your room, since it needs the phone's camera.
-
-The `boundary` says what the Shopper can do. An `interface` only says where.
+- **Mobile app**: the Store's app on their phone, with possibly different features from the web version.
 
 <Example step="interfaces" />
 
 ### Capabilities
 
-Across their `boundary`, shoppers have three capabilities, each something they do to get a result:
+Across their `boundary`, shoppers have three capabilities:
 
 - **Browse products**: find products, with their price and stock.
 - **Place order**: buy what is in the cart, and get the order back, confirmed or held for review.
 - **List past orders**: see the orders they placed.
 
-When an order goes through, the Store checks that each product is in stock. That check is a step of Place order, not a `capability`: its only result is whether the order goes ahead.
-
 <Example step="capabilities" />
 
 ### Resources
 
-The capabilities act on three resources, the things with a state the Shopper cares about:
+The capabilities act on three resources:
 
-- **Product**: something the Store sells. Its price and stock are its properties, details of the product rather than resources of their own.
-- **Order**: the products a shopper bought, with where they go and whether the order is confirmed.
+- **Product**: it has a name, a price, a stock and other information. Each is a `property` of the resource.
+- **Order**: links to one or more products, and has a status, a delivery address and other information.
 - **Loyalty balance**: the points a shopper has earned from their orders.
 
-Browse products reads products. Place order creates an order and adds points to the loyalty balance.
+Each `capability` says how it acts on the resources it touches. It `observes` them when it shows their state, `mutates` them when it changes them, `produces` something new from them, or `reacts` when they meet a condition. The link from an order to its products is a `relationship` between two resources.
 
 <Example step="resources" />
 
 ### Components
 
-Open the Store, one level down, and you find the components it relies on to keep its promises. A part of the Store is a `component` when it keeps state that only it changes, or makes decisions that only it makes. The Store has two:
+The Store relies on 2 `component` that have specific responsibilities and are separated by their own `boundary`:
 
 - **Storefront**: keeps the products, the orders and the loyalty points, and decides how many points an order earns.
 - **Payments**: takes the money for each order and gives it back, and decides which payments to hold for review.
-
-Some parts are not components. The web shop and the mobile app only present what Storefront offers, so they are interfaces. The database, the search index and the code that talks to the card network are how a `component` keeps or reaches things, not components of their own.
 
 <Example step="components" />
 
