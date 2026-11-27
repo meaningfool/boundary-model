@@ -1,0 +1,52 @@
+---
+// The page's number from the sidebar above its title, and its description as the lede, where
+// `code` spans show as code. The title shows the model's name as code.
+import { inline, titleTerms } from "../inline";
+const { entry, sidebar } = Astro.locals.starlightRoute;
+const pages = sidebar.filter((e) => e.type === "link");
+const index = pages.findIndex((e) => e.isCurrent);
+---
+
+{index >= 0 && <p class="eyebrow">{String(index + 1).padStart(2, "0")}</p>}
+<h1 id="_top" set:html={titleTerms(entry.data.title)} />
+{entry.data.description && <p class="lede" set:html={inline(entry.data.description)} />}
+
+<style>
+  .eyebrow {
+    margin: 1rem 0 10px;
+    color: var(--bm-fg3);
+    font-family: var(--__sl-font-mono);
+    font-size: 11px;
+    letter-spacing: 0.05em;
+  }
+  h1 {
+    margin: 0;
+    color: var(--bm-fg);
+    font-family: var(--bm-font-title);
+    font-size: 35px;
+    font-stretch: 94%;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+  h1 :global(code),
+  .lede :global(code) {
+    color: var(--bm-fg);
+    font-family: var(--__sl-font-mono);
+    font-size: 0.86em;
+  }
+  .lede {
+    margin: 14px 0 0;
+    color: var(--bm-fg2);
+    font-size: 18px;
+    line-height: 1.6;
+  }
+  @media (max-width: 40rem) {
+    h1 {
+      font-size: 27px;
+    }
+    .lede {
+      font-size: 16.5px;
+    }
+  }
+</style>

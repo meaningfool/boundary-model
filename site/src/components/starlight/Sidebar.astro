@@ -1,0 +1,110 @@
+---
+// One numbered list of pages, then GitHub, the version and the licence at the foot. The logo heads
+// the sidebar on wide screens; on narrow ones the top bar holds it and this becomes the menu.
+import SiteTitle from "./SiteTitle.astro";
+
+const { sidebar } = Astro.locals.starlightRoute;
+const pages = sidebar.flatMap((entry) => (entry.type === "link" ? [entry] : []));
+const repo = "https://github.com/meaningfool/boundary-model";
+---
+
+<div class="logo"><SiteTitle /></div>
+<nav aria-label="Pages">
+  <ol class="pages">
+    {
+      pages.map((page, i) => (
+        <li>
+          <a href={page.href} aria-current={page.isCurrent ? "page" : undefined}>
+            <span class="n">{String(i + 1).padStart(2, "0")}</span>
+            <span>{page.label}</span>
+          </a>
+        </li>
+      ))
+    }
+  </ol>
+</nav>
+<div class="foot">
+  <a href={repo}>GitHub ↗</a>
+  <p class="meta">
+    <a href={`${repo}/releases/tag/v${__VERSION__}`}>v{__VERSION__}</a>
+    <span aria-hidden="true">·</span>
+    <a href={`${repo}/blob/main/LICENSE`}>MIT licence</a>
+  </p>
+</div>
+
+<style>
+  .logo {
+    display: none;
+    padding: 0.75rem 0 0.25rem 0;
+  }
+  .pages {
+    display: grid;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .pages a {
+    display: flex;
+    gap: 12px;
+    align-items: baseline;
+    padding: 5px 0 5px 12px;
+    border-left: 1px solid transparent;
+    color: var(--bm-fg2);
+    font-size: 14px;
+    line-height: 1.45;
+    text-decoration: none;
+  }
+  .pages a:hover {
+    color: var(--bm-fg);
+  }
+  .pages a[aria-current="page"] {
+    color: var(--bm-accent);
+    font-weight: 500;
+    border-left-color: var(--bm-accent);
+  }
+  .n {
+    flex: none;
+    width: 2ch;
+    color: var(--bm-fg4);
+    font-family: var(--__sl-font-mono);
+    font-size: 11px;
+  }
+  [aria-current="page"] .n {
+    color: var(--bm-accent);
+  }
+  .foot {
+    display: grid;
+    gap: 10px;
+    margin-top: auto;
+    padding: 16px 0 24px;
+    border-top: 1px solid var(--bm-line);
+  }
+  .foot a {
+    color: var(--bm-fg);
+    font-size: 14px;
+    text-decoration: none;
+  }
+  .foot a:hover {
+    text-decoration: underline;
+    text-decoration-color: var(--bm-line2);
+    text-underline-offset: 3px;
+  }
+  .meta {
+    display: flex;
+    gap: 6px;
+    margin: 0;
+    color: var(--bm-fg3);
+    font-family: var(--__sl-font-mono);
+    font-size: 11.5px;
+  }
+  .meta a {
+    color: var(--bm-fg3);
+    font-size: inherit;
+  }
+  @media (min-width: 50rem) {
+    .logo {
+      display: block;
+    }
+  }
+</style>

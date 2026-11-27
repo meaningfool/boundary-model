@@ -1,0 +1,15 @@
+---
+// The top bar exists only at phone and tablet width, beside the menu button. On wider screens the
+// logo sits at the top of the sidebar. No search, social links or theme switch.
+import SiteTitle from "./SiteTitle.astro";
+---
+
+<div class="header"><SiteTitle /></div>
+
+<style>
+  .header {
+    display: flex;
+    align-items: center;
+    height: 100%;
+  }
+</style>

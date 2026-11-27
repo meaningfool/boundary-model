@@ -1,0 +1,547 @@
+{
+  "system": {
+    "name": "Helpdesk",
+    "description": "The customer support of a company that makes coffee machines: an assistant answers customers' questions from the company's help articles and hands the cases it cannot answer to support specialists.",
+    "corpus": {
+      "included": "An invented example, written by hand for the walkthrough page of the boundary model website. No code exists: the system, its folders and its files are made up.",
+      "excluded": "Nothing real is mapped. The paths in places and evidence name invented folders and files."
+    },
+    "revision": "unknown"
+  },
+  "consumers": [
+    {
+      "name": "Customer",
+      "description": "A person who owns one of the company's coffee machines and wants help with it."
+    },
+    {
+      "name": "Support specialist",
+      "description": "A person on the company's support team who answers the cases the assistant hands over and checks the assistant's answers."
+    },
+    {
+      "name": "Knowledge admin",
+      "description": "A person at the company who writes the help articles in its docs folder and keeps Helpdesk in step with them."
+    }
+  ],
+  "providers": [
+    {
+      "name": "Helpdesk",
+      "description": "The company's support: an assistant that answers customers from the help articles, and the tickets that bring hard cases to support specialists.",
+      "resources": ["Conversation", "Answer", "Ticket", "Article"],
+      "parts": [
+        { "name": "Chat widget script", "why": "A client that presents Helpdesk on the website's help page: part of the chat widget interface." },
+        { "name": "Help screens", "why": "A client inside the company's mobile app: part of the mobile app interface." },
+        { "name": "Console web app", "why": "A client that presents tickets and answers: part of the review console interface." },
+        { "name": "helpdesk command", "why": "A thin client that reads the docs folder and passes it on: part of the kb CLI interface." }
+      ],
+      "components": [
+        {
+          "name": "Conversations",
+          "description": "Keeps each customer's conversation and delivers its messages to the chat widget, the app and the customer's phone.",
+          "resources": ["Conversation"],
+          "serves": [
+            { "consumer": "Customer", "area": "Get help" },
+            { "consumer": "Customer", "area": "Follow up" },
+            { "consumer": "Support specialist", "area": "Solve tickets" },
+            { "consumer": "Support specialist", "area": "Improve answers" }
+          ],
+          "parts": [
+            { "name": "Conversation store", "why": "Storage: how Conversations keeps the messages." },
+            { "name": "Message delivery", "why": "Keeps the widget's and the app's connections open to show new messages: how Conversations reaches them." },
+            { "name": "Push client", "why": "An adapter to the Push service." }
+          ]
+        },
+        {
+          "name": "Assistant",
+          "description": "Decides how to answer each question: which passages to use, what to say, and when to offer a person instead. Keeps every answer with its trace.",
+          "resources": ["Answer"],
+          "serves": [
+            { "consumer": "Customer", "area": "Get help" },
+            { "consumer": "Support specialist", "area": "Improve answers" },
+            { "consumer": "Knowledge admin", "area": "Keep articles current" }
+          ],
+          "parts": [
+            { "name": "Instructions", "why": "The text the Assistant sends to the model with every question: part of how it decides what to say." },
+            { "name": "Model client", "why": "An adapter to the Language model service. Changing vendor changes this adapter, not a boundary." },
+            { "name": "Trace store", "why": "Storage: where the Assistant keeps each answer's trace." }
+          ]
+        },
+        {
+          "name": "Knowledge base",
+          "description": "Keeps the help articles and decides which passages fit a question.",
+          "resources": ["Article"],
+          "serves": [
+            { "consumer": "Customer", "area": "Get help" },
+            { "consumer": "Knowledge admin", "area": "Keep articles current" }
+          ],
+          "parts": [
+            { "name": "Knowledge routes", "why": "Pass requests on to the Library and Search." }
+          ],
+          "components": [
+            {
+              "name": "Library",
+              "description": "Keeps the articles as synced from the docs folder and decides what each sync adds, changes and removes.",
+              "resources": ["Article"],
+              "serves": [{ "consumer": "Knowledge admin", "area": "Keep articles current" }],
+              "parts": [
+                { "name": "Article store", "why": "Storage: how the Library keeps the synced articles." }
+              ]
+            },
+            {
+              "name": "Search",
+              "description": "Keeps its own copy of the articles, cut into passages, and decides which passages fit a question.",
+              "resources": ["Article"],
+              "serves": [{ "consumer": "Assistant", "area": "Find passages" }],
+              "parts": [
+                { "name": "Vector database", "why": "How Search keeps passages and finds close matches. Another index could keep the same contract." },
+                { "name": "Embedding library", "why": "Turns passages and questions into numbers Search can compare: a library Search runs itself." }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Tickets",
+          "description": "Keeps a ticket for each conversation handed to a person, decides which specialist gets it, and sends specialists' replies back to the conversation.",
+          "resources": ["Ticket"],
+          "serves": [
+            { "consumer": "Customer", "area": "Get help" },
+            { "consumer": "Customer", "area": "Follow up" },
+            { "consumer": "Support specialist", "area": "Solve tickets" }
+          ],
+          "parts": [
+            { "name": "Ticket store", "why": "Storage: how Tickets keeps tickets and replies." },
+            { "name": "Routing rules", "why": "The rules Tickets uses to pick a specialist: part of its own decision." }
+          ]
+        }
+      ]
+    }
+  ],
+  "outsideServices": [
+    {
+      "name": "Language model service",
+      "description": "A hosted service that writes text from the instructions and passages it is given.",
+      "resources": ["Model response"]
+    },
+    {
+      "name": "Push service",
+      "description": "The phone platforms' service that shows notifications on customers' phones.",
+      "resources": ["Push message"]
+    }
+  ],
+  "resources": [
+    {
+      "name": "Conversation",
+      "description": "The exchange between one customer and Helpdesk: their questions, the assistant's answers and specialists' replies. A conversation holds many answers and has at most one ticket.",
+      "properties": ["messages", "status: answered, waiting for a person, or closed", "started on: chat widget or mobile app", "started at"]
+    },
+    {
+      "name": "Answer",
+      "description": "What the assistant said in reply to one question. Each answer belongs to one conversation and draws on one or more articles.",
+      "properties": ["text", "sources: the articles it drew on", "trace: the passages found, what the model was sent and wrote, and why the assistant offered a person or not", "rating", "flag: who flagged it, and their note"]
+    },
+    {
+      "name": "Ticket",
+      "description": "A request for a person, opened from one conversation, which a support specialist works on until it is solved.",
+      "properties": ["number", "status: open, waiting on the customer, or solved", "assignee", "replies"]
+    },
+    {
+      "name": "Article",
+      "description": "A help article the company writes in its docs folder. The assistant answers from articles, and one article can serve many answers.",
+      "properties": ["title", "path in the docs folder", "last synced", "answers that cite it"]
+    },
+    {
+      "name": "Model response",
+      "description": "Text the Language model service writes for one request.",
+      "properties": ["text"]
+    },
+    {
+      "name": "Push message",
+      "description": "A notification the Push service shows on one phone.",
+      "properties": ["delivered or failed"]
+    }
+  ],
+  "interfaces": [
+    { "name": "chat widget", "description": "The chat box on the help page of the company's website, for signed-in customers." },
+    { "name": "mobile app", "description": "The help screens of the company's mobile app." },
+    { "name": "review console", "description": "The internal web app where support specialists work through tickets and review the assistant's answers." },
+    { "name": "kb CLI", "description": "The helpdesk kb command-line tool that knowledge admins run on the docs folder, by hand or from a nightly script." },
+    { "name": "answer API", "description": "The contract through which Conversations asks the Assistant for answers and passes on ratings." },
+    { "name": "tickets API", "description": "The contract through which Conversations hands a conversation to Tickets and gets specialists' replies back." },
+    { "name": "search API", "description": "The contract through which the Assistant asks the Knowledge base for passages." },
+    { "name": "index API", "description": "The contract through which the Library tells Search which articles changed." },
+    { "name": "model API", "description": "The Language model service's public API." },
+    { "name": "push API", "description": "The Push service's public API for notifications to phones." }
+  ],
+  "places": [
+    { "place": "Tests", "kind": "tooling", "paths": ["**/*.test.*"] },
+    { "place": "chat widget", "kind": "interface", "paths": ["apps/widget/**"] },
+    { "place": "mobile app", "kind": "interface", "paths": ["apps/mobile-help/**"] },
+    { "place": "review console", "kind": "interface", "paths": ["apps/console/**"] },
+    { "place": "kb CLI", "kind": "interface", "paths": ["cli/**"] },
+    { "place": "Conversations", "kind": "component", "paths": ["services/conversations/**"] },
+    { "place": "Assistant", "kind": "component", "paths": ["services/assistant/**"] },
+    { "place": "Knowledge base", "kind": "component", "paths": ["services/knowledge/**"] },
+    { "place": "Library", "kind": "component", "paths": ["services/knowledge/library/**"] },
+    { "place": "Search", "kind": "component", "paths": ["services/knowledge/search/**"] },
+    { "place": "Tickets", "kind": "component", "paths": ["services/tickets/**"] },
+    { "place": "Shared code", "kind": "library", "paths": ["packages/**"] },
+    { "place": "Answer evaluations", "kind": "tooling", "paths": ["evals/**"] },
+    { "place": "Deployment", "kind": "tooling", "paths": ["deploy/**"] },
+    { "place": "Conversation clean-up", "kind": "excluded", "paths": ["jobs/cleanup/**"] }
+  ],
+  "boundaries": [
+    {
+      "consumer": "Customer",
+      "provider": "Helpdesk",
+      "interfaces": ["chat widget", "mobile app"],
+      "areas": [
+        {
+          "name": "Get help",
+          "type": "core",
+          "description": "Ask about the coffee machine and get an answer, from the assistant or from a person.",
+          "capabilities": [
+            {
+              "name": "Ask a question",
+              "takes": "a question in the customer's own words, such as how do I descale my machine",
+              "gives": "an answer drawn from the help articles, with links to them, or an offer to hand over to a person",
+              "acts": [
+                { "mode": "mutates", "resource": "Conversation" },
+                { "mode": "produces", "resource": "Answer" },
+                { "mode": "observes", "resource": "Article" }
+              ]
+            },
+            {
+              "name": "Rate an answer",
+              "takes": "a thumbs up or down on one answer",
+              "gives": "the answer with its rating",
+              "acts": [{ "mode": "mutates", "resource": "Answer" }]
+            },
+            {
+              "name": "Ask for a person",
+              "takes": "the conversation so far",
+              "gives": "a ticket number at once, and a specialist's reply in the same conversation later",
+              "acts": [{ "mode": "produces", "resource": "Ticket" }]
+            }
+          ]
+        },
+        {
+          "name": "Follow up",
+          "type": "supporting",
+          "description": "Come back to earlier conversations and hear when a person has replied.",
+          "capabilities": [
+            {
+              "name": "List my conversations",
+              "takes": "nothing",
+              "gives": "the customer's conversations, newest first, each with its ticket's status",
+              "acts": [
+                { "mode": "observes", "resource": "Conversation" },
+                { "mode": "observes", "resource": "Ticket" }
+              ]
+            },
+            {
+              "name": "Get notified of a reply",
+              "takes": "notifications turned on in the app",
+              "gives": "a notification on the phone when a specialist replies in one of the customer's conversations",
+              "acts": [{ "mode": "reacts", "resource": "Conversation" }],
+              "interfaces": ["mobile app"]
+            }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "apps/widget/src/chat.tsx", "shows": "The widget sends questions, ratings and requests for a person, and lists the customer's conversations." },
+        { "path": "apps/mobile-help/src/notifications.ts", "shows": "Only the app registers for notifications of specialists' replies." }
+      ]
+    },
+    {
+      "consumer": "Support specialist",
+      "provider": "Helpdesk",
+      "interfaces": ["review console"],
+      "areas": [
+        {
+          "name": "Solve tickets",
+          "type": "core",
+          "description": "Answer the customers the assistant handed over, until each case is solved.",
+          "capabilities": [
+            {
+              "name": "List tickets",
+              "takes": "a filter, such as mine or waiting on the customer",
+              "gives": "tickets with their status and assignee, each with the conversation that led to it",
+              "acts": [
+                { "mode": "observes", "resource": "Ticket" },
+                { "mode": "observes", "resource": "Conversation" }
+              ]
+            },
+            {
+              "name": "Reply to a ticket",
+              "takes": "a ticket and a reply",
+              "gives": "the reply, shown in the customer's conversation",
+              "acts": [{ "mode": "mutates", "resource": "Ticket" }]
+            },
+            {
+              "name": "Change ticket status",
+              "takes": "a ticket and a status: open, waiting on the customer, or solved",
+              "gives": "the ticket with its new status",
+              "acts": [{ "mode": "mutates", "resource": "Ticket" }]
+            }
+          ]
+        },
+        {
+          "name": "Improve answers",
+          "type": "supporting",
+          "description": "Check what the assistant said and why, and report the answers it got wrong.",
+          "capabilities": [
+            {
+              "name": "Review answers",
+              "takes": "a filter, such as rated down or handed over",
+              "gives": "answers with their question, the conversation around them, the articles they drew on and their trace",
+              "acts": [
+                { "mode": "observes", "resource": "Answer" },
+                { "mode": "observes", "resource": "Conversation" }
+              ]
+            },
+            {
+              "name": "Flag an answer",
+              "takes": "an answer and a note on what is wrong with it",
+              "gives": "the answer flagged, listed for the knowledge admins",
+              "acts": [{ "mode": "mutates", "resource": "Answer" }]
+            }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "apps/console/src/tickets/", "shows": "The ticket queue, replies and status changes." },
+        { "path": "apps/console/src/review/", "shows": "The answer review, with each answer's trace and the flag button." }
+      ]
+    },
+    {
+      "consumer": "Knowledge admin",
+      "provider": "Helpdesk",
+      "interfaces": ["kb CLI"],
+      "areas": [
+        {
+          "name": "Keep articles current",
+          "type": "core",
+          "description": "Keep what the assistant answers from in step with the docs folder, and find what the articles get wrong.",
+          "capabilities": [
+            {
+              "name": "Sync articles",
+              "takes": "a folder of Markdown articles, as in helpdesk kb sync ./docs",
+              "gives": "the articles added, changed and removed, used by the assistant from then on",
+              "acts": [{ "mode": "mutates", "resource": "Article" }]
+            },
+            {
+              "name": "List articles",
+              "takes": "nothing, as in helpdesk kb list",
+              "gives": "each article with when it was last synced and how many answers cite it",
+              "acts": [{ "mode": "observes", "resource": "Article" }]
+            },
+            {
+              "name": "Try a question",
+              "takes": "a question, as in helpdesk kb ask \"How often should I descale?\"",
+              "gives": "the answer the assistant would give now and the passages it would use, saved in no conversation",
+              "acts": [{ "mode": "observes", "resource": "Article" }]
+            },
+            {
+              "name": "List flagged answers",
+              "takes": "nothing, as in helpdesk kb flagged",
+              "gives": "the answers specialists flagged, each with its note and the articles it drew on",
+              "acts": [{ "mode": "observes", "resource": "Answer" }]
+            }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "cli/src/commands/kb.ts", "shows": "The sync, list, ask and flagged commands." }
+      ]
+    },
+    {
+      "consumer": "Conversations",
+      "provider": "Assistant",
+      "interfaces": ["answer API"],
+      "areas": [
+        {
+          "name": "Answer questions",
+          "type": "core",
+          "description": "Get an answer for each new question in a conversation, and pass on how the customer rated it.",
+          "capabilities": [
+            {
+              "name": "Answer a question",
+              "takes": "the conversation so far and the new question",
+              "gives": "an answer with the articles it drew on, or an offer to hand over to a person",
+              "acts": [{ "mode": "produces", "resource": "Answer" }]
+            },
+            {
+              "name": "Rate an answer",
+              "takes": "an answer and the customer's rating",
+              "gives": "the answer with its rating",
+              "acts": [{ "mode": "mutates", "resource": "Answer" }]
+            }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "services/assistant/src/answer-api.ts", "shows": "The answer and rate operations that Conversations calls." }
+      ]
+    },
+    {
+      "consumer": "Conversations",
+      "provider": "Tickets",
+      "interfaces": ["tickets API"],
+      "areas": [
+        {
+          "name": "Hand over a conversation",
+          "type": "core",
+          "description": "Bring a person into a conversation the assistant cannot finish.",
+          "capabilities": [
+            {
+              "name": "Hand over a conversation",
+              "takes": "a conversation and its customer",
+              "gives": "a ticket, then each reply a specialist writes, posted back into the conversation",
+              "acts": [{ "mode": "produces", "resource": "Ticket" }]
+            }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "services/tickets/src/tickets-api.ts", "shows": "The hand-over operation, and the replies Tickets posts back to Conversations." }
+      ]
+    },
+    {
+      "consumer": "Conversations",
+      "provider": "Push service",
+      "interfaces": ["push API"],
+      "areas": [
+        {
+          "name": "Send notification",
+          "type": "core",
+          "description": "Show a short message on a customer's phone.",
+          "capabilities": [
+            {
+              "name": "Send notification",
+              "takes": "a phone and a short message",
+              "gives": "the notification shown on the phone, or why it failed",
+              "acts": [{ "mode": "produces", "resource": "Push message" }]
+            }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "services/conversations/src/push.ts", "shows": "Conversations sends a notification when a specialist's reply arrives." }
+      ]
+    },
+    {
+      "consumer": "Assistant",
+      "provider": "Knowledge base",
+      "interfaces": ["search API"],
+      "areas": [
+        {
+          "name": "Find passages",
+          "type": "core",
+          "description": "Find what the help articles say about a question.",
+          "capabilities": [
+            {
+              "name": "Find passages",
+              "takes": "a question",
+              "gives": "the passages most likely to answer it, each with its article",
+              "acts": [{ "mode": "observes", "resource": "Article" }]
+            }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "services/knowledge/search/src/search-api.ts", "shows": "The search operation the Assistant calls." }
+      ]
+    },
+    {
+      "consumer": "Assistant",
+      "provider": "Language model service",
+      "interfaces": ["model API"],
+      "areas": [
+        {
+          "name": "Generate text",
+          "type": "core",
+          "description": "Have a model write text from instructions and passages.",
+          "capabilities": [
+            {
+              "name": "Generate text",
+              "takes": "instructions, the conversation so far and the passages found",
+              "gives": "a draft answer",
+              "acts": [{ "mode": "produces", "resource": "Model response" }]
+            }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "services/assistant/src/model-client.ts", "shows": "The Assistant's calls to the model API." }
+      ]
+    },
+    {
+      "consumer": "Library",
+      "provider": "Search",
+      "interfaces": ["index API"],
+      "areas": [
+        {
+          "name": "Update the index",
+          "type": "core",
+          "description": "Keep what Search finds in step with the Library after each sync.",
+          "capabilities": [
+            {
+              "name": "Update the index",
+              "takes": "the articles a sync added, changed or removed",
+              "gives": "Search's passages matching the Library again",
+              "acts": [{ "mode": "mutates", "resource": "Article" }]
+            }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "services/knowledge/search/src/index-api.ts", "shows": "The index operation the Library calls after each sync." }
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "question": "Is a ticket a resource of its own, or a status of the conversation it came from?",
+      "answer": "A resource of its own rather than a status of Conversation; specialists list, reply to and solve tickets and customers quote ticket numbers, but a ticket lives and ends with one conversation, so either reading fits."
+    },
+    {
+      "question": "Is an answer's trace a resource of its own, or a property of the answer?",
+      "answer": "A property of Answer rather than a resource; specialists read traces but act only on answers, and where a structured detail becomes a resource is a judgement here."
+    },
+    {
+      "question": "Are Conversations and the Assistant one component or two?",
+      "answer": "Two rather than one; Conversations alone changes conversations and the Assistant alone decides answers and keeps their traces, but the two always work together on a customer's question, so a single Assistant component would also be defensible."
+    },
+    {
+      "question": "Is Get notified of a reply a capability, or the last step of Ask for a person?",
+      "answer": "A capability of its own rather than a step; it has its own output, a notification on the phone, which customers turn on or off, though the notification only tells them a hand-over has moved on."
+    },
+    {
+      "question": "Is Improve answers the specialists' core area or a supporting one?",
+      "answer": "Supporting rather than core; specialists come each day for the tickets customers are waiting on and would skip the review if the assistant never erred, but both are goals of theirs and the model allows one core area."
+    }
+  ],
+  "cleanupCandidates": [],
+  "excluded": [
+    {
+      "name": "Company account system",
+      "why": "Customers and staff sign in on the company's own account pages, a separate system they knowingly visit; the interfaces pass the signed-in person on, and no component calls it."
+    },
+    {
+      "name": "Answer evaluations",
+      "why": "Engineering tooling: engineers run a fixed set of questions against the assistant before each release, which checks the system rather than using it."
+    },
+    {
+      "name": "Logs and metrics",
+      "why": "Diagnostics engineers read directly. The traces specialists read in the review console stay in the map, because they use them for a purpose of their own."
+    },
+    {
+      "name": "Conversation clean-up",
+      "why": "A nightly job deletes conversations older than the retention period: Helpdesk does it on its own, for no consumer's purpose."
+    },
+    {
+      "name": "Tests and deployment",
+      "why": "Engineering tooling that checks and ships the system."
+    }
+  ]
+}

@@ -1,0 +1,651 @@
+{
+  "system": {
+    "name": "Fernwire",
+    "description": "An invented money transfer app: people send money to bank accounts in other countries, businesses pay many people at once through an API, and a compliance team investigates alerts of possible money laundering.",
+    "corpus": {
+      "included": "An invented example, written by hand for the walkthrough page. No code exists; the folders in places are invented.",
+      "excluded": "Nothing."
+    },
+    "revision": "unknown"
+  },
+  "consumers": [
+    {
+      "name": "Sender",
+      "description": "A person who sends money from their own bank account to someone's bank account, often in another country."
+    },
+    {
+      "name": "Business customer",
+      "description": "A business, such as a marketplace paying its sellers, that pays many people at once from its own systems."
+    },
+    {
+      "name": "Compliance analyst",
+      "description": "A member of Fernwire's compliance team who reviews alerts of possible money laundering and investigates accounts as cases."
+    }
+  ],
+  "providers": [
+    {
+      "name": "Fernwire",
+      "description": "Fernwire as its users know it: the app and website for sending money, the payouts API, and the compliance team's case console.",
+      "resources": ["Account", "Transfer", "Exchange rate", "Rate alert", "Payout batch", "Alert", "Case", "Bank payment"],
+      "parts": [
+        { "name": "Mobile app", "why": "A client that presents Fernwire to senders: part of the mobile app interface." },
+        { "name": "Website", "why": "A client that presents Fernwire to senders: part of the website interface." },
+        { "name": "Case console app", "why": "A client that presents alerts, cases and accounts to analysts: part of the case console interface." },
+        { "name": "Payouts API gateway", "why": "Routes that check a business's API key and pass each request on to Transfers: part of the payouts API interface. The API key only authenticates calls here." },
+        { "name": "Notification sender", "why": "Delivers the push messages, emails and webhooks that other parts write. It keeps nothing and decides nothing." }
+      ],
+      "components": [
+        {
+          "name": "Accounts",
+          "description": "Keeps each person's and business's account, checks identities through the identity verification service, and decides how much each account may send.",
+          "resources": ["Account"],
+          "serves": [
+            { "consumer": "Sender", "area": "Open account" },
+            { "consumer": "Sender", "area": "Send money" },
+            { "consumer": "Business customer", "area": "Pay out" },
+            { "consumer": "Compliance analyst", "area": "Investigate alerts" }
+          ],
+          "parts": [
+            { "name": "Account store", "why": "Storage for accounts. Only Accounts writes to it." }
+          ]
+        },
+        {
+          "name": "Transfers",
+          "description": "Takes transfers and payout batches, prices them, and moves the money through the partner bank.",
+          "resources": ["Transfer", "Payout batch", "Exchange rate", "Rate alert", "Bank payment"],
+          "serves": [
+            { "consumer": "Sender", "area": "Send money" },
+            { "consumer": "Sender", "area": "Set rate alert" },
+            { "consumer": "Business customer", "area": "Pay out" },
+            { "consumer": "Compliance analyst", "area": "Investigate alerts" }
+          ],
+          "parts": [
+            { "name": "Event stream", "why": "How Transfers delivers the transfer events interface: a stream with no state of its own, and an implementation choice." }
+          ],
+          "components": [
+            {
+              "name": "Transfer tracker",
+              "description": "Takes transfers and payout batches and moves each transfer through its statuses, from waiting for money to paid or returned.",
+              "resources": ["Transfer", "Payout batch"],
+              "serves": [
+                { "consumer": "Sender", "area": "Send money" },
+                { "consumer": "Business customer", "area": "Pay out" },
+                { "consumer": "Compliance analyst", "area": "Investigate alerts" },
+                { "consumer": "Risk scoring", "area": "Watch transfers" }
+              ],
+              "parts": []
+            },
+            {
+              "name": "Pricing",
+              "description": "Decides Fernwire's exchange rates and fees from the partner bank's market rates, and sends rate alerts.",
+              "resources": ["Exchange rate", "Rate alert"],
+              "serves": [
+                { "consumer": "Sender", "area": "Send money" },
+                { "consumer": "Sender", "area": "Set rate alert" }
+              ],
+              "parts": []
+            },
+            {
+              "name": "Bank payments",
+              "description": "Sends and receives Fernwire's bank payments through the partner bank, and decides which transfer or batch each incoming payment pays for.",
+              "resources": ["Bank payment"],
+              "serves": [
+                { "consumer": "Sender", "area": "Send money" },
+                { "consumer": "Business customer", "area": "Pay out" }
+              ],
+              "parts": []
+            }
+          ]
+        },
+        {
+          "name": "Risk scoring",
+          "description": "Scores every transfer for signs of money laundering from the account's history, and raises an alert when the score is high.",
+          "resources": ["Transfer"],
+          "serves": [
+            { "consumer": "Compliance analyst", "area": "Investigate alerts" }
+          ],
+          "parts": [
+            { "name": "Activity store", "why": "Where Risk scoring keeps its own record of each account's transfers, with their scores. Only Risk scoring changes it." },
+            { "name": "Scoring rules and model", "why": "Two ways to score a transfer that give a score in the same form: variants inside Risk scoring, not components of Fernwire." }
+          ]
+        },
+        {
+          "name": "Case management",
+          "description": "Keeps the alerts and cases analysts work on, and records each case's decision.",
+          "resources": ["Alert", "Case"],
+          "serves": [
+            { "consumer": "Compliance analyst", "area": "Investigate alerts" }
+          ],
+          "parts": [
+            { "name": "Case store", "why": "Storage for alerts and cases. Only Case management writes to it." }
+          ]
+        }
+      ]
+    }
+  ],
+  "outsideServices": [
+    {
+      "name": "Partner bank",
+      "description": "The bank that holds Fernwire's money, makes and receives bank payments for it, and converts currencies.",
+      "resources": ["Bank payment", "Market rate"]
+    },
+    {
+      "name": "Identity verification service",
+      "description": "A service that checks a person's ID document and selfie and says whether they match.",
+      "resources": ["Identity check"]
+    }
+  ],
+  "resources": [
+    {
+      "name": "Account",
+      "description": "A person's or a business's account at Fernwire; an account makes many transfers.",
+      "properties": ["holder's name", "person or business", "verification status", "sending limit", "amount sent this month"]
+    },
+    {
+      "name": "Transfer",
+      "description": "Money on its way from one account to one recipient's bank account.",
+      "properties": ["recipient's name and bank account", "amount sent", "amount received", "rate and fee", "status", "payment reference", "expected arrival"]
+    },
+    {
+      "name": "Exchange rate",
+      "description": "Fernwire's price for turning one currency into another, with its fee.",
+      "properties": ["currency pair", "rate", "fee"]
+    },
+    {
+      "name": "Rate alert",
+      "description": "A sender's request to be told when Fernwire's rate for a currency pair reaches a target.",
+      "properties": ["currency pair", "target rate", "status"]
+    },
+    {
+      "name": "Payout batch",
+      "description": "A list of payouts a business sends in one go; a batch holds many transfers, and a transfer belongs to at most one batch.",
+      "properties": ["total", "payment reference", "status", "payouts paid", "payouts returned"]
+    },
+    {
+      "name": "Alert",
+      "description": "A sign of possible money laundering on one account, raised by the risk model.",
+      "properties": ["account", "transfers behind it", "score", "reason", "status"]
+    },
+    {
+      "name": "Case",
+      "description": "An analyst's investigation of one account; a case holds one or more alerts on that account, and an alert belongs to at most one case.",
+      "properties": ["account", "analyst", "status", "notes", "decision"]
+    },
+    {
+      "name": "Bank payment",
+      "description": "A payment into or out of one of Fernwire's accounts at the partner bank.",
+      "properties": ["direction", "amount", "currency", "reference", "status"]
+    },
+    {
+      "name": "Market rate",
+      "description": "The rate at which the partner bank converts one currency into another for Fernwire.",
+      "properties": ["currency pair", "rate"]
+    },
+    {
+      "name": "Identity check",
+      "description": "The identity verification service's check of one person's ID document and selfie.",
+      "properties": ["outcome", "reasons"]
+    }
+  ],
+  "interfaces": [
+    { "name": "mobile app", "description": "Fernwire's phone app for senders." },
+    { "name": "website", "description": "Fernwire's website, where senders sign in to send money." },
+    { "name": "payouts API", "description": "The HTTP API businesses call from their own systems, with webhooks back to their server." },
+    { "name": "case console", "description": "The internal web app where compliance analysts work alerts and cases." },
+    { "name": "accounts API", "description": "The contract other components call to use an account's sending limit." },
+    { "name": "transfer events", "description": "The stream of events Transfers publishes as each transfer is made and changes status." },
+    { "name": "alerts API", "description": "The contract for raising an alert into the analysts' queue." },
+    { "name": "identity check API", "description": "The identity verification service's API, which sends each check's outcome back when it is done." },
+    { "name": "partner bank API", "description": "The partner bank's API for payments and rates, which sends notices back to Fernwire." },
+    { "name": "pricing API", "description": "The contract the Transfer tracker calls for the rate and fee of a transfer." },
+    { "name": "bank payments API", "description": "The contract the Transfer tracker calls to pay out transfers and hear about money paid in." }
+  ],
+  "places": [
+    { "place": "mobile app", "kind": "interface", "paths": ["apps/mobile/**"] },
+    { "place": "website", "kind": "interface", "paths": ["apps/web/**"] },
+    { "place": "case console", "kind": "interface", "paths": ["apps/case-console/**"] },
+    { "place": "payouts API", "kind": "interface", "paths": ["services/gateway/**"] },
+    { "place": "Accounts", "kind": "component", "paths": ["services/accounts/**"] },
+    { "place": "Transfers", "kind": "component", "paths": ["services/transfers/**"] },
+    { "place": "Transfer tracker", "kind": "component", "paths": ["services/transfers/tracker/**"] },
+    { "place": "Pricing", "kind": "component", "paths": ["services/transfers/pricing/**"] },
+    { "place": "Bank payments", "kind": "component", "paths": ["services/transfers/bank-payments/**"] },
+    { "place": "Risk scoring", "kind": "component", "paths": ["services/risk-scoring/**"] },
+    { "place": "Case management", "kind": "component", "paths": ["services/case-management/**"] },
+    { "place": "Notifications", "kind": "library", "paths": ["libs/notifications/**"] },
+    { "place": "Tests", "kind": "tooling", "paths": ["**/*.test.*"] },
+    { "place": "Deployment and migrations", "kind": "tooling", "paths": ["infra/**", "migrations/**"] },
+    { "place": "Risk model training", "kind": "tooling", "paths": ["risk-model/**"] }
+  ],
+  "boundaries": [
+    {
+      "consumer": "Sender",
+      "provider": "Fernwire",
+      "interfaces": ["mobile app", "website"],
+      "areas": [
+        {
+          "name": "Send money",
+          "type": "core",
+          "description": "Find out what a transfer costs, send it, and follow it until it arrives.",
+          "capabilities": [
+            {
+              "name": "Get a quote",
+              "takes": "an amount and two currencies",
+              "gives": "what the recipient would get, the fee and the rate",
+              "acts": [{ "mode": "observes", "resource": "Exchange rate" }]
+            },
+            {
+              "name": "Send transfer",
+              "takes": "a quote and the recipient's name and bank account, or a past transfer to send again",
+              "gives": "the transfer, with the bank details and reference to pay for it, then a push message or email as it moves and when it arrives",
+              "acts": [
+                { "mode": "produces", "resource": "Transfer" },
+                { "mode": "mutates", "resource": "Account" }
+              ]
+            },
+            {
+              "name": "List transfers",
+              "takes": "nothing",
+              "gives": "the sender's transfers, each with its recipient, amounts and status",
+              "acts": [{ "mode": "observes", "resource": "Transfer" }]
+            }
+          ]
+        },
+        {
+          "name": "Set rate alert",
+          "type": "supporting",
+          "description": "Be told when the rate is good enough to send.",
+          "capabilities": [
+            {
+              "name": "Set rate alert",
+              "takes": "a currency pair and a target rate",
+              "gives": "a push message or email when Fernwire's rate reaches the target",
+              "acts": [
+                { "mode": "produces", "resource": "Rate alert" },
+                { "mode": "reacts", "resource": "Exchange rate" }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Open account",
+          "type": "supporting",
+          "description": "Become a verified sender with a sending limit.",
+          "capabilities": [
+            {
+              "name": "Open account",
+              "takes": "the person's name and phone number, a photo of their ID document and a selfie",
+              "gives": "a verified account with its sending limit, or a request for clearer photos",
+              "interfaces": ["mobile app"],
+              "acts": [{ "mode": "produces", "resource": "Account" }]
+            }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "apps/mobile/", "shows": "Invented: the app's screens for quotes, transfers, rate alerts and opening an account." },
+        { "path": "apps/web/", "shows": "Invented: the same screens on the website, which sends people to the app to open an account." }
+      ]
+    },
+    {
+      "consumer": "Business customer",
+      "provider": "Fernwire",
+      "interfaces": ["payouts API"],
+      "areas": [
+        {
+          "name": "Pay out",
+          "type": "core",
+          "description": "Pay many people at once and know when each one is paid.",
+          "capabilities": [
+            {
+              "name": "Send payout batch",
+              "takes": "a list of payouts, each with a payee's name, bank account and amount",
+              "gives": "the batch, with the total to pay in and its reference, then a webhook to the business's server as each payout is paid or returned",
+              "acts": [
+                { "mode": "produces", "resource": "Payout batch" },
+                { "mode": "produces", "resource": "Transfer" },
+                { "mode": "mutates", "resource": "Account" }
+              ]
+            },
+            {
+              "name": "List payouts",
+              "takes": "a batch",
+              "gives": "each payout in the batch with its status",
+              "acts": [
+                { "mode": "observes", "resource": "Payout batch" },
+                { "mode": "observes", "resource": "Transfer" }
+              ]
+            }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "services/gateway/", "shows": "Invented: the payouts API routes and the webhook it sends for each payout." }
+      ]
+    },
+    {
+      "consumer": "Compliance analyst",
+      "provider": "Fernwire",
+      "interfaces": ["case console"],
+      "areas": [
+        {
+          "name": "Investigate alerts",
+          "type": "core",
+          "description": "Decide which alerts point to money laundering, and investigate those accounts as cases.",
+          "capabilities": [
+            {
+              "name": "List alerts",
+              "takes": "a filter, such as open alerts by score",
+              "gives": "alerts, each with its account, the transfers behind it, its score and the model's reason",
+              "acts": [{ "mode": "observes", "resource": "Alert" }]
+            },
+            {
+              "name": "Close alert",
+              "takes": "an alert and why it is no concern",
+              "gives": "the alert closed, with the reason on record",
+              "acts": [{ "mode": "mutates", "resource": "Alert" }]
+            },
+            {
+              "name": "Open case",
+              "takes": "one or more open alerts on one account",
+              "gives": "a case that holds them, assigned to the analyst",
+              "acts": [
+                { "mode": "produces", "resource": "Case" },
+                { "mode": "mutates", "resource": "Alert" }
+              ]
+            },
+            {
+              "name": "Look up account",
+              "takes": "an account",
+              "gives": "who holds it, how they were verified, their sending limit, and every transfer they made",
+              "acts": [
+                { "mode": "observes", "resource": "Account" },
+                { "mode": "observes", "resource": "Transfer" }
+              ]
+            },
+            {
+              "name": "Close case",
+              "takes": "a case, its decision, no concern or report to the authorities, and the reasons",
+              "gives": "the case closed, with its decision and reasons on record",
+              "acts": [{ "mode": "mutates", "resource": "Case" }]
+            }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "apps/case-console/", "shows": "Invented: the alert queue, the case screen and the account page." }
+      ]
+    },
+    {
+      "consumer": "Transfers",
+      "provider": "Accounts",
+      "interfaces": ["accounts API"],
+      "areas": [
+        {
+          "name": "Use sending limit",
+          "type": "core",
+          "description": "Count each new transfer against its account's limit.",
+          "capabilities": [
+            {
+              "name": "Use sending limit",
+              "takes": "an account and an amount",
+              "gives": "the amount counted against the account's limit, or a refusal: not verified, or over the limit",
+              "acts": [{ "mode": "mutates", "resource": "Account" }]
+            }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "services/accounts/", "shows": "Invented: the accounts API that Transfers calls before it takes a transfer." }
+      ]
+    },
+    {
+      "consumer": "Risk scoring",
+      "provider": "Transfers",
+      "interfaces": ["transfer events"],
+      "areas": [
+        {
+          "name": "Watch transfers",
+          "type": "core",
+          "description": "Hear about every transfer as it happens.",
+          "capabilities": [
+            {
+              "name": "Watch transfers",
+              "takes": "a subscription to the transfer events",
+              "gives": "every transfer as it is made and each time its status changes",
+              "acts": [{ "mode": "reacts", "resource": "Transfer" }]
+            }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "services/transfers/", "shows": "Invented: the events Transfers publishes and Risk scoring subscribes to." }
+      ]
+    },
+    {
+      "consumer": "Risk scoring",
+      "provider": "Case management",
+      "interfaces": ["alerts API"],
+      "areas": [
+        {
+          "name": "Raise alert",
+          "type": "core",
+          "description": "Put a high-scoring account in front of an analyst.",
+          "capabilities": [
+            {
+              "name": "Raise alert",
+              "takes": "an account, the transfers behind the alert, a score and a reason",
+              "gives": "an open alert in the analysts' queue",
+              "acts": [{ "mode": "produces", "resource": "Alert" }]
+            }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "services/case-management/", "shows": "Invented: the alerts API that Risk scoring calls." }
+      ]
+    },
+    {
+      "consumer": "Accounts",
+      "provider": "Identity verification service",
+      "interfaces": ["identity check API"],
+      "areas": [
+        {
+          "name": "Check identity",
+          "type": "core",
+          "description": "Find out whether a person is who their ID document says.",
+          "capabilities": [
+            {
+              "name": "Check identity",
+              "takes": "a photo of an ID document and a selfie",
+              "gives": "a check in progress, then its outcome, sent back when it is done: passed, or failed with reasons",
+              "acts": [{ "mode": "produces", "resource": "Identity check" }]
+            }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "services/accounts/", "shows": "Invented: the adapter that sends checks to the identity verification service and receives their outcome." }
+      ]
+    },
+    {
+      "consumer": "Transfers",
+      "provider": "Partner bank",
+      "interfaces": ["partner bank API"],
+      "areas": [
+        {
+          "name": "Move money",
+          "type": "core",
+          "description": "Pay money out to recipients' banks and learn about money paid in.",
+          "capabilities": [
+            {
+              "name": "Send bank payment",
+              "takes": "an amount, a currency, the recipient's bank account and a reference",
+              "gives": "the payment accepted, then a notice when the recipient's bank credits it or sends it back",
+              "acts": [{ "mode": "produces", "resource": "Bank payment" }]
+            },
+            {
+              "name": "Watch incoming payments",
+              "takes": "Fernwire's accounts at the bank",
+              "gives": "a notice of each payment into those accounts, with its reference",
+              "acts": [{ "mode": "reacts", "resource": "Bank payment" }]
+            }
+          ]
+        },
+        {
+          "name": "Get market rate",
+          "type": "supporting",
+          "description": "Know what converting currencies costs Fernwire.",
+          "capabilities": [
+            {
+              "name": "Get market rate",
+              "takes": "two currencies",
+              "gives": "the bank's current rate between them",
+              "acts": [{ "mode": "observes", "resource": "Market rate" }]
+            }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "services/transfers/bank-payments/", "shows": "Invented: the adapter to the partner bank's payment API." },
+        { "path": "services/transfers/pricing/", "shows": "Invented: the adapter that reads the partner bank's rates." }
+      ]
+    },
+    {
+      "consumer": "Transfer tracker",
+      "provider": "Pricing",
+      "interfaces": ["pricing API"],
+      "areas": [
+        {
+          "name": "Price transfer",
+          "type": "core",
+          "description": "Fix the rate and fee of a new transfer.",
+          "capabilities": [
+            {
+              "name": "Price transfer",
+              "takes": "an amount and two currencies",
+              "gives": "the rate and fee to apply, fixed for this transfer",
+              "acts": [{ "mode": "observes", "resource": "Exchange rate" }]
+            }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "services/transfers/pricing/", "shows": "Invented: the pricing contract the tracker calls." }
+      ]
+    },
+    {
+      "consumer": "Transfer tracker",
+      "provider": "Bank payments",
+      "interfaces": ["bank payments API"],
+      "areas": [
+        {
+          "name": "Pay transfers",
+          "type": "core",
+          "description": "Get each transfer's money in and out of Fernwire's bank accounts.",
+          "capabilities": [
+            {
+              "name": "Pay out transfer",
+              "takes": "a transfer that has its money",
+              "gives": "the payment sent to the recipient's bank, then paid or returned",
+              "acts": [{ "mode": "produces", "resource": "Bank payment" }]
+            },
+            {
+              "name": "Watch pay-ins",
+              "takes": "a subscription to money paid in",
+              "gives": "each incoming payment, with the transfer or batch it pays for",
+              "acts": [{ "mode": "reacts", "resource": "Bank payment" }]
+            }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "services/transfers/bank-payments/", "shows": "Invented: the bank payments contract the tracker calls." }
+      ]
+    },
+    {
+      "consumer": "Bank payments",
+      "provider": "Partner bank",
+      "interfaces": ["partner bank API"],
+      "areas": [
+        {
+          "name": "Move money",
+          "type": "core",
+          "description": "Pay money out to recipients' banks and learn about money paid in.",
+          "capabilities": [
+            {
+              "name": "Send bank payment",
+              "takes": "an amount, a currency, the recipient's bank account and a reference",
+              "gives": "the payment accepted, then a notice when the recipient's bank credits it or sends it back",
+              "acts": [{ "mode": "produces", "resource": "Bank payment" }]
+            },
+            {
+              "name": "Watch incoming payments",
+              "takes": "Fernwire's accounts at the bank",
+              "gives": "a notice of each payment into those accounts, with its reference",
+              "acts": [{ "mode": "reacts", "resource": "Bank payment" }]
+            }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "services/transfers/bank-payments/", "shows": "Invented: the adapter to the partner bank's payment API." }
+      ]
+    },
+    {
+      "consumer": "Pricing",
+      "provider": "Partner bank",
+      "interfaces": ["partner bank API"],
+      "areas": [
+        {
+          "name": "Get market rate",
+          "type": "core",
+          "description": "Know what converting currencies costs Fernwire.",
+          "capabilities": [
+            {
+              "name": "Get market rate",
+              "takes": "two currencies",
+              "gives": "the bank's current rate between them",
+              "acts": [{ "mode": "observes", "resource": "Market rate" }]
+            }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "services/transfers/pricing/", "shows": "Invented: the adapter that reads the partner bank's rates." }
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "question": "Is the case console its own provider, or part of Fernwire?",
+      "answer": "Part of Fernwire rather than a provider of its own; analysts see it as Fernwire's compliance tool and it works on Fernwire's own accounts and transfers, but it has its own deployment and consumers, so the rule on separate products does not settle it."
+    },
+    {
+      "question": "Are senders and business customers one consumer?",
+      "answer": "Two consumers rather than one with a business flag; a business pays many people at once from its own systems and follows batches, goals and resources a sender does not share, though both make transfers from an account."
+    },
+    {
+      "question": "Are the analysts who review alerts and the investigators who work cases one consumer?",
+      "answer": "One consumer, Compliance analyst, rather than two; both work toward the same goal and in a small team the same person does both, but larger teams split the work, so either reading fits."
+    },
+    {
+      "question": "Is the recipient a resource, or part of a transfer?",
+      "answer": "Part of Transfer rather than a resource; senders pick a past recipient by sending a transfer again, and no capability works on recipients alone, but a sender would see recipients as things of their own, so either reading fits. A capability such as Edit recipient would make Recipient a resource."
+    },
+    {
+      "question": "Does Risk scoring use Transfers, or does Transfers use Risk scoring?",
+      "answer": "Risk scoring is the consumer rather than Transfers; Risk scoring wants every transfer, and Transfers neither waits for nor uses the score, though the events flow from Transfers to Risk scoring."
+    }
+  ],
+  "cleanupCandidates": [],
+  "excluded": [
+    { "name": "Recipients", "why": "People who receive money get it in their own bank account and never use Fernwire, so they are no consumer; their name and bank account are part of each transfer." },
+    { "name": "Reporting to the authorities", "why": "The reporting officer files reports on the authority's own website, outside Fernwire; a case only records the decision to report." },
+    { "name": "Scoring transfers and raising alerts, seen from the analyst", "why": "What Fernwire does on its own, not something the analyst does; the analyst reads the result with List alerts." },
+    { "name": "Risk model training and threshold tuning", "why": "Work on the system, which changes how it scores, rather than with it." },
+    { "name": "Customer support", "why": "Left out to keep the example small; support agents would be a fourth consumer with goals of their own." },
+    { "name": "Business onboarding, sign-in and account settings", "why": "Left out to keep the example small." },
+    { "name": "Tests, deployment and database migrations", "why": "Engineering tooling that builds, checks and ships the system." }
+  ]
+}

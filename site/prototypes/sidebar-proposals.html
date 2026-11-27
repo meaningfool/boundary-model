@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Boundary model sidebar proposals</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<!--
+  PROTOTYPE, throwaway. Sidebar and in-page navigation for the boundary model site
+  (meaningfool/boundary-model#7). Chosen: version A. Left: numbered pages, one level.
+  Right: the current page's sections. Page text is placeholder.
+-->
+<style>
+/* Layout: pages in the left sidebar, the current page's sections in a right column, on every page. */
+:root {
+  --bg: #ffffff; --fg: #111111; --fg2: #666666; --fg3: #888888; --fg4: #aaaaaa;
+  --line: #ebebeb; --line2: #d4d4d4; --panel: #fafafa; --skel: #efefef;
+  --inv-bg: #111111; --inv-fg: #ffffff; --proto: #1f4fd1; --proto-fg: #ffffff;
+  --sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b0b0b; --fg: #ededed; --fg2: #a3a3a3; --fg3: #858585; --fg4: #5f5f5f;
+    --line: #222222; --line2: #383838; --panel: #121212; --skel: #1c1c1c;
+    --inv-bg: #ededed; --inv-fg: #0b0b0b; --proto: #3b6cf0; --proto-fg: #ffffff; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0b0b0b; --fg: #ededed; --fg2: #a3a3a3; --fg3: #858585; --fg4: #5f5f5f;
+  --line: #222222; --line2: #383838; --panel: #121212; --skel: #1c1c1c;
+  --inv-bg: #ededed; --inv-fg: #0b0b0b; --proto: #3b6cf0; --proto-fg: #ffffff; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 16px; line-height: 1.5; letter-spacing: -0.011em; -webkit-font-smoothing: antialiased; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--bg); }
+a { color: inherit; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; border-radius: 4px; }
+ul, ol { margin: 0; padding: 0; list-style: none; }
+p { margin: 0; }
+.dim { color: var(--fg4); }
+
+/* ---------- shell ---------- */
+.shell { max-width: 1240px; margin: 0 auto; display: grid; grid-template-columns: 240px minmax(0, 1fr); }
+.side { position: sticky; top: env(safe-area-inset-top, 0px); height: 100vh; overflow-y: auto; padding: 32px 24px 24px; border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 22px; }
+.logo { display: inline-flex; align-items: center; gap: 9px; text-decoration: none; font-weight: 600; font-size: 15px; letter-spacing: -0.02em; }
+.logo svg { width: 20px; height: 20px; flex: none; }
+.search { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 10px 7px 12px; border: 1px solid var(--line2); border-radius: 999px; background: transparent; color: var(--fg3); font-size: 14px; cursor: pointer; }
+.search svg { width: 14px; height: 14px; }
+.search kbd { margin-left: auto; font-family: var(--mono); font-size: 10.5px; color: var(--fg3); }
+
+.pages { display: grid; gap: 2px; }
+.pages a { display: flex; gap: 12px; align-items: baseline; font-size: 14px; line-height: 1.45; color: var(--fg2); text-decoration: none; padding: 5px 0 5px 12px; border-left: 1px solid transparent; }
+.pages a:hover { color: var(--fg); }
+.pages a[aria-current="page"] { color: var(--fg); font-weight: 500; border-left-color: var(--fg); }
+.pages .n { font-family: var(--mono); font-size: 11px; letter-spacing: 0.03em; color: var(--fg4); flex: none; width: 2ch; }
+.pages a[aria-current="page"] .n { color: var(--fg); }
+.pages hr { border: 0; border-top: 1px solid var(--line); margin: 10px 0; }
+
+.side-foot { margin-top: auto; border-top: 1px solid var(--line); padding-top: 16px; display: grid; gap: 10px; font-size: 13px; color: var(--fg3); }
+.side-foot a { text-decoration: none; color: var(--fg2); }
+.side-foot a:hover { color: var(--fg); }
+.side-foot .gh { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--fg); }
+.side-foot .gh svg { width: 15px; height: 15px; }
+.side-foot .meta { display: flex; flex-wrap: wrap; gap: 6px; font-family: var(--mono); font-size: 11.5px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; padding: 2px; gap: 2px; width: max-content; }
+.seg button { border: 0; background: transparent; border-radius: 6px; padding: 3px 9px; font-family: var(--mono); font-size: 11px; color: var(--fg3); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--panel); color: var(--fg); box-shadow: inset 0 0 0 1px var(--line2); }
+
+.mtop { display: none; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 25; height: 52px; align-items: center; justify-content: space-between; background: var(--bg); border-bottom: 1px solid var(--line); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.mtop button { background: none; border: 1px solid var(--line2); border-radius: 8px; padding: 5px 12px; font-size: 13px; cursor: pointer; }
+
+/* ---------- page: content + right column ---------- */
+.page { display: grid; grid-template-columns: minmax(0, 1fr) 200px; gap: 56px; padding: 56px 58px 150px; min-width: 0; }
+.page.no-toc { grid-template-columns: minmax(0, 1fr); }
+.page.no-toc .toc { display: none; }
+.content { min-width: 0; max-width: 680px; }
+.page.no-toc .content { max-width: 884px; }
+.toc { position: sticky; top: calc(56px + env(safe-area-inset-top, 0px)); align-self: start; padding-top: 8px; }
+.toc-h { font-size: 14px; font-weight: 500; margin-bottom: 12px; }
+.toc ol { display: grid; gap: 9px; }
+.toc a { display: block; font-size: 13.5px; line-height: 1.4; color: var(--fg3); text-decoration: none; }
+.toc a:hover, .toc a.on { color: var(--fg); }
+.toc-actions { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); display: grid; gap: 10px; }
+.toc-actions button { display: flex; align-items: center; gap: 9px; padding: 0; border: 0; background: none; font-size: 13.5px; color: var(--fg2); cursor: pointer; text-align: left; }
+.toc-actions button:hover { color: var(--fg); }
+.toc-actions svg { width: 14px; height: 14px; flex: none; }
+.mtoc { display: none; margin: 22px 0 6px; border: 1px solid var(--line); border-radius: 10px; }
+.mtoc summary { padding: 10px 14px; font-size: 14px; font-weight: 500; cursor: pointer; }
+.mtoc ol { display: grid; gap: 8px; padding: 2px 14px 14px; }
+.mtoc a { font-size: 14px; color: var(--fg2); text-decoration: none; }
+
+/* home */
+.hero h1 { font-size: 44px; line-height: 1.12; font-weight: 600; letter-spacing: -0.03em; margin: 0; text-wrap: balance; }
+.lede { font-size: 17px; line-height: 1.65; color: var(--fg3); max-width: 590px; margin-top: 24px; }
+.ctas { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 30px; }
+.btn { display: inline-flex; align-items: center; gap: 8px; background: var(--inv-bg); color: var(--inv-fg); font-size: 14.4px; font-weight: 500; padding: 10px 18px; border-radius: 8px; border: 0; text-decoration: none; cursor: pointer; }
+.btn-dash { display: inline-flex; align-items: center; gap: 10px; background: transparent; color: var(--fg2); font-size: 14.5px; font-weight: 500; padding: 11px 18px; border-radius: 8px; border: 1px dashed var(--line2); cursor: pointer; }
+.btn-dash .glyph { font-family: var(--mono); font-size: 12px; border: 1px solid var(--line2); border-radius: 5px; padding: 0 5px; color: var(--fg3); }
+.sec { border-top: 1px solid var(--line); margin-top: 52px; padding-top: 48px; }
+.sec h2 { font-size: 22px; font-weight: 600; letter-spacing: -0.015em; margin: 0; }
+.sec > p { color: var(--fg2); line-height: 1.65; margin-top: 12px; }
+.ph { margin-top: 24px; height: 170px; border: 1px dashed var(--line2); border-radius: 12px; display: grid; place-items: center; font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg4); }
+.endcta { border-top: 1px solid var(--line); margin-top: 56px; padding-top: 52px; }
+.endcta h2 { font-size: 28px; font-weight: 600; letter-spacing: -0.025em; margin: 0; }
+.endcta p { color: var(--fg2); margin-top: 10px; line-height: 1.65; }
+.endcta .btn { margin-top: 22px; }
+
+/* page 01 opens with the value proposition, still to write */
+.pending { border: 1px dashed var(--line2); border-radius: 12px; padding: 22px 24px 26px; }
+.pending h1 { font-size: 40px; line-height: 1.12; font-weight: 600; letter-spacing: -0.03em; margin: 0; text-wrap: balance; }
+.ptag { display: inline-block; font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg3); margin-bottom: 14px; }
+@media (max-width: 640px) { .pending { padding: 18px 16px 20px; } .pending h1 { font-size: 28px; } }
+
+/* docs */
+.eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: 0.05em; color: var(--fg3); margin-bottom: 10px; }
+.dhead h1 { font-size: 30px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; margin: 0; }
+.dlede { font-size: 18px; line-height: 1.6; color: var(--fg2); margin-top: 14px; }
+.dsec { margin-top: 44px; }
+.dsec h2 { font-size: 22px; font-weight: 600; letter-spacing: -0.015em; margin: 0; }
+.dsec p { color: var(--fg2); line-height: 1.7; margin-top: 12px; }
+.skel { display: grid; gap: 9px; margin-top: 14px; }
+.skel i { display: block; height: 9px; border-radius: 3px; background: var(--skel); }
+.pager { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 64px; padding-top: 28px; border-top: 1px solid var(--line); }
+.pager a { display: grid; gap: 3px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; text-decoration: none; }
+.pager a:hover { border-color: var(--line2); }
+.pager a.next { text-align: right; grid-column: 2; }
+.pager .k { font-family: var(--mono); font-size: 11px; letter-spacing: 0.05em; color: var(--fg3); }
+.pager .t { font-size: 15px; font-weight: 500; }
+
+/* ---------- prototype bar (not part of the design) ---------- */
+.switcher { position: fixed; z-index: 40; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: 999px; background: var(--proto); color: var(--proto-fg); box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28); font-size: 13px; white-space: nowrap; max-width: calc(100vw - 24px); }
+.switcher button { background: transparent; border: 0; color: inherit; cursor: pointer; border-radius: 999px; padding: 6px 10px; font-size: 13px; }
+.switcher button:hover { background: rgba(255, 255, 255, 0.16); }
+.switcher .cur { padding: 0 8px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
+.switcher .sep { width: 1px; height: 18px; background: rgba(255, 255, 255, 0.35); margin: 0 4px; }
+.toast { position: fixed; z-index: 41; left: 50%; transform: translateX(-50%); bottom: calc(66px + env(safe-area-inset-bottom, 0px)); background: var(--inv-bg); color: var(--inv-fg); font-size: 13px; padding: 7px 14px; border-radius: 8px; }
+
+@media (max-width: 1180px) {
+  .page, .page.no-toc { grid-template-columns: minmax(0, 1fr); }
+  .toc { display: none; }
+  .mtoc { display: block; }
+  .page.no-toc .mtoc { display: none; }
+  .content, .page.no-toc .content { max-width: 720px; }
+}
+@media (max-width: 960px) {
+  .shell { grid-template-columns: minmax(0, 1fr); }
+  .side { display: none; }
+  .side.open { display: flex; position: fixed; z-index: 24; inset: calc(52px + env(safe-area-inset-top, 0px)) 0 0 0; height: auto; background: var(--bg); border-right: 0; padding-left: max(24px, env(safe-area-inset-left, 0px)); padding-right: max(24px, env(safe-area-inset-right, 0px)); }
+  .side.open > .logo { display: none; }
+  .mtop { display: flex; }
+  .page { padding-block: 32px 150px; padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px)); }
+}
+@media (max-width: 640px) {
+  .hero h1 { font-size: 32px; }
+  .lede { font-size: 16px; }
+  .dhead h1 { font-size: 26px; }
+  .dlede { font-size: 16.5px; }
+  .pager { grid-template-columns: 1fr; }
+  .pager a.next { grid-column: 1; }
+  .switcher .hide-sm { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="logo" viewBox="0 0 20 20"><rect x="1.5" y="1.5" width="17" height="17" rx="4.5" fill="none" stroke="currentColor" stroke-width="1.6"/><line x1="10" y1="2.5" x2="10" y2="17.5" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2 2.2"/><circle cx="10" cy="10" r="2.7" fill="currentColor"/></symbol>
+  <symbol id="copy" viewBox="0 0 16 16"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M10.5 3.5v-.5A1.5 1.5 0 0 0 9 1.5H4A1.5 1.5 0 0 0 2.5 3v5A1.5 1.5 0 0 0 4 9.5h.5" fill="none" stroke="currentColor" stroke-width="1.3"/></symbol>
+  <symbol id="out" viewBox="0 0 16 16"><path d="M9.5 2.5h4v4M13.5 2.5 7.5 8.5M12 9.5V13a.5.5 0 0 1-.5.5H3a.5.5 0 0 1-.5-.5V4.5A.5.5 0 0 1 3 4h3.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="find" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="m10.5 10.5 3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></symbol>
+  <symbol id="repo" viewBox="0 0 16 16"><path d="M3.5 2.5h8a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1Z M5.5 2.5v11" fill="none" stroke="currentColor" stroke-width="1.3"/></symbol>
+</svg>
+
+<header class="mtop">
+  <a class="logo" href="#what"><svg><use href="#logo"/></svg>boundary model</a>
+  <button type="button" id="menuBtn" aria-expanded="false" aria-controls="side">Menu</button>
+</header>
+
+<div class="shell">
+  <aside class="side" id="side">
+    <a class="logo" href="#what"><svg><use href="#logo"/></svg>boundary model</a>
+    <nav class="pages" id="pages" aria-label="Pages"></nav>
+    <div class="side-foot">
+      <a class="gh" href="https://github.com/meaningfool/boundary-model" target="_blank" rel="noopener"><svg><use href="#repo"/></svg>GitHub ↗</a>
+      <div class="meta"><a href="https://github.com/meaningfool/boundary-model/releases/tag/v0.1.0" target="_blank" rel="noopener">v0.1.0</a><span>·</span><a href="https://github.com/meaningfool/boundary-model/blob/main/LICENSE" target="_blank" rel="noopener">MIT licence</a></div>
+    </div>
+  </aside>
+  <div class="page" id="page">
+    <article class="content" id="content"></article>
+    <aside class="toc" id="toc" aria-label="On this page"></aside>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(() => {
+  const PAGES = [
+    { id: 'what', title: 'What it is and why', home: true, sections: [
+      ['problem', 'The problem', 'A coding agent sees a repository as files, folders and functions, so it plans a change as a list of files to edit.', 'One change as a list of files, and as boundary changes'],
+      ['idea', 'The idea', 'Describe the system one level up, from its consumers’ side, and decide there what a change is and which part owns it.'],
+      ['model', 'The model', 'Consumers, providers, interfaces, capabilities, resources and levels, in one diagram of the Store example.', 'The Store, labelled with each term'],
+      ['boundary-map', 'The boundary map', 'One JSON file for one revision of the code, finished once a person has reviewed it.'],
+      ['shape', 'Shaping a change', 'A request becomes the boundary changes it leads to, which you confirm before the work is sliced.', 'The gift-card shape'],
+      ['principles', 'Principles', 'Five principles, each linked to the skill that sets it.'],
+      ['try', 'Try it', 'One command installs the nine skills. The Install page has the other routes.', 'The npx skills command'],
+    ] },
+    { id: 'how', title: 'How the skills work together', lede: 'The loop the nine skills form, where to start, and what you decide at each step.', sections: [
+      ['loop', 'The loop', 'One diagram: keep a map current, and plan changes from it.'],
+      ['start', 'Where to start', 'Four cases, from nothing built yet to code with a map.'],
+      ['extract', 'Map a system', 'extract-boundaries drafts the map. You decide which system, what it reads and where the map goes.'],
+      ['review', 'Review the map', 'review-boundaries shows each level as images and asks at most five questions per level.'],
+      ['update', 'Update the map', 'update-boundaries reads only what changed since the map’s revision.'],
+      ['shape', 'Shape a change', 'shape-boundaries asks until no answer could change the shape, then you confirm it.'],
+      ['plan', 'Slice, refine, publish', 'slice, refine and to-issues turn the shape into issues, each with its proof of done.'],
+    ] },
+    { id: 'install', title: 'Install', lede: 'Install the nine skills side by side, for the agents you use.', sections: [
+      ['needs', 'What the skills need', 'Node 18 or later; Chrome, Chromium or Edge for images; access to GitHub for issues.'],
+      ['npx', 'With npx skills', 'One command for Claude Code, Codex and most other agents.'],
+      ['claude', 'In Claude Code', 'The nine skills as one plugin.'],
+      ['codex', 'In Codex', 'The nine skills as one plugin.'],
+      ['hand', 'By hand', 'Copy the nine skill folders side by side.'],
+      ['check', 'Check it works', 'Ask your agent to map this repository’s boundaries.'],
+    ] },
+    { id: 'example', title: 'An example', lede: 'One real map of an open-source project, with its images.', sections: [
+      ['system', 'The system', 'What it is, who uses it, and the revision that was mapped.'],
+      ['made', 'How the map was made', 'The extraction, and the questions the review settled.'],
+      ['live', 'The map', 'The drawn page, live, with its JSON.'],
+      ['screens', 'Screen by screen', 'Still images from the top down, each with what to look at.'],
+    ] },
+  ];
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const $ = (id) => document.getElementById(id);
+  const store = {
+    get(k, d) { try { return localStorage.getItem('bm-proto-' + k) || d; } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem('bm-proto-' + k, v); } catch (e) { /* ignore */ } },
+  };
+  const side = 'a';
+  const homeToc = 'on';
+  let observer;
+
+  const route = () => { const h = location.hash.slice(1); return PAGES.some((p) => p.id === h) ? h : 'what'; };
+  const num = (p) => String(PAGES.indexOf(p) + 1).padStart(2, '0');
+
+  function link(p, cur, numbered) {
+    const current = p.id === cur ? ' aria-current="page"' : '';
+    return '<a href="#' + p.id + '"' + current + '>' + (numbered ? '<span class="n">' + num(p) + '</span>' : '') + '<span>' + p.title + '</span></a>';
+  }
+
+  function renderSide(cur) {
+    $('pages').innerHTML = PAGES.map((p) => link(p, cur, true)).join('');
+  }
+
+  function skel() { return '<div class="skel"><i style="width:96%"></i><i style="width:88%"></i><i style="width:64%"></i></div>'; }
+
+  function tocList(p) { return p.sections.map((s) => '<li><a href="#" data-target="' + p.id + '-' + s[0] + '">' + s[1] + '</a></li>').join(''); }
+
+  function renderPage(cur) {
+    const p = PAGES.find((x) => x.id === cur);
+    const i = PAGES.indexOf(p);
+    let html = '';
+    html += p.home
+      ? '<header class="pending"><span class="ptag">Value proposition, to write</span><h1>Headline: what the skills give your agent. <span class="dim">Second sentence, in grey: what that changes for you.</span></h1>'
+        + '<p class="lede">One line on what the skills are, and for which agents.</p>'
+        + '<div class="ctas"><a class="btn" href="#install">Install</a><button class="btn-dash" type="button" data-copy><span class="glyph">&gt;_</span>Install with your agent</button></div></header>'
+      : '<header class="dhead"><div class="eyebrow">' + num(p) + '</div><h1>' + p.title + '</h1><p class="dlede">' + p.lede + '</p></header>';
+    html += '<details class="mtoc"><summary>On this page</summary><ol>' + tocList(p) + '</ol></details>';
+    html += p.sections.map((s) => '<section class="dsec" id="' + p.id + '-' + s[0] + '"><h2>' + s[1] + '</h2><p>' + s[2] + '</p>' + (s[3] ? '<div class="ph">Visual: ' + s[3] + '</div>' : skel()) + '</section>').join('');
+    const prev = PAGES[i - 1], next = PAGES[i + 1];
+    html += '<nav class="pager" aria-label="Previous and next pages">'
+      + (prev ? '<a href="#' + prev.id + '"><span class="k">Previous</span><span class="t">' + prev.title + '</span></a>' : '')
+      + (next ? '<a class="next" href="#' + next.id + '"><span class="k">Next</span><span class="t">' + next.title + '</span></a>' : '')
+      + '</nav>';
+    $('content').innerHTML = html;
+
+    const showToc = p.id !== 'home' || homeToc === 'on';
+    $('page').classList.toggle('no-toc', !showToc);
+    $('toc').innerHTML = '<p class="toc-h">On this page</p><ol>' + tocList(p) + '</ol>'
+      + (p.id === 'home' ? '' : '<div class="toc-actions"><button type="button" data-act="Copy as Markdown"><svg><use href="#copy"/></svg>Copy as Markdown</button><button type="button" data-act="Open in chat"><svg><use href="#out"/></svg>Open in chat</button></div>');
+
+    if (observer) observer.disconnect();
+    observer = new IntersectionObserver((entries) => {
+      entries.forEach((en) => {
+        if (!en.isIntersecting) return;
+        document.querySelectorAll('#toc a').forEach((a) => a.classList.toggle('on', a.dataset.target === en.target.id));
+      });
+    }, { rootMargin: '-20% 0px -70% 0px' });
+    document.querySelectorAll('#content section[id]').forEach((s) => observer.observe(s));
+  }
+
+  function render() {
+    const cur = route();
+    renderSide(cur);
+    renderPage(cur);
+    window.scrollTo(0, 0);
+    closeMenu();
+  }
+
+  // Toast.
+  let tt;
+  function say(m) { const t = $('toast'); t.textContent = m; t.hidden = false; clearTimeout(tt); tt = setTimeout(() => { t.hidden = true; }, 1800); }
+
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('a[data-target]');
+    if (a) {
+      e.preventDefault();
+      const el = $(a.dataset.target);
+      if (el) el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+      const d = a.closest('details'); if (d) d.open = false;
+      return;
+    }
+    const act = e.target.closest('[data-act]');
+    if (act) { say(act.dataset.act + ' works on the real site'); return; }
+    if (e.target.closest('[data-copy]')) { say('Copies an install prompt on the real site'); return; }
+  });
+
+  // Phone menu.
+  const sideEl = $('side'), menuBtn = $('menuBtn');
+  function closeMenu() { sideEl.classList.remove('open'); menuBtn.setAttribute('aria-expanded', 'false'); menuBtn.textContent = 'Menu'; }
+  menuBtn.addEventListener('click', () => {
+    const open = !sideEl.classList.contains('open');
+    sideEl.classList.toggle('open', open);
+    menuBtn.setAttribute('aria-expanded', String(open));
+    menuBtn.textContent = open ? 'Close' : 'Menu';
+  });
+
+  window.addEventListener('hashchange', render);
+  render();
+})();
+</script>

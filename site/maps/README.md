@@ -1,0 +1,36 @@
+# Boundary maps for the website
+
+`store/` holds the Store, an invented system written by hand for the former page 05, A walkthrough, which is now a short example on page 02 with no maps: `map.json` is the map of the Store today, and `after-gift-cards.json` the map after the walkthrough's change, drawn only to compare with today's. `../scripts/draw-maps.mjs` draws both, and cuts the smaller maps for the walkthrough's early steps from `map.json`.
+
+The other folders hold maps of open-source projects, extracted with the boundary model skills v0.1.0 for the website's examples. No person has reviewed them yet, so each one is a draft. Each map lists, in `questions`, the choices its extraction could not settle.
+
+| Project | Repository | Revision | Levels | Components | Boundaries |
+| --- | --- | --- | --- | --- | --- |
+| Executor | [UsefulSoftwareCo/executor](https://github.com/UsefulSoftwareCo/executor), branch v2 | `c8bb046` | 3 | 13 | 26 |
+| T3 Code | [pingdotgg/t3code](https://github.com/pingdotgg/t3code) | `667cb3b` | 4 | 41 | 101 |
+| Rivet | [rivet-dev/rivet](https://github.com/rivet-dev/rivet) | `f89614f` | 4 | 23 | 34 |
+| LangChain | [langchain-ai/langchain](https://github.com/langchain-ai/langchain) | `9d461bb` | 4 | 33 | 64 |
+| Pi | [earendil-works/pi](https://github.com/earendil-works/pi) | `362bf6f` | 3 | 11 | 36 |
+| Cloudflare OS | [cloudflare/cloudflare-os](https://github.com/cloudflare/cloudflare-os) | `7391957` | 4 | 17 | 58 |
+| Astro | [withastro/astro](https://github.com/withastro/astro) | `4c72ca5` | 4 | 25 | 48 |
+| Joplin | [laurent22/joplin](https://github.com/laurent22/joplin), branch dev | `981e5a3` | 3 | 29 | 74 |
+| celld | [denoland/celld](https://github.com/denoland/celld), v0.6.3 | `8702f6d` | 4 | 16 | 43 |
+
+Each folder holds `draft-map.json` and the extraction's records:
+
+- `run-log.md`: what the extraction read, what each round decided, and how long each step took.
+- `open-list.md`: each provider's and component's parts, tested against the component guideline, with the files behind each verdict.
+- `boundaries.md`: the contract behind each boundary below Level 1, with its operations.
+
+Pi also has `run-log-deepening.md` and `boundaries-deepening.md`, from a second pass that looked one level further.
+
+## How they were made
+
+- One agent per project followed `extract-boundaries` through its checks, and stopped before the review.
+- Each agent looked as deep as the code supported, up to Level 4.
+- No subagents were available, so each agent did all of its reading alone, instead of handing the broad sweep to parallel readers as the skill asks.
+- What each map leaves out is recorded in its `system.corpus`: vendored copies of other code in T3 Code, Rivet and Joplin, Pi's experimental runtime and apps, and Cloudflare OS's drivers for individual services, which all follow one contract.
+
+## Using them
+
+Check a map with `node skills/use-boundary-model/scripts/check-map.mjs <map>`, and draw it with `node skills/visualize-boundaries/scripts/render-map.mjs <map> <page.html>`, from the repository root.

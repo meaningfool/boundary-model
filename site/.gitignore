@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.astro/
+.wrangler/
+# Drawn from ../maps/store/ by scripts/draw-maps.mjs before each build.
+public/maps/
+# The review build, see review/README.md, and the config it writes for the length of a build.
+review/out/
+review/.cache/
+review.config.mjs

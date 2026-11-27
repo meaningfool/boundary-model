@@ -1,0 +1,1417 @@
+{
+  "system": {
+    "name": "celld",
+    "description": "A self-hosted daemon that runs a Cloudflare Workers application, with its Durable Objects, KV, Queues, D1, R2, Workflows, Cron Triggers, static assets, Dynamic Workers and containers, on the operator's own machines, keeping long-term state in the operator's object-storage bucket.",
+    "corpus": {
+      "included": "The whole denoland/celld repository at the revision below and its version-control history (14 release commits, v0.0.1 to v0.6.3): crates/celld, crates/logic, crates/ltx, docs, examples, README.md, the release workflow, the Dockerfile and the manifests.",
+      "excluded": "Dependencies (Cargo.lock and the crates it names), generated output and secrets, none of which besides Cargo.lock is tracked. Test suites and design documents that the code includes or cites from outside the tree are not part of the repository."
+    },
+    "revision": "8702f6d186c77698dbfb30cf29e3b1922a88f008 (v0.6.3, 2026-10-21)"
+  },
+  "consumers": [
+    { "name": "Application developer", "description": "A person who writes a Cloudflare Workers project, with its Workers, Durable Objects and bindings in a wrangler.json, and runs it on celld without changing it." },
+    { "name": "Fleet operator", "description": "A person who runs celld nodes on their own machines against a bucket they own and keeps that fleet running as it grows, shrinks and upgrades; their orchestrator, autoscaler and load balancer act for them." }
+  ],
+  "providers": [
+    {
+      "name": "celld",
+      "description": "The celld daemon and command line, with the bucket layout they share, as their users see them: one fleet of nodes that runs one Workers application.",
+      "resources": ["Deployment", "Durable Object", "Facet", "Container", "Dynamic Worker", "KV namespace", "D1 database", "R2 object", "Queue", "Queue message", "Workflow instance", "Cron Trigger", "Node", "Fleet", "Trace", "Managed installation"],
+      "parts": [
+        { "name": "Operator command-line clients", "why": "celld d1, kv and queue sign a request to a live node's /runtime/ route, which forwards it to the owner, and celld r2 and celld cell read and write the bucket through the node's own record modules; they present the node's capabilities, so they are part of the celld command line interface." },
+        { "name": "Local development stack", "why": "celld dev runs the deploy path and one supervised node against a SQLite stand-in for the object store, which both of them write; it is the local development server interface, not a component." },
+        { "name": "Object store client", "why": "bucket.rs is the single adapter every part uses to reach the bucket." },
+        { "name": "Process facilities", "why": "The execution facade, environment parsing, machine and memory sampling, listener startup and the outbound WebSocket client are libraries." }
+      ],
+      "components": [
+        {
+          "name": "Deployment publisher",
+          "description": "Turns a Wrangler project into a deployment: it checks the configuration against what celld supports, bundles the Worker with esbuild or packs a Python Worker with Pyodide, packs the static assets and container images, and writes them to the bucket as the records nodes read.",
+          "resources": ["Deployment"],
+          "serves": [{ "consumer": "Application developer", "area": "Run the application" }],
+          "parts": [
+            { "name": "Wrangler config translation", "why": "An allowlist of configuration keys and their checks; a step of publishing that writes nothing of its own." },
+            { "name": "Bundling through esbuild", "why": "An adapter to esbuild." },
+            { "name": "Python build", "why": "A variant of bundling for a .py main that produces the same module records." },
+            { "name": "Asset and image packaging", "why": "Writes into the same deployment version and blob store as the other steps." },
+            { "name": "Bucket publication", "why": "Moves the pointers over the records the other steps prepared; one record set, so no part keeps state the others do not change." }
+          ]
+        },
+        {
+          "name": "Node",
+          "description": "One celld process per machine: it serves the deployed Worker and its Durable Objects, owns the cells it runs, replicates their writes, and works with the other nodes of the fleet through the bucket and the peer protocol.",
+          "resources": ["Deployment", "Durable Object", "Facet", "Container", "Dynamic Worker", "KV namespace", "D1 database", "R2 object", "Queue", "Queue message", "Workflow instance", "Cron Trigger", "Node", "Fleet", "Trace", "Cell", "Node log"],
+          "serves": [
+            { "consumer": "Application developer", "area": "Run the application" },
+            { "consumer": "Application developer", "area": "Store data" },
+            { "consumer": "Application developer", "area": "Run background work" },
+            { "consumer": "Application developer", "area": "Load code at runtime" },
+            { "consumer": "Application developer", "area": "Run containers" },
+            { "consumer": "Fleet operator", "area": "Run the fleet" },
+            { "consumer": "Fleet operator", "area": "Manage cells" },
+            { "consumer": "Fleet operator", "area": "Observe requests" }
+          ],
+          "parts": [
+            { "name": "Lifecycle executor (the Actor)", "why": "The only caller of the decision core: it feeds it events and performs the effects it returns, so it passes requests on." },
+            { "name": "Ownership, lease and drain adapters", "why": "Serialization and bucket I/O for decisions the decision core makes; adapters through which it keeps its records." },
+            { "name": "Request ingress and internal operator API", "why": "Admit requests, ask the decision core for a route and forward them; they pass requests on." },
+            { "name": "Peer transport", "why": "The signed channel between nodes and its fleet secret, which is a credential rather than a resource." },
+            { "name": "Fleet storage helpers", "why": "fleet.rs opens bucket clients, runs the storage test and loads deployments for the other parts; it keeps nothing." },
+            { "name": "Engine-neutral types", "why": "engine_api.rs holds the types and helpers the cell runtime and the host share; part of the cell host contract." },
+            { "name": "Dead-node clean-up", "why": "Compatibility garbage collection of historical bucket debris; listed as a cleanup candidate." }
+          ],
+          "components": [
+            {
+              "name": "Decision core",
+              "description": "The node's pure decision-maker: from each event it decides which node owns a cell, when a cell starts, restores, moves or stops, where a request goes, when a response may leave, and how the node keeps, renews or loses its lease.",
+              "resources": ["Cell", "Node", "Fleet"],
+              "serves": [
+                { "consumer": "Application developer", "area": "Run the application" },
+                { "consumer": "Fleet operator", "area": "Run the fleet" },
+                { "consumer": "Fleet operator", "area": "Manage cells" },
+                { "consumer": "Node", "area": "Serve cells across the fleet" }
+              ],
+              "parts": [
+                { "name": "Lifecycle state machine", "why": "One State behind one on_event; no piece keeps state apart from it." },
+                { "name": "Decision helpers", "why": "Pure functions for the isolate pool, KV, queues, cron and the fleet log that keep no state, so they are libraries of the parts that call them." }
+              ]
+            },
+            {
+              "name": "Cell runtime",
+              "description": "Runs the application in V8 isolates: Workers, Durable Objects with their SQLite storage, alarms and WebSockets, and the runtime-supplied cells behind KV, Queues, D1, Workflows and Cron Triggers.",
+              "resources": ["Cell", "Deployment", "Durable Object", "Facet", "Dynamic Worker", "KV namespace", "D1 database", "R2 object", "Queue", "Queue message", "Workflow instance", "Cron Trigger"],
+              "serves": [
+                { "consumer": "Application developer", "area": "Run the application" },
+                { "consumer": "Application developer", "area": "Store data" },
+                { "consumer": "Application developer", "area": "Run background work" },
+                { "consumer": "Application developer", "area": "Load code at runtime" },
+                { "consumer": "Application developer", "area": "Run containers" },
+                { "consumer": "Deployment publisher", "area": "Publish deployments" },
+                { "consumer": "Managed agent", "area": "Publish deployments" },
+                { "consumer": "Fleet operator", "area": "Manage cells" }
+              ],
+              "parts": [
+                { "name": "R2 binding", "why": "An adapter that serves an r2_buckets binding out of the fleet bucket, shared with celld r2." },
+                { "name": "Dynamic Worker loader and facets", "why": "They run inside the Workers host's isolates and keep their state in its maps and in the root object's database." }
+              ],
+              "components": [
+                {
+                  "name": "Workers host",
+                  "description": "Runs Workers and ordinary Durable Objects in V8 isolates: it loads each deployment, keeps every Durable Object's SQLite database and WebSockets, and gives the application's code its bindings.",
+                  "resources": ["Cell", "Deployment", "Durable Object", "Facet", "Dynamic Worker", "R2 object"],
+                  "serves": [
+                    { "consumer": "Application developer", "area": "Run the application" },
+                    { "consumer": "Application developer", "area": "Store data" },
+                    { "consumer": "Application developer", "area": "Load code at runtime" },
+                    { "consumer": "Decision core", "area": "Run cells" },
+                    { "consumer": "Decision core", "area": "Keep cells durable" },
+                    { "consumer": "Deployment publisher", "area": "Publish deployments" },
+                    { "consumer": "Managed agent", "area": "Publish deployments" }
+                  ],
+                  "parts": []
+                },
+                {
+                  "name": "KV namespace service",
+                  "description": "The runtime-supplied cell behind a KV namespace: it stores the namespace's keys, values, metadata and expirations, with values above 1 MiB in the bucket.",
+                  "resources": ["KV namespace"],
+                  "serves": [{ "consumer": "Application developer", "area": "Store data" }],
+                  "parts": []
+                },
+                {
+                  "name": "Queue broker",
+                  "description": "The runtime-supplied cell behind a queue: it stores the messages sent to it, leases batches to the consumer script, applies acknowledgements, retries and dead-letter moves, and answers the operator's queue commands.",
+                  "resources": ["Queue", "Queue message"],
+                  "serves": [{ "consumer": "Application developer", "area": "Run background work" }],
+                  "parts": []
+                },
+                {
+                  "name": "D1 database service",
+                  "description": "The runtime-supplied cell behind a D1 database: it runs the database's statements, batches and migrations in its own SQLite file.",
+                  "resources": ["D1 database"],
+                  "serves": [{ "consumer": "Application developer", "area": "Store data" }],
+                  "parts": []
+                },
+                {
+                  "name": "Workflow engine",
+                  "description": "The runtime-supplied cell behind each Workflow instance: it replays run(), keeps finished step results, sleeps, waits for events and retries, and changes the instance's status on request.",
+                  "resources": ["Workflow instance"],
+                  "serves": [{ "consumer": "Application developer", "area": "Run background work" }],
+                  "parts": []
+                },
+                {
+                  "name": "Cron scheduler",
+                  "description": "The reserved cell that holds one script's cron schedule: it arms the next occurrence and calls the script's scheduled handler once per occurrence across the fleet, with retries.",
+                  "resources": ["Cron Trigger"],
+                  "serves": [{ "consumer": "Application developer", "area": "Run background work" }],
+                  "parts": []
+                }
+              ]
+            },
+            {
+              "name": "Replication",
+              "description": "Captures every committed write of every cell, proves it durable on follower nodes or in the bucket before the node answers, keeps each cell's history under its epoch prefix, and restores a cell from that history when a node takes it over.",
+              "resources": ["Cell history", "Node log"],
+              "serves": [
+                { "consumer": "Application developer", "area": "Run the application" },
+                { "consumer": "Decision core", "area": "Keep cells durable" },
+                { "consumer": "Node", "area": "Keep writes on followers" },
+                { "consumer": "Managed agent", "area": "Report the node" }
+              ],
+              "parts": [
+                { "name": "Cell replication backend", "why": "Writes cells/<cell>/ltx/ and drains node bundles; it shares those records with the fleet log." },
+                { "name": "Fleet log", "why": "Its recovery writes the same per-cell LTX objects the backend writes, so the two change each other's records." },
+                { "name": "LTX library", "why": "A library (crates/ltx) used inside the durability protocol; it keeps nothing of its own." }
+              ]
+            },
+            {
+              "name": "Alarm discovery",
+              "description": "Keeps a durable index of armed alarms in the bucket, so that an alarm fires even when its cell is out of memory or its node has stopped, and lets one node at a time scan it for alarms nobody else will fire.",
+              "resources": ["Wake entry"],
+              "serves": [{ "consumer": "Application developer", "area": "Run the application" }],
+              "parts": [
+                { "name": "Publications and reclamation", "why": "wake.rs writes the wake/ namespace that the arm gate and the format migration also write." },
+                { "name": "Arm gate", "why": "wake_entry.rs holds a response until its entry lands, over the same records." },
+                { "name": "Format initialization and migration", "why": "wake_format.rs initializes and migrates the same namespace." }
+              ]
+            },
+            {
+              "name": "Static asset server",
+              "description": "Serves the deployment's static files, applying the _redirects and _headers rules and the html_handling and not_found_handling settings, and caches the files a node serves on its disk.",
+              "resources": ["Static asset"],
+              "serves": [{ "consumer": "Application developer", "area": "Run the application" }],
+              "parts": [
+                { "name": "Routing, disk cache and fallback index", "why": "All inside one AssetResolver per script." }
+              ]
+            },
+            {
+              "name": "Container supervisor",
+              "description": "Starts, watches and stops the one container a Durable Object can own, on the node that owns the object and behind a network fence, and enforces the fleet-wide instance cap.",
+              "resources": ["Container"],
+              "serves": [{ "consumer": "Application developer", "area": "Run containers" }],
+              "parts": [
+                { "name": "Docker Engine client", "why": "docker.rs is an adapter to the container engine." },
+                { "name": "Container ops", "why": "js/container.rs only converts values for the supervisor." }
+              ]
+            },
+            {
+              "name": "Telemetry exporter",
+              "description": "Records spans and log lines for the requests a node serves, and writes them as Parquet files to the bucket or sends them to an OpenTelemetry collector.",
+              "resources": ["Trace"],
+              "serves": [{ "consumer": "Fleet operator", "area": "Observe requests" }],
+              "parts": [
+                { "name": "OTLP encoding", "why": "otlp.rs is a library that encodes the exporter's batches." }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Managed agent",
+          "description": "Connects a node to the hosted Managed Control Plane: it enrolls the installation, keeps its token and storage credentials, keeps a presence session that answers the control plane's questions about cells, and publishes the deployments made there.",
+          "resources": ["Managed installation"],
+          "serves": [
+            { "consumer": "Fleet operator", "area": "Use the Managed Control Plane" },
+            { "consumer": "Application developer", "area": "Run the application" }
+          ],
+          "parts": [
+            { "name": "Enrollment and installation record", "why": "The other pieces read and change the same record." },
+            { "name": "Credential rotation", "why": "Changes the same installation record." },
+            { "name": "Operator commands", "why": "celld token, credentials refresh and disconnect read or retire the same record." },
+            { "name": "Presence session and explorer", "why": "Read the decision core's presence projection and cell snapshots through the replication handle; they keep only the session." },
+            { "name": "Deploy agent", "why": "Writes deployment records through the node's deployment contract and keeps nothing of its own." }
+          ]
+        }
+      ]
+    }
+  ],
+  "outsideServices": [
+    { "name": "Object store", "description": "The operator's bucket on an S3-compatible store, Google Cloud Storage or Azure Blob Storage (a local SQLite store under celld dev), with the conditional writes, exact ranged reads and read-after-write consistency celld requires.", "resources": ["Bucket object"] },
+    { "name": "Container engine", "description": "A Docker or Podman daemon on the machine, reached through its command line when deploying and through its Engine API on a unix socket on a node.", "resources": ["Container image", "Container"] },
+    { "name": "Managed Control Plane", "description": "Deno's hosted service, at https://celld.dev by default, that enrolls celld installations, issues their storage credentials, accepts deployments from its console or from Wrangler, and shows their nodes and cells.", "resources": ["Managed installation", "Managed deployment"] },
+    { "name": "OpenTelemetry collector", "description": "A collector the operator names in CELLD_OTEL that receives traces and logs over OTLP/HTTP.", "resources": ["Trace"] },
+    { "name": "esbuild", "description": "The JavaScript bundler on the deploying machine's PATH, which builds a Worker's modules into one bundle.", "resources": ["Worker bundle"] },
+    { "name": "Pyodide CDN", "description": "The jsDelivr host from which celld deploy downloads the pinned Pyodide 0.28.3 runtime the first time it builds a Python Worker.", "resources": ["Pyodide release"] }
+  ],
+  "resources": [
+    { "name": "Deployment", "description": "One version of the application: its Worker modules, configuration, bindings, Durable Object classes, cron schedule, static assets and container images, and the pointer that makes it current.", "properties": ["version", "script name", "required features", "static assets", "current pointer"] },
+    { "name": "Durable Object", "description": "A named object of an application class with its own SQLite storage, one alarm and its WebSockets, which exactly one node runs at a time.", "properties": ["id", "name", "class", "storage", "alarm", "hibernatable WebSockets", "owner node", "state: resident, hibernated or inactive", "stored epochs"] },
+    { "name": "Facet", "description": "A child object inside a Durable Object, started from a class a Worker Loader provides, with a SQLite database of its own.", "properties": ["name", "class", "depth"] },
+    { "name": "Container", "description": "The one container a Durable Object can start, reach over TCP and stop, running on the node that owns the object.", "properties": ["running", "exit code", "inactivity window", "instance type"] },
+    { "name": "Dynamic Worker", "description": "Worker code that a running Worker loads at runtime through a Worker Loader binding, into an isolate of its own.", "properties": ["id", "entrypoints", "env", "egress policy", "limits", "tail Workers"] },
+    { "name": "KV namespace", "description": "A key-value store a Worker binds by id, holding keys with their values, metadata and expirations.", "properties": ["keys", "values", "metadata", "expiration"] },
+    { "name": "D1 database", "description": "A SQL database a Worker binds by id or name, held in its own SQLite file.", "properties": ["tables", "applied migrations"] },
+    { "name": "R2 object", "description": "An object of an R2 bucket binding, stored under r2/<bucket_name>/ in the fleet bucket with its HTTP and custom metadata.", "properties": ["key", "body", "httpMetadata", "customMetadata", "etag"] },
+    { "name": "Queue", "description": "A named message queue with one consumer script, a pause flag and an optional dead-letter queue.", "properties": ["paused", "backlog", "consumer", "dead-letter queue"] },
+    { "name": "Queue message", "description": "One message sent to a queue, delivered at least once to the consumer in a batch until it is acknowledged, retried out or moved to the dead-letter queue.", "properties": ["id", "body", "attempts", "delay"] },
+    { "name": "Workflow instance", "description": "One run of a Workflow class, made of named steps, sleeps and event waits, with a status the application can read and change.", "properties": ["status", "output", "step results", "events"] },
+    { "name": "Cron Trigger", "description": "A cron expression of the deployment whose occurrences run the script's scheduled handler.", "properties": ["expression", "scheduled time", "retries"] },
+    { "name": "Node", "description": "One celld process: its lease in the bucket, its listeners, its load and the cells it owns.", "properties": ["lease", "advertised address", "load", "draining", "pressured", "owned cells", "resident cells"] },
+    { "name": "Fleet", "description": "The nodes that share one bucket, with the settings that apply to all of them, such as whether ownership balancing is paused.", "properties": ["balancing paused", "capacity sample"] },
+    { "name": "Trace", "description": "The spans and log lines recorded for one request, kept as Parquet files under telemetry/ in the bucket or sent to a collector.", "properties": ["trace id", "spans", "duration", "severity"] },
+    { "name": "Managed installation", "description": "A node's enrollment with the Managed Control Plane: its installation id and token, its credential version and its storage.", "properties": ["installation id", "token", "credential version", "storage target", "presence"] },
+    { "name": "Cell", "description": "What the fleet owns and runs as one unit: a Durable Object, KV namespace, queue, D1 database, Workflow instance or cron schedule, with its owner node, fencing epoch and residency.", "properties": ["scope", "owner", "epoch", "phase", "route"] },
+    { "name": "Node log", "description": "The tail of a node's committed writes that it has not yet uploaded, held on its followers' disks and described by its log/<node>.json record.", "properties": ["ensemble", "log epoch", "state: open or sealed"] },
+    { "name": "Cell history", "description": "A cell's replicated SQLite history, in LTX segments and snapshots under cells/<cell>/ltx/e<epoch>/, from which a node restores it.", "properties": ["epoch prefixes", "restore base", "paged"] },
+    { "name": "Wake entry", "description": "The bucket record that makes an armed alarm discoverable: its entry under wake/entries/ and its retirement under wake/retired/.", "properties": ["deadline", "epoch", "sequence"] },
+    { "name": "Static asset", "description": "A file of the deployment's asset directory, with the headers and redirect rules that apply to it.", "properties": ["path", "digest", "content type"] },
+    { "name": "Bucket object", "description": "An object in the operator's bucket, written, read, listed and deleted by key, with an etag or generation for conditional writes.", "properties": ["key", "etag or generation", "byte range"] },
+    { "name": "Container image", "description": "An image a deployment names, built or pulled when deploying, saved under deploy/images/, then loaded into each node's engine.", "properties": ["key", "platform"] },
+    { "name": "Worker bundle", "description": "The JavaScript esbuild builds from a Worker's entry module and its imports." },
+    { "name": "Pyodide release", "description": "The pinned Pyodide 0.28.3 runtime files that a Python Worker build embeds." },
+    { "name": "Managed deployment", "description": "A deployment made in the Managed Control Plane, waiting as a command with the URLs of its modules and assets." }
+  ],
+  "interfaces": [
+    { "name": "Workers runtime API", "description": "The JavaScript and Python API the application's code runs against: Workers handlers and env bindings for Durable Objects, KV, D1, R2, Queues, Workflows, Worker Loaders, assets and containers, as Cloudflare documents them." },
+    { "name": "public Worker listener", "description": "The node's public HTTP listener (--listen), which serves the deployed Worker and its static assets to the application's users." },
+    { "name": "celld command line", "description": "The celld binary: celld deploy, d1, kv, r2, queue, cell, diagnose and the managed-mode commands, and the node itself with its flags, environment variables and signals." },
+    { "name": "local development server", "description": "celld dev: one local node over a local store at .celld/dev, rebuilt when the project changes, on http://127.0.0.1:9876 by default." },
+    { "name": "managed deployment", "description": "A deployment made in the Managed Control Plane, from its console or with npx wrangler deploy and the exports celld token prints, which a managed node fetches and publishes." },
+    { "name": "internal operator API", "description": "The unauthenticated operator routes of the internal listener (--internal-listen): /state, /reload, /rebalance/pause and /resume, /shutdown, /cell/<scope>, /evict/<scope> and /do/<id>." },
+    { "name": "node leases", "description": "Each node's lease record nodes/<node>.json in the bucket, whose load block an autoscaler reads." },
+    { "name": "deployment objects", "description": "The deployment records of crates/celld/protocol.rs in the bucket: manifest, modules, asset index, image tars, queue consumer attachments, and the script and fleet pointers." },
+    { "name": "presence hooks", "description": "What a node hands the Managed agent at startup: a read-only presence snapshot from the decision core, the replication handle for cell snapshots, and the pointer watcher's nudge." },
+    { "name": "managed installation API", "description": "The Managed agent's functions the node calls at startup: enroll or confirm enrollment, read the installation's storage and credential version, wait for the first deployment, and report storage state." },
+    { "name": "peer protocol", "description": "The signed HTTP routes nodes use with each other on the internal listener: the /peer/tunnel stream for cell calls, /peer/log/* for the fleet log, /peer/handoff, /peer/abort and /peer/probe." },
+    { "name": "object storage API", "description": "The bucket's HTTP API as celld uses it: put, conditional create and overwrite, ranged get, list and delete, in the S3, Azure or Cloud Storage dialect." },
+    { "name": "Docker Engine API", "description": "The container engine's HTTP API on its unix socket, which a node uses to load images and run containers." },
+    { "name": "docker command line", "description": "The docker or Podman command on the deploying machine, which celld deploy runs to build, pull and save images." },
+    { "name": "OTLP/HTTP", "description": "The OpenTelemetry protocol over HTTP with protobuf bodies, sent to the collector's /v1/traces and /v1/logs." },
+    { "name": "esbuild command line", "description": "The esbuild executable, which celld deploy runs as a child process." },
+    { "name": "Pyodide download", "description": "HTTPS downloads of the Pyodide release files from cdn.jsdelivr.net, checked by size and SHA-256." },
+    { "name": "Managed Control Plane agent API", "description": "The control plane's HTTPS and WebSocket API under /api/instances and /api/agent, authenticated with the installation token." },
+    { "name": "cell host contract", "description": "The Actor's one boundary to the engine that runs cells (CellHost in crates/celld/cell_host.rs): start, dispatch, restore, prove durable, fire alarms, swap and stop." },
+    { "name": "Actor mailbox", "description": "The serial executor's queue of events into the decision core (Message in crates/celld/actor.rs), fed by the host channels of crates/celld/host_channels.rs and by the waker." },
+    { "name": "replication handle", "description": "The Replication wrapper of crates/celld/ltx_replication.rs, and the backend it hands out through ltx()." },
+    { "name": "node log manager", "description": "The fleet log's manager (NodeLogManager in crates/celld/node_log.rs), which the Actor holds." },
+    { "name": "ownership records", "description": "The public functions of crates/celld/ownership_store.rs through which other parts read the decision core's ownership records, node leases and fleet sample, or hand it fields to publish in the node's lease." },
+    { "name": "wake entry gate", "description": "The functions of crates/celld/wake_entry.rs, with the WakeFlusher of crates/celld/wake.rs, that publish and maintain an alarm's wake entry and hold a response until it lands." },
+    { "name": "asset resolver", "description": "AssetResolver in crates/celld/assets.rs, one per script of the current deployment." },
+    { "name": "container functions", "description": "The supervisor's functions in crates/celld/container.rs that a Durable Object's container ops call." },
+    { "name": "telemetry API", "description": "start_trace, record and record_log in crates/celld/telemetry.rs." },
+    { "name": "KV namespace cell protocol", "description": "The methods of the KV namespace cell in crates/celld/js/services/kv.js that a KV binding calls through the namespace's stub." },
+    { "name": "queue cell protocol", "description": "The methods of the queue cell in crates/celld/js/harness.js that a producer binding calls, and the batches the cell leases to the consumer script." },
+    { "name": "D1 cell protocol", "description": "The fetch modes of the D1 database cell in crates/celld/js/harness.js: prepared, batch, exec and migrate." },
+    { "name": "workflow cell protocol", "description": "The __wf methods of the Workflow instance cell in crates/celld/js/harness.js." },
+    { "name": "cron cell protocol", "description": "The reserved cron cell's fetch, which arms a script's schedule after a deployment loads, and its alarm." }
+  ],
+  "places": [
+    { "place": "Documentation and examples", "kind": "excluded", "paths": ["docs/**", "examples/**", "README.md", "LICENSE", "NOTICE", "crates/ltx/README.md", "crates/ltx/reference/**", "crates/ltx/LICENSE", "crates/ltx/LICENSE.pierrec-lz4"] },
+    { "place": "Dependency lockfile", "kind": "excluded", "paths": ["Cargo.lock"] },
+    { "place": "Build and release configuration", "kind": "tooling", "paths": [".github/**", "Dockerfile", "Cargo.toml", "crates/celld/Cargo.toml", "crates/logic/Cargo.toml", "crates/ltx/Cargo.toml", "clippy.toml", ".gitignore"] },
+    { "place": "Decision core", "kind": "component", "paths": ["crates/logic/**", "crates/celld/actor.rs", "crates/celld/actor/**", "crates/celld/ownership_store.rs", "crates/celld/drain_token.rs", "crates/celld/clean_reload.rs"] },
+    { "place": "Replication", "kind": "component", "paths": ["crates/ltx/**", "crates/celld/ltx_repl.rs", "crates/celld/ltx_replication.rs", "crates/celld/replication.rs", "crates/celld/node_log.rs", "crates/celld/node_log/**"] },
+    { "place": "Alarm discovery", "kind": "component", "paths": ["crates/celld/wake.rs", "crates/celld/wake_entry.rs", "crates/celld/wake_format.rs"] },
+    { "place": "Static asset server", "kind": "component", "paths": ["crates/celld/assets.rs"] },
+    { "place": "Container supervisor", "kind": "component", "paths": ["crates/celld/container.rs", "crates/celld/docker.rs", "crates/celld/js/container.rs"] },
+    { "place": "Telemetry exporter", "kind": "component", "paths": ["crates/celld/telemetry.rs", "crates/celld/otlp.rs"] },
+    { "place": "KV namespace service", "kind": "component", "paths": ["crates/celld/js/services/**", "crates/celld/kv_blob.rs"] },
+    { "place": "Queue broker", "kind": "component", "paths": ["crates/celld/queue_policy.rs", "crates/celld/queue_batching.rs"] },
+    { "place": "Workers host", "kind": "component", "paths": ["crates/celld/js.rs", "crates/celld/js/**", "crates/celld/runtime.rs", "crates/celld/pool.rs", "crates/celld/storage.rs", "crates/celld/storage/**", "crates/celld/generation.rs", "crates/celld/cell_runtime.rs", "crates/celld/facet_streams.rs", "crates/celld/host_channels.rs", "crates/celld/http_streams.rs", "crates/celld/ws_registry.rs", "crates/celld/r2_store.rs", "crates/celld/lib.rs"] },
+    { "place": "Deployment publisher", "kind": "component", "paths": ["crates/celld/deploy.rs", "crates/celld/deploy/**", "crates/celld/python/**"] },
+    { "place": "Managed agent", "kind": "component", "paths": ["crates/celld/control_plane.rs"] },
+    { "place": "Node", "kind": "component", "paths": ["crates/celld/main.rs", "crates/celld/main/websocket.rs", "crates/celld/cell_dispatch.rs", "crates/celld/fleet.rs"] },
+    { "place": "deployment objects", "kind": "interface", "paths": ["crates/celld/protocol.rs"] },
+    { "place": "cell host contract", "kind": "interface", "paths": ["crates/celld/cell_host.rs", "crates/celld/engine_api.rs"] },
+    { "place": "peer protocol", "kind": "interface", "paths": ["crates/celld/main/peer_tunnel.rs", "crates/celld/peer_auth.rs", "crates/celld/peer_probe.rs"] },
+    { "place": "celld command line", "kind": "interface", "paths": ["crates/celld/main/cli.rs", "crates/celld/cli_options.rs", "crates/celld/cli_output.rs", "crates/celld/cell_cli.rs", "crates/celld/d1_cli.rs", "crates/celld/kv_cli.rs", "crates/celld/queue_cli.rs", "crates/celld/r2_cli.rs", "crates/celld/operator_cell.rs"] },
+    { "place": "local development server", "kind": "interface", "paths": ["crates/celld/dev.rs", "crates/celld/local_store.rs"] },
+    { "place": "Object store client", "kind": "library", "paths": ["crates/celld/bucket.rs"] },
+    { "place": "Process facilities", "kind": "library", "paths": ["crates/celld/asyncrt.rs", "crates/celld/tokio_select.rs", "crates/celld/env_vars.rs", "crates/celld/machine.rs", "crates/celld/memory.rs", "crates/celld/host_services.rs", "crates/celld/startup.rs", "crates/celld/ws_client.rs"] },
+    { "place": "Dead-node compatibility clean-up", "kind": "cleanup", "paths": ["crates/celld/dead_node_gc.rs"] }
+  ],
+  "boundaries": [
+    {
+      "consumer": "Application developer",
+      "provider": "celld",
+      "interfaces": ["Workers runtime API", "public Worker listener", "celld command line", "local development server", "managed deployment"],
+      "areas": [
+        {
+          "name": "Run the application",
+          "type": "core",
+          "description": "Deploy the project and have its Workers and Durable Objects serve requests as on Cloudflare, each object run by one node and each write durable before it is answered.",
+          "capabilities": [
+            { "name": "Deploy the application", "takes": "a Wrangler project: its wrangler.json or wrangler.jsonc, Worker code, static assets and container images", "gives": "a deployment that every node adopts in place, without a restart", "acts": [{ "mode": "produces", "resource": "Deployment" }], "interfaces": ["celld command line", "local development server", "managed deployment"] },
+            { "name": "Serve requests", "takes": "HTTP and WebSocket requests from the application's users", "gives": "the responses of the Worker or of the static assets", "acts": [{ "mode": "observes", "resource": "Deployment" }], "interfaces": ["public Worker listener", "local development server"] },
+            { "name": "Call a Durable Object", "takes": "an object id or name from its namespace, and a fetch, an RPC call or a WebSocket upgrade", "gives": "the object's answer from the one node that runs it", "acts": [{ "mode": "mutates", "resource": "Durable Object" }], "interfaces": ["Workers runtime API"] },
+            { "name": "Read and write object storage", "takes": "keys and values or SQL statements, inside the object's code, alone or in a transaction", "gives": "the stored values and rows, with each write durable before the object's next output", "acts": [{ "mode": "mutates", "resource": "Durable Object" }], "interfaces": ["Workers runtime API"] },
+            { "name": "Set an object alarm", "takes": "a time", "gives": "a call of the object's alarm handler at that time, even after the object has left memory or its node has stopped", "acts": [{ "mode": "reacts", "resource": "Durable Object" }], "interfaces": ["Workers runtime API"] },
+            { "name": "Accept hibernatable WebSockets", "takes": "a WebSocket the object accepts with ctx.acceptWebSocket()", "gives": "clients that stay connected while the object hibernates, and a handler call for each message", "acts": [{ "mode": "mutates", "resource": "Durable Object" }], "interfaces": ["Workers runtime API"] }
+          ]
+        },
+        {
+          "name": "Store data",
+          "type": "supporting",
+          "description": "Keep the application's data in KV namespaces, D1 databases and R2 buckets, from Worker code or from the command line.",
+          "capabilities": [
+            { "name": "Read and write KV keys", "takes": "a namespace and keys with values, metadata and expirations, or a Wrangler bulk file", "gives": "the stored values, their metadata and key listings, never stale", "acts": [{ "mode": "mutates", "resource": "KV namespace" }], "interfaces": ["Workers runtime API", "celld command line"] },
+            { "name": "Query a D1 database", "takes": "a database and SQL statements, prepared, batched or as a script", "gives": "rows, results and metadata, a batch run in one transaction", "acts": [{ "mode": "mutates", "resource": "D1 database" }], "interfaces": ["Workers runtime API", "celld command line"] },
+            { "name": "Apply D1 migrations", "takes": "a database and the project's migrations directory", "gives": "the migrations not yet applied, applied in order", "acts": [{ "mode": "mutates", "resource": "D1 database" }], "interfaces": ["celld command line"] },
+            { "name": "Read and write R2 objects", "takes": "a bucket binding and keys with bodies, metadata, ranges and conditions, or a multipart upload", "gives": "the stored objects, their records and listings", "acts": [{ "mode": "mutates", "resource": "R2 object" }], "interfaces": ["Workers runtime API", "celld command line"] }
+          ]
+        },
+        {
+          "name": "Run background work",
+          "type": "supporting",
+          "description": "Send messages to queues and consume them, run Workflows, and run scheduled handlers.",
+          "capabilities": [
+            { "name": "Send queue messages", "takes": "a queue and one message or a batch of up to 100", "gives": "the messages committed to the queue", "acts": [{ "mode": "produces", "resource": "Queue message" }], "interfaces": ["Workers runtime API"] },
+            { "name": "Consume queue messages", "takes": "a consumer script with a queue handler, and its batching, retry and dead-letter settings", "gives": "batches of messages delivered at least once, each acknowledged, retried or moved to the dead-letter queue", "acts": [{ "mode": "reacts", "resource": "Queue message" }], "interfaces": ["Workers runtime API"] },
+            { "name": "Operate a queue", "takes": "a queue and info, peek, purge, pause, resume or redrive", "gives": "the queue's state, or the queue paused, resumed, purged or with its dead letters redriven", "acts": [{ "mode": "mutates", "resource": "Queue" }], "interfaces": ["celld command line"] },
+            { "name": "Start a Workflow", "takes": "a Workflow binding and the parameters of one instance or a batch", "gives": "running instances whose steps, sleeps and event waits survive node failures", "acts": [{ "mode": "produces", "resource": "Workflow instance" }], "interfaces": ["Workers runtime API"] },
+            { "name": "Read a Workflow instance's status", "takes": "an instance id", "gives": "its status, output or error", "acts": [{ "mode": "observes", "resource": "Workflow instance" }], "interfaces": ["Workers runtime API"] },
+            { "name": "Change a Workflow instance's status", "takes": "an instance and pause, resume, restart, terminate or delete", "gives": "the instance with its new status", "acts": [{ "mode": "mutates", "resource": "Workflow instance" }], "interfaces": ["Workers runtime API"] },
+            { "name": "Send an event to a Workflow instance", "takes": "an instance, an event type and a payload", "gives": "the event delivered to the instance's matching wait, or held until it reaches one", "acts": [{ "mode": "mutates", "resource": "Workflow instance" }], "interfaces": ["Workers runtime API"] },
+            { "name": "Run Cron Triggers", "takes": "the deployment's triggers.crons expressions and a scheduled handler", "gives": "one call of the handler for each occurrence across the fleet, retried on failure", "acts": [{ "mode": "reacts", "resource": "Cron Trigger" }], "interfaces": ["Workers runtime API"] }
+          ]
+        },
+        {
+          "name": "Load code at runtime",
+          "type": "supporting",
+          "description": "Run code that the application supplies while it runs, and give that code durable storage.",
+          "capabilities": [
+            { "name": "Load a Dynamic Worker", "takes": "Worker code through a Worker Loader binding: modules, compatibility date, env, egress policy, limits and tail Workers", "gives": "a Fetcher or RPC stub for the loaded Worker, which runs in its own isolate", "acts": [{ "mode": "produces", "resource": "Dynamic Worker" }], "interfaces": ["Workers runtime API"] },
+            { "name": "Start a facet", "takes": "a name and a class from a Worker Loader or ctx.exports, inside a Durable Object", "gives": "a stub for a child object with its own SQLite database, which can be aborted or deleted by name", "acts": [{ "mode": "produces", "resource": "Facet" }], "interfaces": ["Workers runtime API"] }
+          ]
+        },
+        {
+          "name": "Run containers",
+          "type": "supporting",
+          "description": "Run a program that is not JavaScript beside a Durable Object.",
+          "capabilities": [
+            { "name": "Run a container", "takes": "a Durable Object of a containers class, and start options, ports, signals or processes to run", "gives": "a container on the object's node, reachable over TCP, signalled or stopped on request", "acts": [{ "mode": "mutates", "resource": "Container" }], "interfaces": ["Workers runtime API"] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "README.md", "shows": "the product, the services it runs from an existing wrangler.json, and the celld deploy, dev, d1, kv, r2 and queue commands" },
+        { "path": "docs/cloudflare-compat.md", "shows": "which Workers services, runtime APIs and Wrangler keys celld supports, and how it differs from Cloudflare" },
+        { "path": "docs/services/durable-objects.md", "shows": "the Durable Object API: stubs, storage, SQL, alarms, hibernatable WebSockets and the output gate" },
+        { "path": "docs/services/kv.md", "shows": "the KV binding and its limits" },
+        { "path": "docs/services/d1.md", "shows": "the D1 binding, its limits, and celld d1 execute and migrations apply" },
+        { "path": "docs/services/r2.md", "shows": "the R2 binding, its storage under r2/<bucket_name>/ and celld r2" },
+        { "path": "docs/services/queues.md", "shows": "queue producers, consumers, retries and dead-letter queues" },
+        { "path": "docs/services/workflows.md", "shows": "Workflow instances, steps, sleeps, events and status changes" },
+        { "path": "docs/services/cron-triggers.md", "shows": "cron schedules that run once per occurrence across the fleet" },
+        { "path": "docs/services/static-assets.md", "shows": "static assets with or without a Worker, routing and the ASSETS binding" },
+        { "path": "docs/services/dynamic-workers.md", "shows": "Worker Loader bindings and Dynamic Workers" },
+        { "path": "docs/services/durable-object-facets.md", "shows": "facets, their names, databases, abort and delete" },
+        { "path": "docs/services/containers.md", "shows": "ctx.container: start, ports, exec, signals, the fence and instance types" },
+        { "path": "crates/celld/main/cli.rs", "shows": "every celld subcommand and the node's flags" },
+        { "path": "crates/celld/deploy.rs", "shows": "celld deploy building a Wrangler project and writing it to the bucket" },
+        { "path": "crates/celld/dev.rs", "shows": "celld dev running a local store and one node" },
+        { "path": "crates/celld/main.rs", "shows": "the public listener serving the Worker and the reserved health path" },
+        { "path": "crates/celld/js/harness.js", "shows": "the Workers API the application's code calls, including the binding clients" },
+        { "path": "crates/celld/d1_cli.rs", "shows": "celld d1 reaching a database through a node's /runtime/ route" },
+        { "path": "crates/celld/kv_cli.rs", "shows": "celld kv get, put, delete, list and the Wrangler bulk format" },
+        { "path": "crates/celld/r2_cli.rs", "shows": "celld r2 reading and writing binding objects in the fleet bucket" },
+        { "path": "crates/celld/queue_cli.rs", "shows": "celld queue info, peek, purge, pause, resume and redrive" },
+        { "path": "crates/celld/control_plane.rs", "shows": "celld token printing the Wrangler exports for a managed deployment, and the node applying deployments made in the Managed Control Plane" }
+      ]
+    },
+    {
+      "consumer": "Fleet operator",
+      "provider": "celld",
+      "interfaces": ["celld command line", "internal operator API", "node leases"],
+      "areas": [
+        {
+          "name": "Run the fleet",
+          "type": "core",
+          "description": "Start, add, stop and upgrade nodes against one bucket, and see how they and the fleet are doing.",
+          "capabilities": [
+            { "name": "Start a node", "takes": "the fleet bucket and its credentials, the listener and advertised addresses, and tuning variables", "gives": "a node that passes the bucket's storage test, joins the fleet through its lease and serves the current deployment", "acts": [{ "mode": "produces", "resource": "Node" }], "interfaces": ["celld command line"] },
+            { "name": "Stop a node", "takes": "SIGTERM or SIGINT, or POST /shutdown, optionally with handoff=preserve", "gives": "a node that stops taking requests, hands its cells to peers with their data proven durable, and exits", "acts": [{ "mode": "mutates", "resource": "Node" }], "interfaces": ["celld command line", "internal operator API"] },
+            { "name": "Read node state", "takes": "a node", "gives": "its live counters and load: owned and resident cells, waiting activations, memory, pressure, isolates and deployments", "acts": [{ "mode": "observes", "resource": "Node" }], "interfaces": ["internal operator API", "node leases"] },
+            { "name": "Diagnose the fleet", "takes": "the fleet bucket, and optionally some node ids", "gives": "for each node lease whether it is live, its address valid and the peer reachable and compatible, with its load; and whether the bucket passes the conditional-write test", "acts": [{ "mode": "observes", "resource": "Node" }], "interfaces": ["celld command line"] },
+            { "name": "Reload the deployment", "takes": "POST /reload on a node", "gives": "the node serving the current deployment now, or the build error", "acts": [{ "mode": "mutates", "resource": "Node" }], "interfaces": ["internal operator API"] },
+            { "name": "Pause or resume balancing", "takes": "POST /rebalance/pause or /rebalance/resume on any node", "gives": "ownership balancing paused or resumed for the whole fleet", "acts": [{ "mode": "mutates", "resource": "Fleet" }], "interfaces": ["internal operator API"] }
+          ]
+        },
+        {
+          "name": "Manage cells",
+          "type": "supporting",
+          "description": "Find, inspect and act on the Durable Objects the fleet holds.",
+          "capabilities": [
+            { "name": "List Durable Objects", "takes": "the fleet bucket, and optionally a class, a page size or a continuation", "gives": "one Class:ID scope per instance, with reserved classes marked", "acts": [{ "mode": "observes", "resource": "Durable Object" }], "interfaces": ["celld command line"] },
+            { "name": "Preview epoch cleanup", "takes": "the fleet bucket and a grace period", "gives": "for each cell, the epoch prefixes epoch GC could delete, their bytes and the restore base, with nothing written", "acts": [{ "mode": "observes", "resource": "Durable Object" }], "interfaces": ["celld command line"] },
+            { "name": "Locate a cell", "takes": "a cell scope", "gives": "the node that owns the cell, which is activated if needed", "acts": [{ "mode": "observes", "resource": "Durable Object" }], "interfaces": ["internal operator API"] },
+            { "name": "Evict a cell", "takes": "a cell scope", "gives": "the cell out of memory with its data durable, or the reason the node refused", "acts": [{ "mode": "mutates", "resource": "Durable Object" }], "interfaces": ["internal operator API"] },
+            { "name": "Call a Durable Object directly", "takes": "an ordinary Durable Object id and a request", "gives": "the object's response", "acts": [{ "mode": "mutates", "resource": "Durable Object" }], "interfaces": ["internal operator API"] }
+          ]
+        },
+        {
+          "name": "Observe requests",
+          "type": "supporting",
+          "description": "Record traces and logs of the requests the fleet serves.",
+          "capabilities": [
+            { "name": "Export traces and logs", "takes": "CELLD_OTEL set to 1 for the bucket or to a collector URL, with a sampler and flush settings", "gives": "spans for each request, cell event, outbound fetch and cell start, and each console line with its trace, as Parquet under telemetry/ or over OTLP", "acts": [{ "mode": "produces", "resource": "Trace" }], "interfaces": ["celld command line"] }
+          ]
+        },
+        {
+          "name": "Use the Managed Control Plane",
+          "type": "supporting",
+          "description": "Run a node that the hosted Managed Control Plane supplies with storage and deployments.",
+          "capabilities": [
+            { "name": "Connect a node to the Managed Control Plane", "takes": "celld connect or a node started with --control-plane, and a person who approves the link it prints", "gives": "an enrolled installation with managed storage credentials, or with the operator's own bucket, that the node serves from", "acts": [{ "mode": "produces", "resource": "Managed installation" }], "interfaces": ["celld command line"] },
+            { "name": "Get a deploy token", "takes": "celld token on an enrolled machine", "gives": "the CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_BASE_URL exports for npx wrangler@4 deploy", "acts": [{ "mode": "observes", "resource": "Managed installation" }], "interfaces": ["celld command line"] },
+            { "name": "Disconnect from the Managed Control Plane", "takes": "celld disconnect --yes", "gives": "the installation revoked and its local record archived", "acts": [{ "mode": "mutates", "resource": "Managed installation" }], "interfaces": ["celld command line"] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "README.md", "shows": "starting nodes against a bucket, diagnose, cell list, the resident-cell limit, balancing and memory pressure" },
+        { "path": "docs/README.md", "shows": "starting and adding nodes, feeding an autoscaler from leases and /state, shutdown and rollout, diagnose, cell list and cell gc --dry-run" },
+        { "path": "docs/security.md", "shows": "the two listeners and the operator routes /state, /cell, /evict, /do and /shutdown, with eviction results" },
+        { "path": "docs/telemetry.md", "shows": "CELLD_OTEL, the bucket and OTLP sinks and what celld records" },
+        { "path": "crates/celld/main/cli.rs", "shows": "the node's flags and the operator subcommands, including the managed-mode switch" },
+        { "path": "crates/celld/main.rs", "shows": "handle_internal routing /state, /reload, /rebalance, /shutdown, /cell, /evict and /do" },
+        { "path": "crates/celld/fleet.rs", "shows": "celld diagnose reading leases, probing peers and testing conditional writes" },
+        { "path": "crates/celld/cell_cli.rs", "shows": "celld cell list and gc --dry-run" },
+        { "path": "crates/celld/telemetry.rs", "shows": "the telemetry configuration and sinks" },
+        { "path": "crates/celld/control_plane.rs", "shows": "celld connect, token, credentials refresh and disconnect" }
+      ]
+    },
+    {
+      "consumer": "Deployment publisher",
+      "provider": "Node",
+      "interfaces": ["deployment objects"],
+      "areas": [
+        {
+          "name": "Publish deployments",
+          "type": "core",
+          "description": "Hand the fleet a new deployment to run.",
+          "capabilities": [
+            { "name": "Publish a deployment", "takes": "a deployment's manifest, modules, asset index and blobs, image tars and queue consumer attachments, then the script and fleet pointers", "gives": "every node adopting the deployment in place within its poll interval", "acts": [{ "mode": "produces", "resource": "Deployment" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/protocol.rs", "shows": "the deployment records: manifest, modules, asset index, queue consumer attachment and pointers, called the interface between deployment tools and celld" },
+        { "path": "crates/celld/deploy.rs", "shows": "the publisher writing a version's records and moving the pointers with put_pointer" },
+        { "path": "crates/celld/generation.rs", "shows": "the node loading a deployment into a generation" },
+        { "path": "crates/celld/fleet.rs", "shows": "the node reading the current pointer and loading the Worker it names" }
+      ]
+    },
+    {
+      "consumer": "Managed agent",
+      "provider": "Node",
+      "interfaces": ["deployment objects", "presence hooks"],
+      "areas": [
+        {
+          "name": "Publish deployments",
+          "type": "core",
+          "description": "Hand the node a deployment made in the Managed Control Plane.",
+          "capabilities": [
+            { "name": "Publish a deployment", "takes": "a managed deployment's manifest, modules, assets and pointers", "gives": "the node adopting it at once, nudged rather than waiting for its next poll", "acts": [{ "mode": "produces", "resource": "Deployment" }], "interfaces": ["deployment objects"] }
+          ]
+        },
+        {
+          "name": "Report the node",
+          "type": "supporting",
+          "description": "Tell the Managed Control Plane what the node serves and what its cells hold.",
+          "capabilities": [
+            { "name": "Read node presence", "takes": "a heartbeat tick", "gives": "whether the node serves, its owned cells with their epochs, and its activity counters", "acts": [{ "mode": "observes", "resource": "Node" }], "interfaces": ["presence hooks"] },
+            { "name": "Read a cell's tables", "takes": "a cell and optionally a table", "gives": "the cell's tables, columns and first rows, from its active or its replicated snapshot", "acts": [{ "mode": "observes", "resource": "Cell" }], "interfaces": ["presence hooks"] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/control_plane.rs", "shows": "PresenceRuntime, the presence heartbeat, the explorer's list_cells and table preview, and apply_deployment writing the deployment records" },
+        { "path": "crates/logic/types.rs", "shows": "PresenceCell and ActivitySnapshot as a read-only projection of the decision core" },
+        { "path": "crates/celld/main.rs", "shows": "the node starting the presence and deploy agents with its snapshot, replication handle and reload sender" }
+      ]
+    },
+    {
+      "consumer": "Node",
+      "provider": "Managed agent",
+      "interfaces": ["managed installation API"],
+      "areas": [
+        {
+          "name": "Use managed storage",
+          "type": "core",
+          "description": "Start a managed node on the storage its installation names.",
+          "capabilities": [
+            { "name": "Enroll the node", "takes": "the control URL and environment, and the operator's own bucket if there is one", "gives": "an enrolled installation, once a person approves it", "acts": [{ "mode": "produces", "resource": "Managed installation" }] },
+            { "name": "Get the node's storage", "takes": "nothing beyond the installation record", "gives": "the managed bucket with its credentials, or the operator's own bucket, and the credential version", "acts": [{ "mode": "observes", "resource": "Managed installation" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/control_plane.rs", "shows": "connect_on_startup_with_storage, installation_storage and InstallationStorageConfig" },
+        { "path": "crates/celld/main.rs", "shows": "the node enrolling and opening its bucket from the installation's storage in managed mode" },
+        { "path": "crates/celld/fleet.rs", "shows": "validate_managed_bucket reporting storage state to the agent" }
+      ]
+    },
+    {
+      "consumer": "Node",
+      "provider": "Node",
+      "interfaces": ["peer protocol"],
+      "areas": [
+        {
+          "name": "Serve cells across the fleet",
+          "type": "core",
+          "description": "Reach the node that owns a cell, and move cells between nodes.",
+          "capabilities": [
+            { "name": "Call a cell on its owner", "takes": "a fetch, an RPC call or a WebSocket for a cell another node owns", "gives": "the owner's answer, streamed back through the tunnel", "acts": [{ "mode": "mutates", "resource": "Cell" }] },
+            { "name": "Hand off a cell", "takes": "a cell a draining node released at an epoch", "gives": "the cell kept dormant on the successor until a request arrives", "acts": [{ "mode": "mutates", "resource": "Cell" }] }
+          ]
+        },
+        {
+          "name": "Keep writes on followers",
+          "type": "supporting",
+          "description": "Hold a node's not-yet-uploaded writes on other nodes' disks, and give them back when it stops.",
+          "capabilities": [
+            { "name": "Replicate a write to a follower", "takes": "a node's captured segments, in order", "gives": "the follower's acknowledgement once the segments are on its disk", "acts": [{ "mode": "produces", "resource": "Node log" }] },
+            { "name": "Recover a stopped node's log", "takes": "the stopped node's log epoch", "gives": "the log sealed on the follower, and the retained segments it holds", "acts": [{ "mode": "mutates", "resource": "Node log" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/main.rs", "shows": "the internal routes /peer/tunnel, /peer/log/*, /peer/handoff, /peer/abort and /peer/probe" },
+        { "path": "crates/celld/main/peer_tunnel.rs", "shows": "the tunnel that carries cell calls to the owner" },
+        { "path": "crates/celld/node_log.rs", "shows": "the append, seal and tail requests between a node and its followers" },
+        { "path": "crates/celld/peer_auth.rs", "shows": "the fleet HMAC that signs peer requests" },
+        { "path": "docs/guarantees.md", "shows": "the ensemble, the takeover recovery gate and self-fencing" }
+      ]
+    },
+    {
+      "consumer": "Node",
+      "provider": "Object store",
+      "interfaces": ["object storage API"],
+      "areas": [
+        {
+          "name": "Keep objects",
+          "type": "core",
+          "description": "Store and read the fleet's records in the bucket.",
+          "capabilities": [
+            { "name": "Store an object", "takes": "a key and a body", "gives": "the stored object", "acts": [{ "mode": "produces", "resource": "Bucket object" }] },
+            { "name": "Change an object only if unchanged", "takes": "a key, a body and the etag or generation last read, or none to create", "gives": "the new object, or a refusal when another writer got there first", "acts": [{ "mode": "mutates", "resource": "Bucket object" }] },
+            { "name": "Read an object", "takes": "a key and optionally a byte range", "gives": "the object's bytes, or exactly the requested range", "acts": [{ "mode": "observes", "resource": "Bucket object" }] },
+            { "name": "List objects", "takes": "a prefix, and optionally a delimiter and a continuation", "gives": "a page of keys", "acts": [{ "mode": "observes", "resource": "Bucket object" }] },
+            { "name": "Delete an object", "takes": "a key", "gives": "the object removed", "acts": [{ "mode": "mutates", "resource": "Bucket object" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/bucket.rs", "shows": "the single object-store client and its S3, Azure and Cloud Storage conditional-write dialects" },
+        { "path": "docs/guarantees.md", "shows": "what the bucket must provide and the storage test" }
+      ]
+    },
+    {
+      "consumer": "Node",
+      "provider": "Container engine",
+      "interfaces": ["Docker Engine API"],
+      "areas": [
+        {
+          "name": "Run containers",
+          "type": "core",
+          "description": "Run the containers of the node's Durable Objects.",
+          "capabilities": [
+            { "name": "Load an image", "takes": "an image tar from the bucket", "gives": "the image in the node's engine", "acts": [{ "mode": "produces", "resource": "Container image" }] },
+            { "name": "Run a container", "takes": "an image, its command, environment, limits and network", "gives": "a running container and, later, its exit code", "acts": [{ "mode": "produces", "resource": "Container" }] },
+            { "name": "Run a process in a container", "takes": "a running container and a command", "gives": "the process's output streams and exit code", "acts": [{ "mode": "mutates", "resource": "Container" }] },
+            { "name": "Stop a container", "takes": "a container and a signal", "gives": "the container signalled or removed", "acts": [{ "mode": "mutates", "resource": "Container" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/docker.rs", "shows": "the Docker Engine API client on the daemon's unix socket" },
+        { "path": "crates/celld/container.rs", "shows": "the image load, create, start, wait, exec, kill and network calls" },
+        { "path": "docs/services/containers.md", "shows": "the engine a node needs and the isolation it sets up" }
+      ]
+    },
+    {
+      "consumer": "Node",
+      "provider": "OpenTelemetry collector",
+      "interfaces": ["OTLP/HTTP"],
+      "areas": [
+        {
+          "name": "Export traces and logs",
+          "type": "core",
+          "description": "Send the node's spans and log records to the operator's collector.",
+          "capabilities": [
+            { "name": "Export traces and logs", "takes": "batches of spans and log records", "gives": "the batches accepted by the collector", "acts": [{ "mode": "produces", "resource": "Trace" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/otlp.rs", "shows": "the OTLP protobuf encoding" },
+        { "path": "crates/celld/telemetry.rs", "shows": "the collector sink, its paths and its retries" },
+        { "path": "docs/telemetry.md", "shows": "CELLD_OTEL naming a collector base URL" }
+      ]
+    },
+    {
+      "consumer": "Deployment publisher",
+      "provider": "Object store",
+      "interfaces": ["object storage API"],
+      "areas": [
+        {
+          "name": "Keep objects",
+          "type": "core",
+          "description": "Write a deployment's records to the bucket.",
+          "capabilities": [
+            { "name": "Store an object", "takes": "a key and a body", "gives": "the stored object", "acts": [{ "mode": "produces", "resource": "Bucket object" }] },
+            { "name": "Change an object only if unchanged", "takes": "a pointer key, its body and the etag last read", "gives": "the pointer moved, or a refusal when another deploy moved it first", "acts": [{ "mode": "mutates", "resource": "Bucket object" }] },
+            { "name": "Read an object", "takes": "a key", "gives": "the object's bytes", "acts": [{ "mode": "observes", "resource": "Bucket object" }] },
+            { "name": "List objects", "takes": "a prefix", "gives": "a page of keys", "acts": [{ "mode": "observes", "resource": "Bucket object" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/deploy.rs", "shows": "the publisher writing records and moving pointers with put_cas" },
+        { "path": "crates/celld/bucket.rs", "shows": "the object-store client it uses" }
+      ]
+    },
+    {
+      "consumer": "Deployment publisher",
+      "provider": "esbuild",
+      "interfaces": ["esbuild command line"],
+      "areas": [
+        {
+          "name": "Bundle a Worker",
+          "type": "core",
+          "description": "Build the Worker's modules into one bundle.",
+          "capabilities": [
+            { "name": "Bundle a Worker", "takes": "the Worker's entry module, defines and loader rules", "gives": "one bundle, with its WebAssembly and text modules beside it", "acts": [{ "mode": "produces", "resource": "Worker bundle" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/deploy.rs", "shows": "celld deploy running esbuild for Worker code" },
+        { "path": "crates/celld/deploy/python.rs", "shows": "the Python build running esbuild over the Pyodide bundle" }
+      ]
+    },
+    {
+      "consumer": "Deployment publisher",
+      "provider": "Container engine",
+      "interfaces": ["docker command line"],
+      "areas": [
+        {
+          "name": "Prepare a container image",
+          "type": "core",
+          "description": "Turn a containers entry into an image the bucket can hold.",
+          "capabilities": [
+            { "name": "Prepare a container image", "takes": "a Dockerfile or an image reference, and a platform", "gives": "the image saved as a tar", "acts": [{ "mode": "produces", "resource": "Container image" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/deploy.rs", "shows": "engine_cli running docker or CELLD_DOCKER to build, pull and save an image" },
+        { "path": "docs/services/containers.md", "shows": "images saved to deploy/images/<key>.tar at deploy time" }
+      ]
+    },
+    {
+      "consumer": "Deployment publisher",
+      "provider": "Pyodide CDN",
+      "interfaces": ["Pyodide download"],
+      "areas": [
+        {
+          "name": "Download the Python runtime",
+          "type": "core",
+          "description": "Fetch the pinned Pyodide runtime the first time a Python Worker is built.",
+          "capabilities": [
+            { "name": "Download the Python runtime", "takes": "the pinned release's file list", "gives": "the runtime files, checked by size and SHA-256", "acts": [{ "mode": "observes", "resource": "Pyodide release" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/deploy/python.rs", "shows": "PYODIDE_BASE_URL on cdn.jsdelivr.net and the checked download" }
+      ]
+    },
+    {
+      "consumer": "Managed agent",
+      "provider": "Managed Control Plane",
+      "interfaces": ["Managed Control Plane agent API"],
+      "areas": [
+        {
+          "name": "Be managed",
+          "type": "core",
+          "description": "Keep the installation enrolled, supplied with storage and deployments, and visible in the control plane.",
+          "capabilities": [
+            { "name": "Enroll an installation", "takes": "the installation's id, name, platform and requested storage", "gives": "a link a person approves, then the installation token and its storage", "acts": [{ "mode": "produces", "resource": "Managed installation" }] },
+            { "name": "Rotate storage credentials", "takes": "the current credential version", "gives": "a new token and storage credentials, acknowledged once saved", "acts": [{ "mode": "mutates", "resource": "Managed installation" }] },
+            { "name": "Fetch the next managed deployment", "takes": "the installation token", "gives": "the next deploy command with its manifest, pointer and module and asset URLs; the agent reports its outcome", "acts": [{ "mode": "observes", "resource": "Managed deployment" }] },
+            { "name": "Show the node in the Managed Control Plane", "takes": "the node's session id, addresses and heartbeats", "gives": "the node shown as connected, with explorer requests and deployment notices sent back over the same session", "acts": [{ "mode": "mutates", "resource": "Managed installation" }] }
+          ]
+        },
+        {
+          "name": "Manage access",
+          "type": "supporting",
+          "description": "Hand out deploy tokens and end the installation.",
+          "capabilities": [
+            { "name": "Get a deploy token", "takes": "the installation token", "gives": "a deploy token, an account id and the API base URL for Wrangler", "acts": [{ "mode": "observes", "resource": "Managed installation" }] },
+            { "name": "Revoke the installation", "takes": "the installation token", "gives": "the installation and its credentials revoked", "acts": [{ "mode": "mutates", "resource": "Managed installation" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/control_plane.rs", "shows": "the claim, credential, deploy-token, command and presence calls to /api/instances and /api/agent with the installation token" }
+      ]
+    },
+    {
+      "consumer": "Managed agent",
+      "provider": "Object store",
+      "interfaces": ["object storage API"],
+      "areas": [
+        {
+          "name": "Keep objects",
+          "type": "core",
+          "description": "Write managed deployments to the bucket and list its cells.",
+          "capabilities": [
+            { "name": "Store an object", "takes": "a key and a body", "gives": "the stored object", "acts": [{ "mode": "produces", "resource": "Bucket object" }] },
+            { "name": "Read an object", "takes": "a key", "gives": "the object's bytes", "acts": [{ "mode": "observes", "resource": "Bucket object" }] },
+            { "name": "List objects", "takes": "a prefix and a delimiter", "gives": "a page of keys or common prefixes", "acts": [{ "mode": "observes", "resource": "Bucket object" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/control_plane.rs", "shows": "apply_deployment writing records and the explorer listing cells/ prefixes" },
+        { "path": "crates/celld/fleet.rs", "shows": "validate_managed_bucket checking the managed credentials against the bucket" }
+      ]
+    },
+    {
+      "consumer": "Decision core",
+      "provider": "Cell runtime",
+      "interfaces": ["cell host contract"],
+      "areas": [
+        {
+          "name": "Run cells",
+          "type": "core",
+          "description": "Have the engine start, run and stop the cells the decision core assigns to this node.",
+          "capabilities": [
+            { "name": "Start a cell", "takes": "a cell, its epoch, and whether it is new", "gives": "the cell's runtime started in an isolate of the right deployment and published for dispatch", "acts": [{ "mode": "produces", "resource": "Cell" }] },
+            { "name": "Dispatch a request to a cell", "takes": "a cell and a fetch, RPC call or WebSocket", "gives": "the handler's response", "acts": [{ "mode": "mutates", "resource": "Cell" }] },
+            { "name": "Fire a cell's alarm", "takes": "a cell whose alarm is due", "gives": "the alarm handler run, and its outcome", "acts": [{ "mode": "reacts", "resource": "Cell" }] },
+            { "name": "Move a cell to a new deployment", "takes": "a resident cell and the new generation", "gives": "the cell taken out of its old isolate with its storage, epoch and hibernatable sockets kept", "acts": [{ "mode": "mutates", "resource": "Cell" }] },
+            { "name": "Stop a cell", "takes": "a cell and a stop mode", "gives": "the cell's runtime closed", "acts": [{ "mode": "mutates", "resource": "Cell" }] }
+          ]
+        },
+        {
+          "name": "Keep cells durable",
+          "type": "supporting",
+          "description": "Restore cells and prove their writes before the decision core lets anything out.",
+          "capabilities": [
+            { "name": "Restore a cell's database", "takes": "a cell and the restore spec the decision core chose", "gives": "the database rebuilt locally from its history, or resumed from the local copy", "acts": [{ "mode": "produces", "resource": "Cell" }] },
+            { "name": "Prove a cell's writes durable", "takes": "a cell, its epoch and a write position", "gives": "the proof and its source, the follower ensemble or the bucket", "acts": [{ "mode": "observes", "resource": "Cell" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/cell_host.rs", "shows": "CellHost, the Actor's one boundary to the engine that runs cells" },
+        { "path": "crates/celld/runtime.rs", "shows": "RuntimeManager performing StartRuntime, Publish and StopRuntime without lifecycle policy" },
+        { "path": "crates/logic/types.rs", "shows": "the Effects StartRuntime, Restore, EnsureDurable, AwaitDurable, FireAlarm, Swap and StopRuntime" },
+        { "path": "crates/celld/actor.rs", "shows": "the Actor driving the cell host" }
+      ]
+    },
+    {
+      "consumer": "Cell runtime",
+      "provider": "Decision core",
+      "interfaces": ["Actor mailbox"],
+      "areas": [
+        {
+          "name": "Reach other cells",
+          "type": "core",
+          "description": "Send work out of a cell only where and when the decision core allows.",
+          "capabilities": [
+            { "name": "Send an effect out of a cell", "takes": "a call to a Durable Object, a service binding or a runtime-class cell, or an outbound fetch, connection or socket frame, with the write position it can reveal", "gives": "the call routed to the local cell or to the owner's node, or the effect released, once a durability proof covers the writes it can reveal", "acts": [{ "mode": "observes", "resource": "Cell" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/host_channels.rs", "shows": "GateReq, \"a ticket asking the actor whether an outbound effect may leave the process\", and the RPC and service call requests" },
+        { "path": "crates/celld/cell_dispatch.rs", "shows": "routed local execution and the durability gate for outgoing effects" },
+        { "path": "crates/celld/actor.rs", "shows": "the Actor's messages entering the decision core as events" },
+        { "path": "crates/logic/types.rs", "shows": "Event::Request, GateRequestAt and Output" }
+      ]
+    },
+    {
+      "consumer": "Alarm discovery",
+      "provider": "Decision core",
+      "interfaces": ["Actor mailbox", "ownership records"],
+      "areas": [
+        {
+          "name": "Wake cells for alarms",
+          "type": "core",
+          "description": "Have the cells of stopped owners woken when their alarms are due.",
+          "capabilities": [
+            { "name": "Wake a cell for its alarm", "takes": "a cell whose discovered alarm is due and whose ownership record, read first, names no live owner", "gives": "the cell activated on a node so its alarm fires", "acts": [{ "mode": "mutates", "resource": "Cell" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/wake.rs", "shows": "the due scan, the waker role and the owner read through BucketOwnership" },
+        { "path": "crates/celld/actor.rs", "shows": "Message::WakeHint becoming Event::WakeHintAt" },
+        { "path": "crates/celld/ownership_store.rs", "shows": "read_owner and read_node_lease" }
+      ]
+    },
+    {
+      "consumer": "Replication",
+      "provider": "Decision core",
+      "interfaces": ["ownership records"],
+      "areas": [
+        {
+          "name": "Use node leases",
+          "type": "core",
+          "description": "Find the fleet's nodes, and publish the fleet log's state in this node's lease.",
+          "capabilities": [
+            { "name": "Read node leases", "takes": "the fleet's node leases", "gives": "the live peers to recruit as followers, and the stopped nodes whose logs need recovery", "acts": [{ "mode": "observes", "resource": "Node" }] },
+            { "name": "Carry the node log in the lease", "takes": "the fleet log's record: state, log epoch, ensemble and whether it may hold fleet acknowledgements", "gives": "the record published in this node's lease at its next renewal", "acts": [{ "mode": "mutates", "resource": "Node" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/ownership_store.rs", "shows": "NodeLogWire, \"exactly the old log/<session>.json body: the record moved into the lease\", and set_own_log" },
+        { "path": "crates/celld/node_log.rs", "shows": "the fleet log reading NodeLeaseWire records under nodes/ and handing its record to the lease writer" }
+      ]
+    },
+    {
+      "consumer": "Decision core",
+      "provider": "Container supervisor",
+      "interfaces": ["container functions"],
+      "areas": [
+        {
+          "name": "Count container memory",
+          "type": "core",
+          "description": "Include the memory committed to containers in the node's load.",
+          "capabilities": [
+            { "name": "Read the memory reserved by containers", "takes": "the node's running containers", "gives": "the bytes their instance types reserve, counted as committed memory for pressure", "acts": [{ "mode": "observes", "resource": "Container" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/actor.rs", "shows": "container_reserved_bytes read from reserved_memory_bytes for the load sample" },
+        { "path": "crates/celld/container.rs", "shows": "reserved_memory_bytes and instance_memory_bytes" },
+        { "path": "docs/services/containers.md", "shows": "the memory cap of every running container counted as committed memory" }
+      ]
+    },
+    {
+      "consumer": "Cell runtime",
+      "provider": "Replication",
+      "interfaces": ["replication handle"],
+      "areas": [
+        {
+          "name": "Replicate cell databases",
+          "type": "core",
+          "description": "Keep each running cell's database replicated, and rebuild it when the cell starts elsewhere.",
+          "capabilities": [
+            { "name": "Start replicating a cell", "takes": "a cell's database at its epoch", "gives": "each later commit captured as LTX for upload", "acts": [{ "mode": "produces", "resource": "Cell history" }] },
+            { "name": "Restore a cell's database", "takes": "a cell and its restore spec", "gives": "a local database built from the epoch chain or, for a large chain, a paged one that reads each page from the history on first use", "acts": [{ "mode": "observes", "resource": "Cell history" }] },
+            { "name": "Prove writes durable", "takes": "a cell, its epoch and a write position", "gives": "the proof from the follower ensemble or from the bucket upload, whichever comes first", "acts": [{ "mode": "observes", "resource": "Cell history" }] },
+            { "name": "Close a cell's replication", "takes": "a cell that leaves the node or goes idle", "gives": "its last writes uploaded, with a snapshot for a successor when there is time", "acts": [{ "mode": "mutates", "resource": "Cell history" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/ltx_replication.rs", "shows": "the Replication handle: start, restore, ensure_durable, await_durable, evict, release, snapshots and ltx()" },
+        { "path": "crates/celld/ltx_repl.rs", "shows": "the in-process backend and the cells/<cell>/ltx/e<epoch>/ layout" },
+        { "path": "crates/celld/runtime.rs", "shows": "the runtime opening a paged database through ltx().activation_vfs" },
+        { "path": "crates/celld/facet_streams.rs", "shows": "facet databases replicated as streams of their own" }
+      ]
+    },
+    {
+      "consumer": "Decision core",
+      "provider": "Replication",
+      "interfaces": ["node log manager"],
+      "areas": [
+        {
+          "name": "Recover stopped nodes' logs",
+          "type": "core",
+          "description": "Gather a stopped owner's acknowledged writes before a takeover restores its cells.",
+          "capabilities": [
+            { "name": "Recover a stopped node's log", "takes": "the prior owner of a cell being taken over", "gives": "the prior node's log fenced and sealed on its followers, its retained writes uploaded and its record marked sealed", "acts": [{ "mode": "mutates", "resource": "Node log" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/node_log.rs", "shows": "log/<node>.json as the root of truth and recovery re-creating the dead leader's uploads" },
+        { "path": "crates/celld/actor.rs", "shows": "the Actor holding the NodeLogManager" },
+        { "path": "docs/guarantees.md", "shows": "the takeover recovery gate" }
+      ]
+    },
+    {
+      "consumer": "Decision core",
+      "provider": "Alarm discovery",
+      "interfaces": ["wake entry gate"],
+      "areas": [
+        {
+          "name": "Keep alarms discoverable",
+          "type": "core",
+          "description": "Keep a cell's wake entry in step with its alarm.",
+          "capabilities": [
+            { "name": "Reconcile an alarm's wake entry", "takes": "a cell and its current alarm", "gives": "a wake entry that matches the alarm, with older ones retired", "acts": [{ "mode": "mutates", "resource": "Wake entry" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/wake_entry.rs", "shows": "maintain_wake_entry" },
+        { "path": "crates/celld/actor.rs", "shows": "schedule_wake_maintenance calling maintain_wake_entry" }
+      ]
+    },
+    {
+      "consumer": "Cell runtime",
+      "provider": "Alarm discovery",
+      "interfaces": ["wake entry gate"],
+      "areas": [
+        {
+          "name": "Keep alarms discoverable",
+          "type": "core",
+          "description": "Make a newly set alarm discoverable before the event that set it answers.",
+          "capabilities": [
+            { "name": "Publish an alarm's wake entry", "takes": "a cell's newly committed alarm", "gives": "the wake entry in the bucket before the event's response leaves", "acts": [{ "mode": "produces", "resource": "Wake entry" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/wake_entry.rs", "shows": "the arm-time wake-entry gate that withholds the response edge" },
+        { "path": "crates/celld/js.rs", "shows": "the runtime launching the arm gate when an alarm is set" }
+      ]
+    },
+    {
+      "consumer": "Cell runtime",
+      "provider": "Static asset server",
+      "interfaces": ["asset resolver"],
+      "areas": [
+        {
+          "name": "Serve static assets",
+          "type": "core",
+          "description": "Answer the ASSETS binding with the deployment's files.",
+          "capabilities": [
+            { "name": "Serve a static asset", "takes": "a request through the ASSETS binding", "gives": "the file, a redirect, a 304 or 206 answer, or the not-found page", "acts": [{ "mode": "observes", "resource": "Static asset" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/assets.rs", "shows": "AssetResolver and its ingress and binding responses" },
+        { "path": "crates/celld/generation.rs", "shows": "one asset resolver per script of the deployment" },
+        { "path": "crates/celld/main.rs", "shows": "the ingress and the binding call reaching the resolver" }
+      ]
+    },
+    {
+      "consumer": "Cell runtime",
+      "provider": "Container supervisor",
+      "interfaces": ["container functions"],
+      "areas": [
+        {
+          "name": "Run a cell's container",
+          "type": "core",
+          "description": "Start, reach and stop the container a Durable Object owns.",
+          "capabilities": [
+            { "name": "Start a cell's container", "takes": "a cell of a containers class and its start options", "gives": "the container running under the fence, within the fleet's instance cap", "acts": [{ "mode": "produces", "resource": "Container" }] },
+            { "name": "Reach a container port", "takes": "a running container and a port", "gives": "the address to fetch or connect to", "acts": [{ "mode": "observes", "resource": "Container" }] },
+            { "name": "Run a process in a container", "takes": "a running container and a command", "gives": "a process with its streams and exit code", "acts": [{ "mode": "mutates", "resource": "Container" }] },
+            { "name": "Stop or signal a container", "takes": "a container and destroy or a signal", "gives": "the container signalled or destroyed", "acts": [{ "mode": "mutates", "resource": "Container" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/container.rs", "shows": "ContainerEngine attach, start, monitor, destroy, signal and exec, and CellContainer address and set_inactivity" },
+        { "path": "crates/celld/js/container.rs", "shows": "the Durable Object's container ops calling the supervisor" }
+      ]
+    },
+    {
+      "consumer": "Cell runtime",
+      "provider": "Telemetry exporter",
+      "interfaces": ["telemetry API"],
+      "areas": [
+        {
+          "name": "Record telemetry",
+          "type": "core",
+          "description": "Record what each request and console line did.",
+          "capabilities": [
+            { "name": "Record a span or a log line", "takes": "a span with its trace context, or a console line", "gives": "the event queued for the sink, or counted as shed", "acts": [{ "mode": "produces", "resource": "Trace" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/telemetry.rs", "shows": "start_trace, record and record_log" },
+        { "path": "crates/celld/js.rs", "shows": "the runtime recording spans and console lines" }
+      ]
+    },
+    {
+      "consumer": "Decision core",
+      "provider": "Object store",
+      "interfaces": ["object storage API"],
+      "areas": [
+        {
+          "name": "Keep objects",
+          "type": "core",
+          "description": "Keep ownership records, node leases, the fleet sample and the drain token.",
+          "capabilities": [
+            { "name": "Change an object only if unchanged", "takes": "an ownership record, lease, sample or token and the version last read", "gives": "the record changed, or a refusal when another node changed it first", "acts": [{ "mode": "mutates", "resource": "Bucket object" }] },
+            { "name": "Read an object", "takes": "a record's key", "gives": "the record and its version", "acts": [{ "mode": "observes", "resource": "Bucket object" }] },
+            { "name": "List objects", "takes": "the nodes/ prefix", "gives": "the node leases", "acts": [{ "mode": "observes", "resource": "Bucket object" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/ownership_store.rs", "shows": "the ownership and lease adapter over either conditional-write dialect, with decisions left to celld-logic" },
+        { "path": "crates/celld/drain_token.rs", "shows": "the drain token's bucket I/O for decisions celld_logic::drain makes" }
+      ]
+    },
+    {
+      "consumer": "Replication",
+      "provider": "Object store",
+      "interfaces": ["object storage API"],
+      "areas": [
+        {
+          "name": "Keep objects",
+          "type": "core",
+          "description": "Keep cell histories, node bundles and node-log records.",
+          "capabilities": [
+            { "name": "Store an object", "takes": "an LTX segment, snapshot or bundle and its key", "gives": "the stored object", "acts": [{ "mode": "produces", "resource": "Bucket object" }] },
+            { "name": "Change an object only if unchanged", "takes": "a node-log record and the version last read", "gives": "the record changed, or a refusal", "acts": [{ "mode": "mutates", "resource": "Bucket object" }] },
+            { "name": "Read an object", "takes": "a key and a byte range", "gives": "exactly the requested range", "acts": [{ "mode": "observes", "resource": "Bucket object" }] },
+            { "name": "List objects", "takes": "a cell's or node's prefix", "gives": "its epochs, segments or bundles", "acts": [{ "mode": "observes", "resource": "Bucket object" }] },
+            { "name": "Delete an object", "takes": "a superseded epoch's object or a drained bundle", "gives": "the object removed", "acts": [{ "mode": "mutates", "resource": "Bucket object" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/ltx_repl.rs", "shows": "the backend's own object-store clients for cells/<cell>/ltx/" },
+        { "path": "crates/celld/node_log.rs", "shows": "the CAS-guarded log/<node>.json record and bundles" },
+        { "path": "crates/ltx/src/client/object_store.rs", "shows": "the LTX library's object-store client" }
+      ]
+    },
+    {
+      "consumer": "Alarm discovery",
+      "provider": "Object store",
+      "interfaces": ["object storage API"],
+      "areas": [
+        {
+          "name": "Keep objects",
+          "type": "core",
+          "description": "Keep the wake index, its retirements, the waker lease and the format marker.",
+          "capabilities": [
+            { "name": "Store an object", "takes": "a wake entry and its key", "gives": "the stored entry", "acts": [{ "mode": "produces", "resource": "Bucket object" }] },
+            { "name": "Change an object only if unchanged", "takes": "a retirement record, the waker lease or the format marker, and the version last read", "gives": "the record changed, or a refusal", "acts": [{ "mode": "mutates", "resource": "Bucket object" }] },
+            { "name": "Read an object", "takes": "a key", "gives": "the record", "acts": [{ "mode": "observes", "resource": "Bucket object" }] },
+            { "name": "List objects", "takes": "a wake/ prefix and a delimiter", "gives": "the armed minutes or the entries under one", "acts": [{ "mode": "observes", "resource": "Bucket object" }] },
+            { "name": "Delete an object", "takes": "an older or consumed wake entry", "gives": "the entry removed", "acts": [{ "mode": "mutates", "resource": "Bucket object" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/wake.rs", "shows": "immutable publications, retirement records and paginated reclamation" },
+        { "path": "crates/celld/wake_format.rs", "shows": "the format marker and the startup migration" }
+      ]
+    },
+    {
+      "consumer": "Static asset server",
+      "provider": "Object store",
+      "interfaces": ["object storage API"],
+      "areas": [
+        {
+          "name": "Keep objects",
+          "type": "core",
+          "description": "Read asset indexes and bodies.",
+          "capabilities": [
+            { "name": "Read an object", "takes": "an asset index, an asset blob's digest key or the current pointer", "gives": "the index, the file body or the pointer", "acts": [{ "mode": "observes", "resource": "Bucket object" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/assets.rs", "shows": "asset download into the disk cache and the re-read of a newer pointer after a miss" }
+      ]
+    },
+    {
+      "consumer": "Telemetry exporter",
+      "provider": "Object store",
+      "interfaces": ["object storage API"],
+      "areas": [
+        {
+          "name": "Keep objects",
+          "type": "core",
+          "description": "Write telemetry files and delete expired ones.",
+          "capabilities": [
+            { "name": "Store an object", "takes": "a Parquet file and its partitioned key", "gives": "the stored file", "acts": [{ "mode": "produces", "resource": "Bucket object" }] },
+            { "name": "List objects", "takes": "the telemetry/ prefix", "gives": "the files to check for expiry", "acts": [{ "mode": "observes", "resource": "Bucket object" }] },
+            { "name": "Delete an object", "takes": "an expired telemetry file", "gives": "the file removed", "acts": [{ "mode": "mutates", "resource": "Bucket object" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/telemetry.rs", "shows": "the bucket sink and the retention sweep" }
+      ]
+    },
+    {
+      "consumer": "Telemetry exporter",
+      "provider": "OpenTelemetry collector",
+      "interfaces": ["OTLP/HTTP"],
+      "areas": [
+        {
+          "name": "Export traces and logs",
+          "type": "core",
+          "description": "Send spans and log records to the operator's collector.",
+          "capabilities": [
+            { "name": "Export traces and logs", "takes": "batches of spans and log records", "gives": "the batches accepted by the collector", "acts": [{ "mode": "produces", "resource": "Trace" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/telemetry.rs", "shows": "the OTLP sink and its retries" },
+        { "path": "crates/celld/otlp.rs", "shows": "the OTLP encoding" }
+      ]
+    },
+    {
+      "consumer": "Container supervisor",
+      "provider": "Container engine",
+      "interfaces": ["Docker Engine API"],
+      "areas": [
+        {
+          "name": "Run containers",
+          "type": "core",
+          "description": "Run the containers of the node's Durable Objects.",
+          "capabilities": [
+            { "name": "Load an image", "takes": "an image tar from the bucket", "gives": "the image in the node's engine", "acts": [{ "mode": "produces", "resource": "Container image" }] },
+            { "name": "Run a container", "takes": "an image, its command, environment, limits and network", "gives": "a running container and, later, its exit code", "acts": [{ "mode": "produces", "resource": "Container" }] },
+            { "name": "Run a process in a container", "takes": "a running container and a command", "gives": "the process's output streams and exit code", "acts": [{ "mode": "mutates", "resource": "Container" }] },
+            { "name": "Stop a container", "takes": "a container and a signal", "gives": "the container signalled or removed", "acts": [{ "mode": "mutates", "resource": "Container" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/container.rs", "shows": "the supervisor's Engine API calls" },
+        { "path": "crates/celld/docker.rs", "shows": "the unix-socket client" }
+      ]
+    },
+    {
+      "consumer": "Container supervisor",
+      "provider": "Object store",
+      "interfaces": ["object storage API"],
+      "areas": [
+        {
+          "name": "Keep objects",
+          "type": "core",
+          "description": "Read the deployment's container images.",
+          "capabilities": [
+            { "name": "Read an object", "takes": "an image key under deploy/images/", "gives": "the image tar", "acts": [{ "mode": "observes", "resource": "Bucket object" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/container.rs", "shows": "image_key and the image read from deploy/images/<key>.tar" }
+      ]
+    },
+    {
+      "consumer": "Cell runtime",
+      "provider": "Object store",
+      "interfaces": ["object storage API"],
+      "areas": [
+        {
+          "name": "Keep objects",
+          "type": "core",
+          "description": "Read deployments, and keep R2 objects and large KV values.",
+          "capabilities": [
+            { "name": "Store an object", "takes": "an R2 object or a KV value above 1 MiB, and its key", "gives": "the stored object", "acts": [{ "mode": "produces", "resource": "Bucket object" }] },
+            { "name": "Read an object", "takes": "a deployment record, an R2 key and range, or a KV value key", "gives": "the bytes", "acts": [{ "mode": "observes", "resource": "Bucket object" }] },
+            { "name": "List objects", "takes": "an R2 prefix and delimiter", "gives": "a page of keys", "acts": [{ "mode": "observes", "resource": "Bucket object" }] },
+            { "name": "Delete an object", "takes": "R2 keys or an unreferenced KV value", "gives": "the objects removed", "acts": [{ "mode": "mutates", "resource": "Bucket object" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/fleet.rs", "shows": "loading the Worker the current pointer names" },
+        { "path": "crates/celld/r2_store.rs", "shows": "the R2 record and the reads and writes that the runtime and celld r2 share" },
+        { "path": "crates/celld/kv_blob.rs", "shows": "the large-value path to the fleet bucket" }
+      ]
+    },
+    {
+      "consumer": "Workers host",
+      "provider": "KV namespace service",
+      "interfaces": ["KV namespace cell protocol"],
+      "areas": [
+        {
+          "name": "Read and write keys",
+          "type": "core",
+          "description": "Serve a KV binding's calls from the namespace's cell.",
+          "capabilities": [
+            { "name": "Read a key", "takes": "a key and a value type", "gives": "the value with its metadata, or null", "acts": [{ "mode": "observes", "resource": "KV namespace" }] },
+            { "name": "Write a key", "takes": "a key, a value up to 25 MiB, metadata and an expiration", "gives": "the value committed in the namespace", "acts": [{ "mode": "mutates", "resource": "KV namespace" }] },
+            { "name": "Delete a key", "takes": "a key", "gives": "the key removed", "acts": [{ "mode": "mutates", "resource": "KV namespace" }] },
+            { "name": "List keys", "takes": "a prefix and a cursor", "gives": "up to 1000 key names in byte order and the next cursor", "acts": [{ "mode": "observes", "resource": "KV namespace" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/js/services/kv.js", "shows": "the namespace cell's __kvGet, __kvPut, __kvDelete and __kvList and the binding client" },
+        { "path": "crates/celld/js/harness.js", "shows": "__runtimeClass registering __KvNamespace" },
+        { "path": "docs/services/kv.md", "shows": "the KV limits and consistency" }
+      ]
+    },
+    {
+      "consumer": "Workers host",
+      "provider": "Queue broker",
+      "interfaces": ["queue cell protocol"],
+      "areas": [
+        {
+          "name": "Send and receive messages",
+          "type": "core",
+          "description": "Take messages from producers and deliver them to the consumer script.",
+          "capabilities": [
+            { "name": "Send messages", "takes": "one message or a batch, with a content type and a delay", "gives": "the messages committed to the queue", "acts": [{ "mode": "produces", "resource": "Queue message" }] },
+            { "name": "Receive message batches", "takes": "the consumer script's queue handler", "gives": "batches leased to the handler, with its acknowledgements and retries applied", "acts": [{ "mode": "reacts", "resource": "Queue message" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/js/harness.js", "shows": "__QueueCell with __queueSend, batch leasing, settlement and the operator ops" },
+        { "path": "crates/celld/queue_policy.rs", "shows": "the queue cell's host seam into celld-logic's queue decisions" },
+        { "path": "crates/celld/host_channels.rs", "shows": "QueueDispatchReq carrying a batch to the consumer" },
+        { "path": "docs/services/queues.md", "shows": "producers, consumers and delivery" }
+      ]
+    },
+    {
+      "consumer": "Workers host",
+      "provider": "D1 database service",
+      "interfaces": ["D1 cell protocol"],
+      "areas": [
+        {
+          "name": "Run SQL",
+          "type": "core",
+          "description": "Run a D1 binding's statements in the database's cell.",
+          "capabilities": [
+            { "name": "Run a query", "takes": "one statement with bound values", "gives": "its rows and metadata", "acts": [{ "mode": "mutates", "resource": "D1 database" }] },
+            { "name": "Run a batch", "takes": "prepared statements, or a script without parameters", "gives": "one result per statement, all in one transaction", "acts": [{ "mode": "mutates", "resource": "D1 database" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/js/harness.js", "shows": "__D1DatabaseCell with its prepared, batch, exec and migrate modes, and the D1Database client" },
+        { "path": "docs/services/d1.md", "shows": "the D1 API and limits" }
+      ]
+    },
+    {
+      "consumer": "Workers host",
+      "provider": "Workflow engine",
+      "interfaces": ["workflow cell protocol"],
+      "areas": [
+        {
+          "name": "Run Workflow instances",
+          "type": "core",
+          "description": "Create and drive Workflow instances for a Workflow binding.",
+          "capabilities": [
+            { "name": "Create an instance", "takes": "an instance id and parameters", "gives": "a new instance that starts running", "acts": [{ "mode": "produces", "resource": "Workflow instance" }] },
+            { "name": "Read instance status", "takes": "an instance", "gives": "its status, output or error", "acts": [{ "mode": "observes", "resource": "Workflow instance" }] },
+            { "name": "Change instance status", "takes": "an instance and pause, resume, restart or terminate", "gives": "the instance with its new status", "acts": [{ "mode": "mutates", "resource": "Workflow instance" }] },
+            { "name": "Send an event to an instance", "takes": "an instance, an event type and a payload", "gives": "the event delivered or buffered", "acts": [{ "mode": "mutates", "resource": "Workflow instance" }] },
+            { "name": "Delete an instance", "takes": "an instance", "gives": "the instance removed", "acts": [{ "mode": "mutates", "resource": "Workflow instance" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/js/harness.js", "shows": "__WorkflowCell with __wfCreate, __wfStatus, __wfPause, __wfResume, __wfRestart, __wfTerminate, __wfSendEvent and __wfDelete" },
+        { "path": "docs/services/workflows.md", "shows": "the Workflow API and replay" }
+      ]
+    },
+    {
+      "consumer": "Workers host",
+      "provider": "Cron scheduler",
+      "interfaces": ["cron cell protocol"],
+      "areas": [
+        {
+          "name": "Run Cron Triggers",
+          "type": "core",
+          "description": "Run a script's schedule once per occurrence across the fleet.",
+          "capabilities": [
+            { "name": "Run a script's Cron Triggers", "takes": "the deployment's cron expressions, armed after each deployment loads", "gives": "one scheduled() call per occurrence across the fleet, retried with backoff until the next occurrence", "acts": [{ "mode": "reacts", "resource": "Cron Trigger" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/js/harness.js", "shows": "CelldCronSchedule, the reserved .cron cell, its arming fetch and its alarm" },
+        { "path": "crates/logic/cron.rs", "shows": "the cron cell's schedule decision" },
+        { "path": "docs/services/cron-triggers.md", "shows": "the cron dialect and execution rules" }
+      ]
+    },
+    {
+      "consumer": "Workers host",
+      "provider": "Object store",
+      "interfaces": ["object storage API"],
+      "areas": [
+        {
+          "name": "Keep objects",
+          "type": "core",
+          "description": "Read deployments and keep R2 objects.",
+          "capabilities": [
+            { "name": "Store an object", "takes": "an R2 object or a multipart part, and its key", "gives": "the stored object", "acts": [{ "mode": "produces", "resource": "Bucket object" }] },
+            { "name": "Read an object", "takes": "a deployment record, or an R2 key and range", "gives": "the bytes", "acts": [{ "mode": "observes", "resource": "Bucket object" }] },
+            { "name": "List objects", "takes": "an R2 prefix and delimiter", "gives": "a page of keys", "acts": [{ "mode": "observes", "resource": "Bucket object" }] },
+            { "name": "Delete an object", "takes": "up to 1000 R2 keys", "gives": "the objects removed", "acts": [{ "mode": "mutates", "resource": "Bucket object" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/r2_store.rs", "shows": "the R2 record, request shapes and reads and writes" },
+        { "path": "crates/celld/generation.rs", "shows": "DeploymentGraph::load reading a deployment" }
+      ]
+    },
+    {
+      "consumer": "KV namespace service",
+      "provider": "Object store",
+      "interfaces": ["object storage API"],
+      "areas": [
+        {
+          "name": "Keep objects",
+          "type": "core",
+          "description": "Keep values above 1 MiB outside the namespace's database.",
+          "capabilities": [
+            { "name": "Store an object", "takes": "a large value and its key under the namespace cell's prefix", "gives": "the stored value", "acts": [{ "mode": "produces", "resource": "Bucket object" }] },
+            { "name": "Read an object", "takes": "a large value's key", "gives": "the value", "acts": [{ "mode": "observes", "resource": "Bucket object" }] },
+            { "name": "List objects", "takes": "the namespace's large-value prefix", "gives": "the stored values to sweep", "acts": [{ "mode": "observes", "resource": "Bucket object" }] },
+            { "name": "Delete an object", "takes": "a value no key refers to", "gives": "the value removed", "acts": [{ "mode": "mutates", "resource": "Bucket object" }] }
+          ]
+        }
+      ],
+      "evidence": [
+        { "path": "crates/celld/kv_blob.rs", "shows": "the prepare, get, put and sweep protocol for large values, scoped to one activation's prefix" }
+      ]
+    }
+  ],
+  "questions": [
+    { "question": "Is the Managed Control Plane a consumer of celld or a service celld uses?", "answer": "An outside service of the Managed agent, rather than a second Level 1 consumer. The node holds the control URL and a bearer installation token, opens every connection, and calls the control plane's API for enrollment, credentials, deploy tokens and deployment commands, which is how the extraction rules recognize an outside service. But the control plane also asks the node for presence and cell tables over the session the node opened, and a person uses its console to deploy and browse, so it could be read as a consumer with goals of its own. The checker refuses one name as both, and no rule says which direction should carry everything." },
+    { "question": "Are the application developer and the fleet operator one role or two?", "answer": "Two consumers rather than one self-hosting team. Their goals diverge (code and data on one side, nodes, bucket and rollouts on the other), and the documentation addresses them in separate sections, but in a small team one person holds both roles." },
+    { "question": "Whose boundary holds celld d1, kv, r2 and queue?", "answer": "The developer's, as a second interface of the binding capabilities (Query a D1 database, Read and write KV keys, Read and write R2 objects) plus Apply D1 migrations and Operate a queue, rather than the operator's, where README.md lists them under Operate a fleet. They work on the application's data and replace wrangler d1, kv and r2 commands, but the README frames them as fleet operations." },
+    { "question": "Is operating the fleet a product use or engineering tooling?", "answer": "A product use: starting and stopping nodes, diagnose, cell list, epoch-cleanup preview, eviction and balancing are the operator's capabilities, because celld is self-hosted infrastructure and these are documented for its users. The rule that leaves out tools that set a system up, deploy it or diagnose it could have excluded the whole operator boundary." },
+    { "question": "Should Level 2 be the node and the tools, or the node's insides?", "answer": "Deployment publisher, Node and Managed agent at Level 2, with the decision core, cell runtime and replication inside the Node at Level 3, rather than those parts directly at Level 2. protocol.rs declares the deployment records as the interface between deployment tools and nodes, and the node is reached only through its listeners and records; the alternative removes one level and with it the Node <-> Node peer boundary." },
+    { "question": "Are the Deployment publisher and the Managed agent one component, since both write the deployment records and pointers?", "answer": "Two consumers of the node's deployment contract rather than one component. The shared-store rule points to one component, but protocol.rs calls those records the interface between deployment tools and celld, and each tool writes them with its own code (deploy.rs put_pointer, control_plane.rs apply_deployment)." },
+    { "question": "Do the decision core and Replication share one record?", "answer": "Yes: the fleet log's root record moved into the node lease (NodeLogWire in ownership_store.rs: the record moved into the lease). The fleet log hands its record to the lease writer through set_own_log, and on recovery CASes a stopped node's lease itself (node_log.rs write_dead_record). The map keeps two components, with a Replication <-> Decision core boundary on ownership records, rather than one, because the celld-logic crate boundary is stronger evidence than the shared record; the direct CAS of a stopped node's lease is the one write that goes outside the decision core's adapter." },
+    { "question": "Where do the decision helpers of crates/logic belong?", "answer": "With the Decision core rather than with the components that call them (isolate.rs with the isolate pool, kv.rs with the KV namespace service, queue.rs with the Queue broker, cron.rs with the Cron scheduler, log_tier.rs and epoch_gc.rs with Replication). The crate's no-dependency rule makes it one part, and the helpers keep no state, so they create no boundary; a reader tracing a KV or queue rule should look in crates/logic." },
+    { "question": "Is the Actor a component?", "answer": "A part of the Node that passes events to the decision core and performs its effects, rather than a Lifecycle executor component; its files and the ownership, lease and drain adapters are placed with the Decision core so a change to them traces to the boundaries they carry out." },
+    { "question": "Is the fleet log a component of its own?", "answer": "Inside Replication rather than beside it. It has its own peer routes and records, but its recovery writes the per-cell LTX objects the replication backend writes, and the backend drains the bundles the fleet log keeps." },
+    { "question": "Are KV, Queues, D1, Workflows and Cron components or features of the Workers host?", "answer": "Level 4 components inside the Cell runtime rather than parts of the Workers host. Each is a runtime-supplied Durable Object class registered by __runtimeClass (or .cron), whose cell alone changes its rows and is reached only through its cell protocol, though all of them run on the Workers host like any Durable Object." },
+    { "question": "Where does crates/celld/js/harness.js sit?", "answer": "With the Workers host, rather than split, because a place names whole files: the file also holds the Queue broker, D1 database service, Workflow engine and Cron scheduler cell classes, so a change to it can touch any of those five components." },
+    { "question": "Are the Static asset server, Container supervisor and Telemetry exporter components or parts of the cell runtime?", "answer": "Components of the Node, because each keeps state or makes decisions alone and is reached through one API (AssetResolver, the container functions, the telemetry API), rather than parts of the Cell runtime, whose generation holds the asset resolvers and whose ops call the other two." },
+    { "question": "Do the calls into ownership_store.rs from other components go around the decision core's contract?", "answer": "They go through its public functions, so the map treats them as the ownership records interface rather than as bypasses: the waker reads owner records before waking a cell, the container supervisor reads the fleet's container counts from the capacity sample before a start, and the Workers host reads the shedding flag before a stateless dispatch. These are checks folded into the capabilities they decide, so only the fleet log's lease reads and record hand-over have capabilities of their own." },
+    { "question": "Does the Workers host reach past the replication handle?", "answer": "It uses the backend that Replication::ltx() hands out (activation_vfs, discard, is_resident, delete_local, delete_streams in runtime.rs and facet_streams.rs), although ltx_replication.rs says nothing else touches the backend. The map counts ltx() as part of the replication handle's contract rather than as a bypass, since the handle exposes it on purpose." },
+    { "question": "Do the cell listings in celld cell and the Managed agent's explorer bypass the node?", "answer": "They list the cells/ prefix of the bucket directly, and celld cell gc --dry-run reads epochs through the replication backend, rather than asking a node. The map accepts these as read-only listings of the cell inventory by interface pieces rather than listing them as cleanup." },
+    { "question": "Do the Deployment publisher and the Managed agent reach into the Static asset server and the Container supervisor?", "answer": "They call pure validation helpers there (validate_asset_file_size and is_canonical_asset_path in assets.rs; image_key, image_reference and instance_resources in container.rs) so that \"the builder, managed agent, and serving node\" apply one size and naming policy. The map treats these as shared library functions rather than boundaries, because they keep no state; moving them to a shared policy module would make that explicit." },
+    { "question": "Which resource does Serve requests work on?", "answer": "It observes the Deployment, whose code and assets answer, rather than producing a resource: a response is an output, not something the developer manages." },
+    { "question": "Is a deployment made in the Managed Control Plane an interface of celld?", "answer": "An interface of the developer's Deploy the application, rather than left out as the control plane's own channel, because celld token prints the Wrangler exports for it and a managed node fetches and publishes what arrives." },
+    { "question": "Is the health path a capability?", "answer": "Excluded as load-balancer machinery, rather than an operator capability, although the readiness it reports paces rolling upgrades." }
+  ],
+  "cleanupCandidates": [
+    { "name": "Dead-node compatibility clean-up (crates/celld/dead_node_gc.rs)", "why": "Compatibility garbage collection that retires historical node-cells/ index debris and expired node-session records left in fleet buckets; serving correctness no longer depends on it." },
+    { "name": "v0.4.1 wake-index migration (crates/celld/wake_format.rs, crates/celld/storage/wake_record.rs)", "why": "Upgrades a stopped v0.4.1 fleet's alarm discovery (the old wake-format.json, wake-v2/ and wake-retired-v2/ names, discovery seeds) and installs identities for legacy alarms; needed only for fleets coming from v0.4.1." },
+    { "name": "LTX legacy frame layout (crates/ltx/src/codec.rs)", "why": "The ordinary L0 writer still emits the v0.5.1 frame representation and the reader keeps a dual decoder, so a mixed fleet must set CELLD_LTX_COMPACTION=0 until every node reads block files (crates/ltx/README.md)." },
+    { "name": "CLT1 node-log tails (crates/celld/node_log.rs)", "why": "An older node's entries-only tail format still accepted during recovery; docs/guarantees.md says it proves neither completeness nor loss and can stall a mixed-version update." },
+    { "name": "Removed-settings guard (crates/celld/env_vars.rs)", "why": "The REMOVED table refuses retired variables such as CELLD_OUTPUT_GATE, CELLD_SHUTDOWN_DRAIN_MS, CELLD_AI_BINDING and CELLD_OTEL_SINK at startup, so old configurations fail loudly." },
+    { "name": "AI metadata guard for old managed uploads (crates/celld/fleet.rs)", "why": "Refuses a deployment that still carries an ai binding from before the AI adapter was removed, because \"Old managed uploads can contain AI metadata without a required-feature gate\"." },
+    { "name": "Old-path re-exports and the absent workerd arm (crates/celld/engine_api.rs, host_channels.rs, http_streams.rs, ws_registry.rs, wake_entry.rs, kv_blob.rs, queue_policy.rs, js/services/kv.js)", "why": "Items are re-exported \"at its old path\" from crate::js, and several seams are written for a workerd engine arm that is not in the repository." },
+    { "name": "Temporary host seam (crates/celld/lib.rs)", "why": "worker_compat is introduced as a \"Temporary host seam required by the verbatim JS adapter\"." },
+    { "name": "Single-database scope column (crates/celld/storage.rs)", "why": "The scope column \"survives from the single-db era and still keys rows\", although each database now holds one cell." },
+    { "name": "Installation record aliases (crates/celld/control_plane.rs)", "why": "CloudConfig accepts the older instance_id and instance_token field names, and NodeLogWire keeps the JSON key active for compatibility." }
+  ],
+  "excluded": [
+    { "name": "Users of the deployed application", "why": "HTTP and WebSocket clients of the developer's Worker use the developer's application, which celld serves through the developer's boundary." },
+    { "name": "Health path /.well-known/celld/health", "why": "A boolean for load balancers and orchestrators: machinery nobody uses for a purpose of their own." },
+    { "name": "Fleet placement and memory behavior", "why": "Ownership balancing, memory-pressure shedding, idle eviction and hibernation, the residency cap and handing a cold activation to the least-loaded peer are what celld does on its own." },
+    { "name": "Ownership safety machinery", "why": "Node lease renewal and self-fencing, the takeover recovery gate, the output gate's waiting and the storage test at startup are provider behavior behind the developer's and operator's capabilities." },
+    { "name": "Storage housekeeping", "why": "Epoch GC, L1 compaction, the paged background fill, wake-entry clean-up and the waker's orphan scan, telemetry retention and local cache pruning run on their own." },
+    { "name": "Rollout pacing", "why": "The fleet drain token, the first-readiness gate and deployment pointer polling pace rollouts without anyone calling them." },
+    { "name": "Limits and overload refusals", "why": "Per-cell admission (CELLD_MAX_CELL_REQUESTS), body limits, KV, D1, Queue, R2 and Dynamic Worker limits are constraints of the capabilities, not capabilities." },
+    { "name": "Runtime APIs without a celld resource", "why": "fetch, streams, Web Crypto, Node.js compatibility, HTMLRewriter, TCP sockets, EventSource, MessageChannel, timers and the always-miss Cache are the Worker's language environment and keep no state celld holds." },
+    { "name": "Unsupported Cloudflare services", "why": "Workers AI, Vectorize, Hyperdrive, Browser Rendering, Email Workers, BroadcastChannel and the tail and email handlers are documented as not implemented and have no code." },
+    { "name": "Peer probe", "why": "/peer/probe is a signed diagnostic that celld diagnose sends to check a lease's node; a step of diagnosing." },
+    { "name": "Build, check and release tooling", "why": "The release workflow, the Dockerfile, the Cargo manifests and the clippy architecture lints work on celld itself; clippy.toml was read as evidence of the execution boundary." },
+    { "name": "Test suites and the simulated execution backend", "why": "crates/celld/lib.rs includes them from outside the tree with include!(env!(...)); they are not in the repository." },
+    { "name": "Installer", "why": "celld.dev/install.sh, which the documentation names, is not in the repository." }
+  ]
+}

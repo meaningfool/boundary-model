@@ -1,0 +1,78 @@
+---
+title: The boundary model
+description: The `boundary model` is a light-weight ontology to describe how people and systems interact. It provides agents with a map on how to map and describe behavioural changes.
+---
+
+import Example from "../../components/model/Example.astro";
+import StoreFigure from "../../components/model/StoreFigure.astro";
+
+## Main `boundary` concepts
+
+- **`boundary`**: where a `consumer` meets a `provider`. The `provider` offers its resources and capabilities to the `consumer` across it. There is one `boundary` for each `consumer` and `provider` pair.
+- **`interface`**: the channel the `consumer` uses to see resources and use capabilities, such as a web UI or a CLI.
+- **`capability`**: something the `consumer` can do with the `provider`'s resources, through one or more interfaces, to get a result.
+- **`resource`**: something with a state the `consumer` cares about, such as an order.
+
+<StoreFigure />
+
+## An example: the Store
+
+The Store is an invented online shop that sells home goods. Here is how the `boundary model` describes it, one concept at a time, from the outside in. It starts as a single box: the Store, as the people who use it see it.
+
+<Example step="store" />
+
+### Consumers
+
+Three kinds of people use the Store, each with a `boundary` of its own:
+
+- **Shopper**: buys home goods from the Store.
+- **Fraud analyst**: reviews the orders the Store holds as risky, and decides whether each one goes ahead.
+- **Store manager**: keeps the catalog's products, prices and stock right.
+
+<Example step="consumers" />
+
+### Interfaces
+
+Shoppers reach the Store through two interfaces, on one `boundary`:
+
+- **Web shop**: the Store's website, in a browser.
+- **Mobile app**: the Store's app on their phone, with possibly different features from the web version.
+
+<Example step="interfaces" />
+
+### Capabilities
+
+Across their `boundary`, shoppers have three capabilities:
+
+- **Browse products**: find products, with their price and stock.
+- **Place order**: buy what is in the cart, and get the order back, confirmed or held for review.
+- **List past orders**: see the orders they placed.
+
+<Example step="capabilities" />
+
+### Resources
+
+The capabilities act on three resources:
+
+- **Product**: it has a name, a price, a stock and other information. Each is a `property` of the resource.
+- **Order**: links to one or more products, and has a status, a delivery address and other information.
+- **Loyalty balance**: the points a shopper has earned from their orders.
+
+Each `capability` says how it acts on the resources it touches. It `observes` them when it shows their state, `mutates` them when it changes them, `produces` something new from them, or `reacts` when they meet a condition. The link from an order to its products is a `relationship` between two resources.
+
+<Example step="resources" />
+
+### Components
+
+The Store relies on 2 `component` that have specific responsibilities and are separated by their own `boundary`:
+
+- **Storefront**: keeps the products, the orders and the loyalty points, and decides how many points an order earns.
+- **Payments**: takes the money for each order and gives it back, and decides which payments to hold for review.
+
+<Example step="components" />
+
+### Internal boundaries
+
+When one `component` relies on another, the same pattern repeats. To charge an order, Storefront relies on Payments. Storefront is the `consumer`, Payments is the `provider`, and the charges API is the `interface` of the `internal boundary` between them.
+
+<Example step="inside" />

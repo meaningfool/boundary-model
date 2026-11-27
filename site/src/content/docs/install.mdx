@@ -1,0 +1,80 @@
+---
+title: Install
+description: Install all nine skills side by side. The map scripts find `use-boundary-model` in the folder next to theirs.
+---
+
+import { Steps } from "@astrojs/starlight/components";
+
+## What the skills need
+
+- Node 18 or later, for the map scripts.
+- Chrome, Chromium, or Edge, for still images of a map. Without one, `visualize-boundaries` still draws the map as a page. Set `CHROME_PATH` if the script cannot find the browser.
+- Access to GitHub, for `to-issues` to create issues.
+
+## With npx skills
+
+It supports Claude Code, Codex, and most other agents.
+
+```bash
+npx skills add meaningfool/boundary-model --skill '*'
+```
+
+- `-a <agent>` picks an agent, such as `-a claude-code -a codex`.
+- `-y` skips the confirmation prompts.
+- `-g` installs for your user instead of the current project.
+
+In a project, the skills go in `.agents/skills/`, linked into each agent's own folder such as `.claude/skills/`, and `skills-lock.json` records the version. To update, run `npx skills update`. To remove, run `npx skills remove --all`.
+
+## In Claude Code
+
+```text
+/plugin marketplace add meaningfool/boundary-model
+/plugin install boundary-model@meaningfool
+```
+
+From a shell, run `claude plugin marketplace add meaningfool/boundary-model`, then `claude plugin install boundary-model@meaningfool`.
+
+Auto-update is off by default for this marketplace. To update, run `claude plugin update boundary-model@meaningfool`, or turn on auto-update for `meaningfool` on the Marketplaces tab of `/plugin`.
+
+## In Codex
+
+```bash
+codex plugin marketplace add meaningfool/boundary-model
+codex plugin add boundary-model@meaningfool
+```
+
+Start a new session to use the skills. To fetch a newer version of the marketplace, run `codex plugin marketplace upgrade meaningfool`. To remove, run `codex plugin remove boundary-model@meaningfool`.
+
+Both plugins install the nine skills as one plugin, so each skill's name becomes `boundary-model:<skill>`, such as `boundary-model:extract-boundaries`.
+
+## By hand
+
+<Steps>
+
+1. Get the skills.
+
+   ```bash
+   git clone https://github.com/meaningfool/boundary-model.git
+   cd boundary-model/skills
+   ```
+
+2. Copy the nine folders into your agent's skills folder.
+
+   ```bash
+   mkdir -p ~/.claude/skills
+   cp -R use-boundary-model extract-boundaries review-boundaries \
+     update-boundaries visualize-boundaries shape-boundaries \
+     slice refine to-issues ~/.claude/skills/
+   ```
+
+   These commands install for Claude Code. For another agent, use its skills folder, such as `~/.agents/skills/` for Codex. To share the skills with a team, use the project's skills folder instead.
+
+</Steps>
+
+:::caution
+Keep the folder names, and name each folder as above. Don't copy with a trailing-slash glob such as `skills/*/`. On macOS, `cp -R` with a trailing slash copies a folder's contents instead of the folder.
+:::
+
+## Check it works
+
+Start a new session in a repository and ask: "Map this repository's boundaries." The agent should load `extract-boundaries`. Unless you say otherwise, it reads the whole repository except dependencies, generated files and secrets.

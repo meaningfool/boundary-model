@@ -1,0 +1,490 @@
+<title>Boundary model website</title>
+<style>
+  /* The shell: the draft site fills the whole frame, as a visitor would see it, and the review
+     toolbar floats over its bottom right corner. Colours follow the site's monochrome tokens. */
+  /* review:font */
+  :root {
+    --rv-bg: #ffffff;
+    --rv-fg: #111111;
+    --rv-fg2: #666666;
+    --rv-fg3: #888888;
+    --rv-line: #ebebeb;
+    --rv-line2: #d4d4d4;
+    --rv-panel: #fafafa;
+    --rv-inv-bg: #111111;
+    --rv-inv-fg: #ffffff;
+    --rv-shadow: 0 1px 2px rgb(0 0 0 / 4%), 0 8px 24px rgb(0 0 0 / 8%);
+    --rv-font: "Geist Review", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --rv-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --rv-gap: 16px;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --rv-bg: #0b0b0b;
+      --rv-fg: #ededed;
+      --rv-fg2: #a3a3a3;
+      --rv-fg3: #858585;
+      --rv-line: #222222;
+      --rv-line2: #383838;
+      --rv-panel: #121212;
+      --rv-inv-bg: #ededed;
+      --rv-inv-fg: #0b0b0b;
+      --rv-shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px rgb(0 0 0 / 50%);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --rv-bg: #0b0b0b;
+    --rv-fg: #ededed;
+    --rv-fg2: #a3a3a3;
+    --rv-fg3: #858585;
+    --rv-line: #222222;
+    --rv-line2: #383838;
+    --rv-panel: #121212;
+    --rv-inv-bg: #ededed;
+    --rv-inv-fg: #0b0b0b;
+    --rv-shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px rgb(0 0 0 / 50%);
+    color-scheme: dark;
+  }
+
+  html,
+  body {
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+  }
+  body {
+    background: var(--rv-bg);
+    color: var(--rv-fg);
+    font-family: var(--rv-font);
+    font-size: 14px;
+    line-height: 1.5;
+    letter-spacing: -0.006em;
+    -webkit-font-smoothing: antialiased;
+  }
+  .rv-frame {
+    position: fixed;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    background: var(--rv-bg);
+  }
+  [hidden] {
+    display: none !important;
+  }
+  .rv-sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  :focus-visible {
+    outline: 2px solid var(--rv-fg);
+    outline-offset: 2px;
+  }
+
+  /* Buttons: hairline by default, solid for the one action that matters, never under 40px. */
+  .rv-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-width: 40px;
+    min-height: 40px;
+    padding: 0 12px;
+    border: 1px solid var(--rv-line2);
+    border-radius: 8px;
+    background: var(--rv-bg);
+    color: var(--rv-fg);
+    font: inherit;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .rv-btn:hover:not(:disabled) {
+    border-color: var(--rv-fg3);
+  }
+  .rv-btn:disabled {
+    color: var(--rv-fg3);
+    cursor: not-allowed;
+  }
+  .rv-btn--solid {
+    border-color: var(--rv-inv-bg);
+    background: var(--rv-inv-bg);
+    color: var(--rv-inv-fg);
+  }
+  .rv-btn--solid:disabled {
+    border-color: var(--rv-line2);
+    background: var(--rv-panel);
+    color: var(--rv-fg3);
+  }
+  .rv-btn--quiet {
+    border-color: transparent;
+    background: transparent;
+    color: var(--rv-fg2);
+  }
+  .rv-btn--quiet:hover:not(:disabled) {
+    border-color: var(--rv-line2);
+    color: var(--rv-fg);
+  }
+  .rv-count {
+    min-width: 1.5em;
+    padding: 0 5px;
+    border: 1px solid var(--rv-line2);
+    border-radius: 999px;
+    color: var(--rv-fg2);
+    font-family: var(--rv-mono);
+    font-size: 11.5px;
+    line-height: 18px;
+    text-align: center;
+  }
+
+  /* The toolbar, with the list of changes opening above it. */
+  .rv {
+    position: fixed;
+    right: max(var(--rv-gap), calc(env(safe-area-inset-right) + 8px));
+    bottom: max(var(--rv-gap), calc(env(safe-area-inset-bottom) + 8px));
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    max-width: calc(100vw - 2 * var(--rv-gap) - env(safe-area-inset-left) - env(safe-area-inset-right));
+  }
+  .rv-bar {
+    box-sizing: border-box;
+    max-width: 100%;
+    padding: 8px;
+    border: 1px solid var(--rv-line);
+    border-radius: 12px;
+    background: var(--rv-bg);
+    box-shadow: var(--rv-shadow);
+  }
+  .rv-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+  .rv-modes {
+    display: inline-flex;
+    padding: 2px;
+    border: 1px solid var(--rv-line);
+    border-radius: 9px;
+    background: var(--rv-panel);
+  }
+  .rv-modes .rv-btn {
+    min-height: 40px;
+    border-color: transparent;
+    background: transparent;
+    color: var(--rv-fg2);
+  }
+  .rv-modes .rv-btn[aria-pressed="true"] {
+    border-color: var(--rv-line2);
+    background: var(--rv-bg);
+    color: var(--rv-fg);
+  }
+  .rv-status {
+    max-width: 34rem;
+    margin: 8px 4px 2px;
+    color: var(--rv-fg2);
+    font-size: 12.5px;
+  }
+  .rv-status:empty {
+    display: none;
+  }
+  .rv-status .rv-btn {
+    min-height: 32px;
+    margin-left: 6px;
+    padding: 0 10px;
+    font-size: 12.5px;
+  }
+  .rv-bar--quiet {
+    display: flex;
+    flex-direction: row-reverse;
+    align-items: center;
+    gap: 4px;
+  }
+  .rv-bar--quiet .rv-status {
+    margin: 0 4px 0 8px;
+  }
+  .rv-pill {
+    box-shadow: var(--rv-shadow);
+  }
+
+  /* The list of changes. */
+  .rv-panel {
+    box-sizing: border-box;
+    width: min(460px, 100%);
+    max-height: min(62vh, 560px);
+    overflow: auto;
+    overscroll-behavior: contain;
+    border: 1px solid var(--rv-line);
+    border-radius: 12px;
+    background: var(--rv-bg);
+    box-shadow: var(--rv-shadow);
+  }
+  .rv-panel-head {
+    position: sticky;
+    top: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 6px 6px 16px;
+    border-bottom: 1px solid var(--rv-line);
+    background: var(--rv-bg);
+  }
+  .rv-panel h2,
+  .rv-pop h2 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .rv-group {
+    margin: 0;
+    padding: 12px 16px 4px;
+    color: var(--rv-fg3);
+    font-family: var(--rv-mono);
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .rv-empty {
+    margin: 0;
+    padding: 16px;
+    color: var(--rv-fg2);
+  }
+  .rv-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .rv-item {
+    padding: 12px 16px;
+    border-top: 1px solid var(--rv-line);
+  }
+  .rv-group + .rv-list > .rv-item:first-child {
+    border-top: 0;
+  }
+  .rv-item-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+  .rv-tag {
+    padding: 0 6px;
+    border: 1px solid var(--rv-line2);
+    border-radius: 5px;
+    color: var(--rv-fg2);
+    font-family: var(--rv-mono);
+    font-size: 11px;
+    line-height: 18px;
+  }
+  .rv-tag--status[data-status="pending"] {
+    border-style: dashed;
+  }
+  .rv-tag--status[data-status="applied"],
+  .rv-tag--status[data-status="done"] {
+    border-color: var(--rv-fg2);
+    color: var(--rv-fg);
+  }
+  .rv-loc {
+    margin: 6px 0 0;
+    color: var(--rv-fg2);
+    font-size: 12.5px;
+    overflow-wrap: anywhere;
+  }
+  .rv-diff {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 2px 10px;
+    margin: 8px 0 0;
+  }
+  .rv-diff dt {
+    color: var(--rv-fg3);
+    font-family: var(--rv-mono);
+    font-size: 11px;
+    line-height: 20px;
+  }
+  .rv-diff dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+  .rv-diff dd.rv-before {
+    color: var(--rv-fg2);
+    text-decoration: line-through;
+    text-decoration-color: var(--rv-fg3);
+  }
+  .rv-note,
+  .rv-reply {
+    margin: 8px 0 0;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+  }
+  .rv-reply {
+    padding-left: 10px;
+    border-left: 2px solid var(--rv-line2);
+    color: var(--rv-fg2);
+  }
+  .rv-item-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  /* The pop-up that edits a line or takes a note: beside the element, or a sheet on phones. */
+  .rv-pop {
+    position: fixed;
+    z-index: 20;
+    box-sizing: border-box;
+    width: min(440px, calc(100vw - 2 * var(--rv-gap)));
+    max-height: calc(100dvh - 2 * var(--rv-gap));
+    overflow: auto;
+    padding: 14px 16px 16px;
+    border: 1px solid var(--rv-line2);
+    border-radius: 12px;
+    background: var(--rv-bg);
+    box-shadow: var(--rv-shadow);
+  }
+  .rv-pop-where {
+    margin: 4px 0 0;
+    color: var(--rv-fg2);
+    font-size: 12.5px;
+    overflow-wrap: anywhere;
+  }
+  .rv-pop p.rv-pop-text {
+    margin: 10px 0 0;
+  }
+  .rv-pop details {
+    margin-top: 10px;
+    color: var(--rv-fg2);
+    font-size: 12.5px;
+  }
+  .rv-pop summary {
+    cursor: pointer;
+  }
+  .rv-pop details p {
+    margin: 6px 0 0;
+    font-family: var(--rv-mono);
+    overflow-wrap: anywhere;
+  }
+  .rv-field {
+    display: block;
+    margin-top: 12px;
+    color: var(--rv-fg2);
+    font-size: 12.5px;
+  }
+  .rv-pop textarea {
+    box-sizing: border-box;
+    display: block;
+    width: 100%;
+    min-height: 96px;
+    max-height: 50dvh;
+    margin-top: 4px;
+    padding: 10px 12px;
+    border: 1px solid var(--rv-line2);
+    border-radius: 8px;
+    background: var(--rv-bg);
+    color: var(--rv-fg);
+    font: 13px/1.55 var(--rv-mono);
+    resize: vertical;
+  }
+  .rv-pop textarea:focus-visible {
+    outline-offset: 0;
+    border-color: var(--rv-fg);
+  }
+  .rv-hint {
+    margin: 6px 0 0;
+    color: var(--rv-fg3);
+    font-size: 12px;
+  }
+  .rv-error {
+    margin: 10px 0 0;
+    color: var(--rv-fg);
+    font-weight: 500;
+  }
+  .rv-error:empty {
+    display: none;
+  }
+  .rv-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+  }
+  .rv-actions .rv-spacer {
+    flex: 1;
+  }
+  @media (max-width: 600px) {
+    .rv-pop {
+      right: max(8px, env(safe-area-inset-right));
+      bottom: max(8px, env(safe-area-inset-bottom));
+      left: max(8px, env(safe-area-inset-left)) !important;
+      top: auto !important;
+      width: auto;
+      max-height: 70dvh;
+    }
+    .rv-modes .rv-btn {
+      padding: 0 10px;
+    }
+    /* At 16px, iOS does not zoom the page when the text gets focus. */
+    .rv-pop textarea {
+      font-size: 16px;
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .rv-btn,
+    .rv-modes .rv-btn {
+      transition:
+        border-color 0.12s,
+        background-color 0.12s,
+        color 0.12s;
+    }
+  }
+</style>
+
+<iframe class="rv-frame" id="rv-frame" src="site/index.html" title="The boundary model website, draft"></iframe>
+
+<div class="rv" id="rv">
+  <section class="rv-panel" id="rv-panel" aria-labelledby="rv-panel-title" hidden>
+    <div class="rv-panel-head">
+      <h2 id="rv-panel-title">Changes</h2>
+      <button class="rv-btn rv-btn--quiet" type="button" id="rv-panel-close">Close</button>
+    </div>
+    <div id="rv-panel-body"></div>
+  </section>
+
+  <div class="rv-bar" id="rv-bar" role="region" aria-label="Review tools">
+    <div class="rv-row">
+      <div class="rv-modes" id="rv-modes" role="group" aria-label="Mode" hidden>
+        <button class="rv-btn" type="button" data-mode="browse" aria-pressed="true">Browse</button>
+        <button class="rv-btn" type="button" data-mode="edit" aria-pressed="false">Edit</button>
+        <button class="rv-btn" type="button" data-mode="note" aria-pressed="false">Note</button>
+      </div>
+      <button class="rv-btn" type="button" id="rv-list" aria-expanded="false" aria-controls="rv-panel" hidden>
+        Changes <span class="rv-count" id="rv-count">0</span><span class="rv-sr"> pending</span>
+      </button>
+      <button class="rv-btn rv-btn--solid" type="button" id="rv-send" aria-describedby="rv-status" hidden>Send to Claude</button>
+      <button class="rv-btn rv-btn--quiet" type="button" id="rv-hide" aria-label="Hide review tools" title="Hide review tools">
+        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 7h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
+      </button>
+    </div>
+    <p class="rv-status" id="rv-status" role="status" aria-live="polite">Loading review tools…</p>
+  </div>
+
+  <button class="rv-btn rv-pill" type="button" id="rv-show" aria-label="Show review tools" hidden>Review <span class="rv-count" id="rv-pill-count">0</span></button>
+</div>
+
+<div class="rv-pop" id="rv-pop" role="dialog" aria-labelledby="rv-pop-title" hidden></div>
+
+<script src="overlay.js"></script>

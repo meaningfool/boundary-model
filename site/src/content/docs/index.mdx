@@ -1,0 +1,43 @@
+---
+title: What it is and why
+description: High-leverage conversations with your agent using a shared map of your system.
+hero:
+  title: 'High-leverage conversations with your agent <span class="dim">using a shared map of your system.</span>'
+  tagline: 'From the idea to the spec: the `boundary model` skills provide the agent with a roadmap on what to ask and clarify.'
+  image:
+    file: ../../assets/codebase.webp
+    alt: "Three blindfolded people touch an elephant labeled Codebase, each marked with an AI agent's logo. One holds a tusk and says: It's a spear! One presses its side and says: It's a wall! One pulls its tail and says: It's a rope!"
+  actions:
+    - text: Get started
+      link: /install/
+      variant: primary
+    - text: Install with your agent
+      link: /install/
+      variant: secondary
+      attrs:
+        data-copy: Install the boundary model skills from https://github.com/meaningfool/boundary-model, following the Install section of its README.
+---
+
+import Flow from "../../components/home/Flow.astro";
+import Levels from "../../components/home/Levels.astro";
+import Problems from "../../components/home/Problems.astro";
+
+## How do you know you understand each other (you and your agents)?
+
+A good conversation is one where you and your agent understand each other, one where you are presented with consequential decisions first and drill down once the foundations are solid. The trajectory of a conversation is quite chaotic and depends on decisions the agent made when gathering context and making assumptions. And there may be the appearance of a mutual understanding when it's actually a mirage.
+
+The solution is a shared map, so that each new conversation starts from a known place.
+
+<Problems />
+
+## Focus on behavior changes first, implementation details last
+
+Each step works one level closer to the code. You agree on what changes for the people using the system before anyone decides how to build it.
+
+<Flow />
+
+## Boundaries, level by level
+
+A `boundary` is where a `consumer` meets a `provider`. The `provider` offers 1+ `capability` through 1+ `interface`. The outward boundaries sit between the system and its users. The system itself is made of components separated by internal boundaries.
+
+<Levels />
