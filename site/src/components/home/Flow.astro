@@ -1,8 +1,7 @@
 ---
 // Page 01: one vertical flow from a tangled request to issues, each step one level closer to the
-// code, each step named after the skill that does it. The scribble beside the request is drawn
+// code, each step naming the skill that does it, as code without a link. The scribble beside the request is drawn
 // here, from a fixed seed, so it never changes.
-const skill = (name: string) => `https://github.com/meaningfool/boundary-model/blob/v${__VERSION__}/skills/${name}/SKILL.md`;
 let seed = 7;
 const rnd = () => {
   seed = (seed * 16807) % 2147483647;
@@ -38,7 +37,7 @@ tangle += " Q70 30 78 62";
     <li class="fstep">
       <span class="fdot" aria-hidden="true">1</span>
       <h3>Clarify the behavior changes, from the outside in</h3>
-      <p class="fsub"><a href={skill("shape-boundaries")}><code>shape-boundaries</code></a> turns your request into <code>boundary changes</code>, marked against the map: first between your users and the system, then between the parts inside it. Questions about details wait.</p>
+      <p class="fsub"><code>shape-boundaries</code> turns your request into <code>boundary changes</code>, marked against the map: first between your users and the system, then between the parts inside it. Questions about details wait.</p>
       <div class="fvis">
         <div class="bounds">
           <div class="bgroup">
@@ -73,7 +72,7 @@ tangle += " Q70 30 78 62";
     <li class="fstep">
       <span class="fdot" aria-hidden="true">2</span>
       <h3>Group the changes into increments you can observe</h3>
-      <p class="fsub"><a href={skill("slice")}><code>slice</code></a> groups the <code>boundary changes</code> into slices, each an increment people can observe once it lands. It compares ways to split the change and recommends one, here by <code>interface</code>.</p>
+      <p class="fsub"><code>slice</code> groups the <code>boundary changes</code> into slices, each an increment people can observe once it lands. It compares ways to split the change and recommends one, here by <code>interface</code>.</p>
       <div class="fvis slices">
         <div class="sframe">
           <span class="klab">Increment 1 · Pay on the web</span>
@@ -94,7 +93,7 @@ tangle += " Q70 30 78 62";
     <li class="fstep">
       <span class="fdot" aria-hidden="true">3</span>
       <h3>Settle the details of each increment</h3>
-      <p class="fsub"><a href={skill("refine")}><code>refine</code></a> settles each increment's details, starting from the questions set aside: what people can observe once it works, and how it is built.</p>
+      <p class="fsub"><code>refine</code> settles each increment's details, starting from the questions set aside: what people can observe once it works, and how it is built.</p>
       <div class="fvis refined">
         <span class="klab">Increment 1 · Pay on the web</span>
         <div class="rq">
@@ -123,7 +122,7 @@ tangle += " Q70 30 78 62";
     <li class="fstep">
       <span class="fdot" aria-hidden="true">4</span>
       <h3>Turn each increment into an issue</h3>
-      <p class="fsub"><a href={skill("to-issues")}><code>to-issues</code></a> turns each increment into an issue that carries its expected behavior and its proof of done, so an agent can build from it.</p>
+      <p class="fsub"><code>to-issues</code> turns each increment into an issue that carries its expected behavior and its proof of done, so an agent can build from it.</p>
       <div class="fvis issues">
         <div class="icard"><span class="st"><i></i>Issue</span><b>Pay with a gift card on the web</b><p>Proof of done: pay an order with a gift card in the web shop and see its balance go down.</p></div>
         <div class="icard"><span class="st"><i></i>Issue</span><b>See a gift card's balance</b><p>Proof of done: open a gift card and see what is left on it.</p></div>
@@ -443,15 +442,6 @@ tangle += " Q70 30 78 62";
   }
   .mode::before {
     content: "· ";
-  }
-  .fsub a {
-    color: var(--bm-fg);
-    text-decoration: underline;
-    text-decoration-color: var(--bm-line2);
-    text-underline-offset: 3px;
-  }
-  .fsub a:hover {
-    text-decoration-color: var(--bm-fg);
   }
   .fsub code {
     font-family: var(--__sl-font-mono);
