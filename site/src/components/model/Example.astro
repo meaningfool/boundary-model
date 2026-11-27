@@ -1,15 +1,26 @@
 ---
 // Page 02: the Store, drawn one concept at a time, in the same grammar as the Store figure above
-// it. Each `step` draws one small picture: who uses the Store, through which interfaces, what they
-// can do, what that acts on, and the same pattern one level down.
+// it. Each `step` draws one small picture: the Store alone, who uses it, through which interfaces,
+// what they can do, what that acts on, the components inside it, and the same pattern one level
+// down.
 interface Props {
-  step: "consumers" | "interfaces" | "capabilities" | "resources" | "inside";
+  step: "store" | "consumers" | "interfaces" | "capabilities" | "resources" | "components" | "inside";
 }
 const { step } = Astro.props;
 const consumers = ["Shopper", "Fraud analyst", "Store manager"];
 ---
 
 <figure class="ex not-content">
+  {
+    step === "store" && (
+      <svg class="narrow" viewBox="0 0 300 96" role="img" aria-label="One box, the provider: the Store. Nothing else is drawn yet.">
+        <rect class="frame" x="50" y="8" width="200" height="80" rx="4" />
+        <text class="k" x="66" y="28">PROVIDER</text>
+        <text class="n" x="66" y="48">Store</text>
+        <text class="s" x="66" y="66">Home goods, sold online</text>
+      </svg>
+    )
+  }
   {
     step === "consumers" && (
       <svg viewBox="0 0 560 196" role="img" aria-label="Three consumers, the Shopper, the Fraud analyst and the Store manager, each with its own boundary to the same provider, the Store.">
@@ -117,6 +128,39 @@ const consumers = ["Shopper", "Fraud analyst", "Store manager"];
     )
   }
   {
+    step === "components" && (
+      <svg viewBox="0 0 600 176" role="img" aria-label="Level 2, inside the Store: two components, Storefront, which keeps Product, Order and Loyalty balance, and Payments, which keeps Charge. The web shop and the mobile app only present what Storefront offers: they are interfaces, not components.">
+        <text class="kb" x="0" y="12">LEVEL 2 · INSIDE THE STORE</text>
+        <rect class="frame" x="0.5" y="24" width="598" height="150" rx="4" />
+        <text class="k" x="16" y="44">PROVIDER</text>
+        <text class="n" x="16" y="62">Store</text>
+        <text class="k" x="16" y="88">INTERFACES</text>
+        <rect class="step" x="16" y="96" width="112" height="22" rx="3" />
+        <text class="s" x="26" y="111">web shop</text>
+        <rect class="step" x="16" y="126" width="112" height="22" rx="3" />
+        <text class="s" x="26" y="141">mobile app</text>
+        <path class="line" d="M128 107 C150 107 150 122 172 122" />
+        <path class="line" d="M128 137 C150 137 150 122 172 122" />
+        <text class="k" x="172" y="88">COMPONENTS</text>
+        <rect class="comp" x="172" y="96" width="222" height="64" rx="4" />
+        <text class="k" x="184" y="112">COMPONENT</text>
+        <text class="n" x="184" y="129">Storefront</text>
+        <rect class="box" x="184" y="136" width="52" height="16" rx="2" />
+        <text class="r" x="190" y="147">Product</text>
+        <rect class="box" x="240" y="136" width="44" height="16" rx="2" />
+        <text class="r" x="246" y="147">Order</text>
+        <rect class="box" x="288" y="136" width="94" height="16" rx="2" />
+        <text class="r" x="294" y="147">Loyalty balance</text>
+        <path class="line" d="M394 128 L424 128" />
+        <rect class="comp" x="424" y="96" width="160" height="64" rx="4" />
+        <text class="k" x="436" y="112">COMPONENT</text>
+        <text class="n" x="436" y="129">Payments</text>
+        <rect class="box" x="436" y="136" width="50" height="16" rx="2" />
+        <text class="r" x="442" y="147">Charge</text>
+      </svg>
+    )
+  }
+  {
     step === "inside" && (
       <svg viewBox="0 0 600 140" role="img" aria-label="Level 2, inside the Store: Storefront is the consumer of Payments, through one interface, the charges API, on an internal boundary. Payments offers Charge order, which produces a Charge.">
         <text class="kb" x="0" y="12">LEVEL 2 · INSIDE THE STORE</text>
@@ -159,6 +203,11 @@ const consumers = ["Shopper", "Fraud analyst", "Store manager"];
     height: auto;
     overflow: visible;
   }
+  svg.narrow {
+    max-width: 300px;
+    min-width: 0;
+    margin: 0 auto;
+  }
   .box {
     fill: var(--bm-bg);
     stroke: var(--bm-line2);
@@ -168,6 +217,11 @@ const consumers = ["Shopper", "Fraud analyst", "Store manager"];
     fill: none;
     stroke: var(--bm-fg);
     stroke-width: 1.4;
+  }
+  .comp {
+    fill: var(--bm-bg);
+    stroke: var(--bm-fg2);
+    stroke-width: 1.2;
   }
   .cap {
     fill: var(--bm-panel);

@@ -17,38 +17,70 @@ import StoreFigure from "../../components/model/StoreFigure.astro";
 
 ## An example: the Store
 
-The Store is an invented online shop that sells home goods. Here is how the `boundary model` describes it, one concept at a time, from the outside in.
+The Store is an invented online shop that sells home goods. Here is how the `boundary model` describes it, one concept at a time, from the outside in. It starts as a single box: the Store, as the people who use it see it.
 
-### Who uses it
+<Example step="store" />
 
-Shoppers buy from the Store. Fraud analysts review the orders it holds, and store managers keep its catalog right. Each is a `consumer` of the same `provider`, the Store, with a `boundary` of its own.
+### Consumers
+
+Three kinds of people use the Store, each with a `boundary` of its own:
+
+- **Shopper**: buys home goods from the Store.
+- **Fraud analyst**: reviews the orders the Store holds as risky, and decides whether each one goes ahead.
+- **Store manager**: keeps the catalog's products, prices and stock right.
 
 A `consumer` is a role, not a person. Analysts and managers work for the Store, but they use it to get their work done, so they stand outside it, like shoppers.
 
 <Example step="consumers" />
 
-### Through which interfaces
+### Interfaces
 
-Shoppers reach the Store through a web shop and a mobile app. That makes two interfaces, but still one `boundary`. The `boundary` says what the Shopper can do. An `interface` only says where.
+Shoppers reach the Store through two interfaces, on one `boundary`:
+
+- **Web shop**: the Store's website, in a browser.
+- **Mobile app**: the Store's app on their phone. Only the app can show a product in your room, since it needs the phone's camera.
+
+The `boundary` says what the Shopper can do. An `interface` only says where.
 
 <Example step="interfaces" />
 
-### What they can do
+### Capabilities
 
-Shoppers come to browse products, place orders and list their past orders. Each is a `capability`: something they do to get a result.
+Across their `boundary`, shoppers have three capabilities, each something they do to get a result:
+
+- **Browse products**: find products, with their price and stock.
+- **Place order**: buy what is in the cart, and get the order back, confirmed or held for review.
+- **List past orders**: see the orders they placed.
 
 When an order goes through, the Store checks that each product is in stock. That check is a step of Place order, not a `capability`: its only result is whether the order goes ahead.
 
 <Example step="capabilities" />
 
-### What they act on
+### Resources
 
-Capabilities act on resources, the things with a state the Shopper cares about. Browse products reads products, and Place order creates an order and adds loyalty points. A product's price and stock are its properties, details of the product rather than resources of their own.
+The capabilities act on three resources, the things with a state the Shopper cares about:
+
+- **Product**: something the Store sells. Its price and stock are its properties, details of the product rather than resources of their own.
+- **Order**: the products a shopper bought, with where they go and whether the order is confirmed.
+- **Loyalty balance**: the points a shopper has earned from their orders.
+
+Browse products reads products. Place order creates an order and adds points to the loyalty balance.
 
 <Example step="resources" />
 
-### Inside the Store
+### Components
 
-Open the Store, and the same pattern repeats one level down. To charge an order, Storefront relies on Payments. Storefront is the `consumer`, Payments is the `provider`, and the charges API is the `interface` of the `internal boundary` between them.
+Open the Store, one level down, and you find the components it relies on to keep its promises. A part of the Store is a `component` when it keeps state that only it changes, or makes decisions that only it makes. The Store has two:
+
+- **Storefront**: keeps the products, the orders and the loyalty points, and decides how many points an order earns.
+- **Payments**: takes the money for each order and gives it back, and decides which payments to hold for review.
+
+Some parts are not components. The web shop and the mobile app only present what Storefront offers, so they are interfaces. The database, the search index and the code that talks to the card network are how a `component` keeps or reaches things, not components of their own.
+
+<Example step="components" />
+
+### Internal boundaries
+
+When one `component` relies on another, the same pattern repeats. To charge an order, Storefront relies on Payments. Storefront is the `consumer`, Payments is the `provider`, and the charges API is the `interface` of the `internal boundary` between them.
 
 <Example step="inside" />
