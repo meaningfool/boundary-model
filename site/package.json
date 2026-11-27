@@ -11,7 +11,8 @@
     "build": "npm run maps && astro build",
     "preview": "astro preview",
     "deploy": "npm run build && wrangler deploy",
-    "check": "astro check"
+    "check": "astro check",
+    "review": "node review/build.mjs"
   },
   "dependencies": {
     "@astrojs/starlight": "0.43.1",
