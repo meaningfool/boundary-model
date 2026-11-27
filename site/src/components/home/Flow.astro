@@ -64,8 +64,8 @@ tangle += " Q70 30 78 62";
         </div>
         <div class="tray">
           <span class="klab">Details, for later</span>
-          <span class="chip">Can a gift card pay part of an order?</span>
-          <span class="chip">Do gift cards expire?</span>
+          <span class="chip">What do gift card codes look like?</span>
+          <span class="chip">What if two orders spend the same card at once?</span>
         </div>
       </div>
     </li>
@@ -78,6 +78,7 @@ tangle += " Q70 30 78 62";
           <span class="klab">Increment 1 · Pay on the web</span>
           <div class="mcard"><span class="tag">NEW</span>Gift card</div>
           <div class="mcard"><span class="tag">MODIFIED</span>Charge order</div>
+          <div class="mcard"><span class="tag">MODIFIED</span>Refund order</div>
           <div class="mcard"><span class="tag cut">SPLIT</span>Place order<small>web shop</small></div>
         </div>
         <div class="sframe">
@@ -96,25 +97,37 @@ tangle += " Q70 30 78 62";
       <p class="fsub"><code>refine</code> settles each increment's details, starting from the questions set aside: what people can observe once it works, and how it is built.</p>
       <div class="fvis refined">
         <span class="klab">Increment 1 · Pay on the web</span>
-        <div class="rq">
-          <span class="klab">From the details</span>
-          <span class="chip">Can a gift card pay part of an order?</span>
+        <div class="rheads" aria-hidden="true">
+          <span class="klab">Expected behavior</span>
+          <span class="klab">Design decisions</span>
         </div>
-        <div class="rcols">
-          <div>
-            <span class="klab">Expected behavior</span>
-            <p class="rtext">A gift card that holds less than the order pays all it holds. The card pays the rest.</p>
-            <div class="receipt" aria-label="Checkout: order 50.00, gift card pays 30.00, card pays 20.00, paid in full.">
-              <div><span>Order</span><span>50.00</span></div>
-              <div><span>Gift card</span><span>−30.00</span></div>
-              <div><span>Card</span><span>−20.00</span></div>
-              <div class="paid"><span>Paid in full</span><span aria-hidden="true">✓</span></div>
-            </div>
+        <div class="rrow">
+          <div class="eb">
+            <span class="klab rlab">Expected behavior</span>
+            <p>A shopper pays for an order in the web shop with a gift card code.</p>
           </div>
-          <div>
-            <span class="klab">Design decision</span>
-            <p class="rtext">The card is authorized before the gift card is charged.</p>
-            <p class="rejected"><span class="tag cut">REJECTED</span>Gift card first: a declined card would need the gift card's money put back.</p>
+          <span class="link" aria-hidden="true">←</span>
+          <div class="dd">
+            <span class="klab rlab">Design decisions</span>
+            <ul>
+              <li>Codes are 16 characters, without look-alikes such as 0 and O.</li>
+              <li>Payments locks the card while it charges, so two orders cannot spend the same balance.</li>
+              <li>Codes are stored hashed, never in plain text.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="rrow">
+          <div class="eb">
+            <span class="klab rlab">Expected behavior</span>
+            <p>Canceling the order puts the money back on the gift card.</p>
+          </div>
+          <span class="link" aria-hidden="true">←</span>
+          <div class="dd">
+            <span class="klab rlab">Design decisions</span>
+            <ul>
+              <li>Each balance is kept as a list of adjustments, so a refund adds one back.</li>
+              <li>A refund reuses its charge's id, so it can never run twice.</li>
+            </ul>
           </div>
         </div>
       </div>
@@ -331,56 +344,68 @@ tangle += " Q70 30 78 62";
     margin: 0;
     color: var(--bm-fg2);
   }
-  .rq {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px 10px;
+  .rheads,
+  .rrow {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 22px minmax(0, 1.25fr);
   }
-  .rq .klab {
+  .rheads {
+    margin-bottom: -6px;
+  }
+  .rheads .klab {
     margin: 0;
   }
-  .rcols {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 12px 18px;
+  .rheads .klab + .klab {
+    grid-column: 3;
   }
-  .rtext {
-    color: var(--bm-fg);
-    font-size: 13px;
-    line-height: 1.5;
+  .rlab {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
-  .receipt {
-    display: grid;
-    gap: 3px;
-    max-width: 220px;
-    margin-top: 8px;
+  .eb {
     padding: 8px 10px;
-    border: 1px dashed var(--bm-line2);
+    border: 1px solid var(--bm-line2);
     border-radius: 6px;
     background: var(--bm-bg);
-    color: var(--bm-fg2);
-    font-family: var(--__sl-font-mono);
-    font-size: 11px;
-    font-variant-numeric: tabular-nums;
-  }
-  .receipt div {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-  }
-  .receipt .paid {
-    margin-top: 3px;
-    padding-top: 4px;
-    border-top: 1px solid var(--bm-line2);
     color: var(--bm-fg);
-    font-weight: 500;
+    font-size: 13px;
+    line-height: 1.45;
   }
-  .rejected {
-    margin-top: 8px;
+  .link {
+    display: grid;
+    place-items: center;
     color: var(--bm-fg3);
+    font-family: var(--__sl-font-mono);
+    font-size: 12px;
+  }
+  .dd {
+    padding: 4px 10px;
+    border: 1px solid var(--bm-line2);
+    border-radius: 6px;
+    background: var(--bm-panel);
+  }
+  .dd li {
+    position: relative;
+    padding: 4px 0 4px 12px;
+    color: var(--bm-fg);
     font-size: 12.5px;
-    line-height: 1.5;
+    line-height: 1.45;
+  }
+  .dd li + li {
+    border-top: 1px solid var(--bm-line);
+  }
+  .dd li::before {
+    content: "";
+    position: absolute;
+    left: 1px;
+    top: 1.05em;
+    width: 5px;
+    height: 1px;
+    background: var(--bm-fg3);
   }
   .bounds {
     display: grid;
@@ -490,8 +515,25 @@ tangle += " Q70 30 78 62";
     .bounds,
     .slices,
     .issues,
-    .rcols {
+    .rrow {
       grid-template-columns: minmax(0, 1fr);
+    }
+    .rrow {
+      gap: 6px;
+    }
+    .rheads,
+    .link {
+      display: none;
+    }
+    .rlab {
+      position: static;
+      width: auto;
+      height: auto;
+      overflow: visible;
+      clip-path: none;
+    }
+    .dd .rlab {
+      margin-top: 4px;
     }
     .f-request {
       flex-direction: column;

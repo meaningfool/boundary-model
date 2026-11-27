@@ -163,6 +163,12 @@ Each question first says how its answer could change the shape.
 - **Does a canceled order paid by gift card give the money back?**
   - Impact: modifies Cancel order and Refund order, or leaves them alone and stops shoppers canceling such orders.
   - Answer: yes, back on the same gift card.
+- **Can a gift card pay part of an order, with a card paying the rest?**
+  - Impact: decides whether Place order and Charge order take a gift card and a card together, and whether Refund order puts money back in two places.
+  - Answer: yes. A gift card pays all it holds, and a card pays the rest.
+- **Do gift cards expire?**
+  - Impact: adds an expiry date to Gift card, as a `property`, and maybe Extend gift card for the store manager.
+  - Answer: no. An expiry date adds a rule, a checkout message and a `property` shoppers must track, and nothing in this change needs it.
 - **Who inside Payments keeps gift cards?**
   - Impact: Charge service keeping them changes no `boundary` inside Payments; a `component` of their own adds a `component` and an `internal boundary`.
   - Answer: a new Gift cards `component`. Issuing cards and keeping balances is not running a charge, and Charge service would otherwise serve the store manager.
@@ -226,9 +232,7 @@ Resources of Gift cards:
 
 **Details**
 
-- Can a gift card pay part of an order, with a card paying the rest? — About: Place order, Charge order
 - What does checkout show for an unknown or empty gift card? — About: Place order
-- Do gift cards expire? — About: Gift card
 - Do gift card payments earn loyalty points? — About: Place order
 - Does Fraud check score payments made by gift card? — About: Charge order
 - What does Issue gift cards write out? — About: Issue gift cards
@@ -297,7 +301,6 @@ Tradeoff: shoppers can pay with gift cards after the first slice, and each later
 
 - Gift cards live in a new Gift cards `component` inside Payments, which Charge service reaches through the gift cards API. Rejected: keeping them in Charge service, because issuing cards and keeping balances is not running a charge, and Charge service would then serve the store manager. Settled while shaping.
 - Charge service authorizes the card before it takes money off the gift card. Rejected: the gift card first, because a declined card would then need the gift card's money put back, and in between the shopper would see money gone for an order that failed.
-- Gift cards do not expire. Rejected: an expiry date on each card, because it adds a rule, a checkout message and a `property` shoppers must track, and nothing in this change needs it.
 - Points count on the whole order total. Rejected: points only on the part paid by card, because a gift card holds money someone already paid in a partner shop, and shoppers would earn different points for the same basket depending on how they paid.
 - Fraud check scores every charge, gift card or not. Rejected: skipping the score for gift-card payments, because stolen or guessed codes are a common way to commit fraud with gift cards.
 - Checkout refuses an empty gift card with a message. Rejected: quietly charging the whole order to the card, because the shopper would not know whether the gift card worked.
