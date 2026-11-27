@@ -1,6 +1,8 @@
 ---
 // Page 01: one vertical flow from a tangled request to issues, each step one level closer to the
-// code. The scribble beside the request is drawn here, from a fixed seed, so it never changes.
+// code, each step named after the skill that does it. The scribble beside the request is drawn
+// here, from a fixed seed, so it never changes.
+const skill = (name: string) => `https://github.com/meaningfool/boundary-model/blob/v${__VERSION__}/skills/${name}/SKILL.md`;
 let seed = 7;
 const rnd = () => {
   seed = (seed * 16807) % 2147483647;
@@ -36,25 +38,42 @@ tangle += " Q70 30 78 62";
     <li class="fstep">
       <span class="fdot" aria-hidden="true">1</span>
       <h3>Clarify the behavior changes, from the outside in</h3>
-      <p class="fsub">One item for each change in what people can do with the system, marked against the map. Questions about details wait.</p>
+      <p class="fsub"><a href={skill("shape-boundaries")}><code>shape-boundaries</code></a> turns your request into boundary changes, marked against the map: first between your users and the system, then between the parts inside it. Questions about details wait.</p>
       <div class="fvis">
-        <div class="cards2">
-          <div class="card"><div class="t"><span class="tag">MODIFIED</span>Place order</div><div class="s">Shopper ↔ Store · web shop, mobile app</div></div>
-          <div class="card"><div class="t"><span class="tag">NEW</span>See gift card balance</div><div class="s">Shopper ↔ Store · observes Gift card</div></div>
-          <div class="card"><div class="t"><span class="tag">MODIFIED</span>Charge order</div><div class="s">Storefront ↔ Payments · mutates Gift card</div></div>
-          <div class="card"><div class="t"><span class="tag">NEW</span>Gift card</div><div class="s">Resource kept by Payments</div></div>
+        <div class="bounds">
+          <div class="bgroup">
+            <div class="bhead">
+              <span class="klab">External boundary</span>
+              <span class="bname">Shopper ↔ Store<span class="tag">MODIFIED</span></span>
+            </div>
+            <ul>
+              <li><span class="tag">NEW</span><span class="kind">resource</span><b>Gift card</b></li>
+              <li><span class="tag">MODIFIED</span><span class="kind">capability</span><b>Place order</b><span class="mode">mutates Gift card</span></li>
+              <li><span class="tag">NEW</span><span class="kind">capability</span><b>See gift card balance</b><span class="mode">observes Gift card</span></li>
+            </ul>
+          </div>
+          <div class="bgroup">
+            <div class="bhead">
+              <span class="klab">Internal boundary</span>
+              <span class="bname">Storefront ↔ Payments<span class="tag">MODIFIED</span></span>
+            </div>
+            <ul>
+              <li><span class="tag">MODIFIED</span><span class="kind">capability</span><b>Charge order</b><span class="mode">mutates Gift card</span></li>
+              <li><span class="tag">MODIFIED</span><span class="kind">capability</span><b>Refund order</b><span class="mode">mutates Gift card</span></li>
+            </ul>
+          </div>
         </div>
         <div class="tray">
           <span class="klab">Details, for later</span>
           <span class="chip">Can a gift card pay part of an order?</span>
-          <span class="chip">What does an expired card show?</span>
+          <span class="chip">Do gift cards expire?</span>
         </div>
       </div>
     </li>
     <li class="fstep">
       <span class="fdot" aria-hidden="true">2</span>
       <h3>Group the changes into increments you can observe</h3>
-      <p class="fsub">A change too big for one increment is split, here by interface.</p>
+      <p class="fsub"><a href={skill("slice")}><code>slice</code></a> groups the boundary changes into slices, each an increment people can observe once it lands. It compares ways to split the change and recommends one, here by interface.</p>
       <div class="fvis slices">
         <div class="sframe">
           <span class="klab">Increment 1 · Pay on the web</span>
@@ -75,29 +94,36 @@ tangle += " Q70 30 78 62";
     <li class="fstep">
       <span class="fdot" aria-hidden="true">3</span>
       <h3>Settle the details of each increment</h3>
-      <p class="fsub">Its exact expected behavior and its design decisions, starting from the questions set aside earlier.</p>
+      <p class="fsub"><a href={skill("refine")}><code>refine</code></a> settles each increment's details, starting from the questions set aside: what people can observe once it works, and how it is built.</p>
       <div class="fvis refined">
         <span class="klab">Increment 1 · Pay on the web</span>
-        <div>
-          <span class="klab">Expected behavior</span>
-          <ul>
-            <li>A shopper pays for an order with a gift card in the web shop.</li>
-            <li>The gift card's balance goes down by the amount paid.</li>
-          </ul>
+        <div class="rq">
+          <span class="klab">From the details</span>
+          <span class="chip">Can a gift card pay part of an order?</span>
         </div>
-        <div>
-          <span class="klab">Design decisions</span>
-          <ul>
-            <li>A gift card can pay part of an order, and a card pays the rest. <span class="from">from details</span></li>
-            <li>Each gift card's balance is kept as a list of adjustments.</li>
-          </ul>
+        <div class="rcols">
+          <div>
+            <span class="klab">Expected behavior</span>
+            <p class="rtext">A gift card that holds less than the order pays all it holds. The card pays the rest.</p>
+            <div class="receipt" aria-label="Checkout: order 50.00, gift card pays 30.00, card pays 20.00, paid in full.">
+              <div><span>Order</span><span>50.00</span></div>
+              <div><span>Gift card</span><span>−30.00</span></div>
+              <div><span>Card</span><span>−20.00</span></div>
+              <div class="paid"><span>Paid in full</span><span aria-hidden="true">✓</span></div>
+            </div>
+          </div>
+          <div>
+            <span class="klab">Design decision</span>
+            <p class="rtext">The card is authorized before the gift card is charged.</p>
+            <p class="rejected"><span class="tag cut">REJECTED</span>Gift card first: a declined card would need the gift card's money put back.</p>
+          </div>
         </div>
       </div>
     </li>
     <li class="fstep">
       <span class="fdot" aria-hidden="true">4</span>
       <h3>Turn each increment into an issue</h3>
-      <p class="fsub">Each issue carries its expected behavior and its proof of done, so an agent can build from it.</p>
+      <p class="fsub"><a href={skill("to-issues")}><code>to-issues</code></a> turns each increment into an issue that carries its expected behavior and its proof of done, so an agent can build from it.</p>
       <div class="fvis issues">
         <div class="icard"><span class="st"><i></i>Issue</span><b>Pay with a gift card on the web</b><p>Proof of done: pay an order with a gift card in the web shop and see its balance go down.</p></div>
         <div class="icard"><span class="st"><i></i>Issue</span><b>See a gift card's balance</b><p>Proof of done: open a gift card and see what is left on it.</p></div>
@@ -239,30 +265,6 @@ tangle += " Q70 30 78 62";
     font-size: 14.5px;
     line-height: 1.6;
   }
-  .cards2 {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-  }
-  .card {
-    min-width: 0;
-    padding: 6px 10px;
-    border: 1px solid var(--bm-line2);
-    border-radius: 6px;
-    background: var(--bm-bg);
-  }
-  .card .t {
-    color: var(--bm-fg);
-    font-size: 13px;
-    font-weight: 500;
-    line-height: 18px;
-  }
-  .card .s {
-    color: var(--bm-fg3);
-    font-family: var(--__sl-font-mono);
-    font-size: 10.5px;
-    line-height: 16px;
-  }
   .tray {
     display: flex;
     flex-wrap: wrap;
@@ -321,38 +323,139 @@ tangle += " Q70 30 78 62";
   }
   .refined {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 10px 18px;
+    gap: 12px;
     padding: 10px 12px 12px;
     border: 1px solid var(--bm-fg3);
     border-radius: 8px;
   }
   .refined > .klab {
-    grid-column: 1 / -1;
     margin: 0;
     color: var(--bm-fg2);
   }
-  .refined li {
-    position: relative;
-    margin-top: 4px;
-    padding-left: 12px;
+  .rq {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+  }
+  .rq .klab {
+    margin: 0;
+  }
+  .rcols {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 12px 18px;
+  }
+  .rtext {
     color: var(--bm-fg);
     font-size: 13px;
     line-height: 1.5;
   }
-  .refined li::before {
-    content: "";
-    position: absolute;
-    left: 1px;
-    top: 0.7em;
-    width: 5px;
-    height: 1px;
-    background: var(--bm-fg3);
+  .receipt {
+    display: grid;
+    gap: 3px;
+    max-width: 220px;
+    margin-top: 8px;
+    padding: 8px 10px;
+    border: 1px dashed var(--bm-line2);
+    border-radius: 6px;
+    background: var(--bm-bg);
+    color: var(--bm-fg2);
+    font-family: var(--__sl-font-mono);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
   }
-  .from {
+  .receipt div {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .receipt .paid {
+    margin-top: 3px;
+    padding-top: 4px;
+    border-top: 1px solid var(--bm-line2);
+    color: var(--bm-fg);
+    font-weight: 500;
+  }
+  .rejected {
+    margin-top: 8px;
+    color: var(--bm-fg3);
+    font-size: 12.5px;
+    line-height: 1.5;
+  }
+  .bounds {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    gap: 8px;
+    align-items: start;
+  }
+  .bgroup {
+    min-width: 0;
+    padding: 8px 10px 10px;
+    border: 1px solid var(--bm-line2);
+    border-radius: 8px;
+    background: var(--bm-bg);
+  }
+  .bhead {
+    padding-bottom: 6px;
+    margin-bottom: 6px;
+    border-bottom: 1px solid var(--bm-line);
+  }
+  .bhead .klab {
+    margin-bottom: 2px;
+  }
+  .bname {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    color: var(--bm-fg);
+    font-size: 13.5px;
+    font-weight: 600;
+  }
+  .bname .tag {
+    margin-right: 0;
+  }
+  .bgroup ul {
+    display: grid;
+    gap: 5px;
+  }
+  .bgroup li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 6px;
+    color: var(--bm-fg);
+    font-size: 12.5px;
+    line-height: 1.4;
+  }
+  .bgroup li .tag {
+    margin-right: 0;
+  }
+  .bgroup b {
+    font-weight: 500;
+  }
+  .kind,
+  .mode {
     color: var(--bm-fg3);
     font-family: var(--__sl-font-mono);
-    font-size: 10px;
+    font-size: 10.5px;
+  }
+  .mode::before {
+    content: "· ";
+  }
+  .fsub a {
+    color: var(--bm-fg);
+    text-decoration: underline;
+    text-decoration-color: var(--bm-line2);
+    text-underline-offset: 3px;
+  }
+  .fsub a:hover {
+    text-decoration-color: var(--bm-fg);
+  }
+  .fsub code {
+    font-family: var(--__sl-font-mono);
+    font-size: 0.9em;
   }
   .issues {
     display: grid;
@@ -394,10 +497,10 @@ tangle += " Q70 30 78 62";
     line-height: 1.45;
   }
   @media (max-width: 40rem) {
-    .cards2,
+    .bounds,
     .slices,
     .issues,
-    .refined {
+    .rcols {
       grid-template-columns: minmax(0, 1fr);
     }
     .f-request {
