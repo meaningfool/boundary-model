@@ -24,7 +24,6 @@ export default defineConfig({
         "model",
         "skills",
         "install",
-        "walkthrough",
         "in-the-wild",
       ],
       customCss: ["@fontsource-variable/geist", "@fontsource-variable/geist-mono", "./src/styles/theme.css"],

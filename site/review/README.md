@@ -26,7 +26,7 @@ Publish `out/index.html` as the page, with `out/files.json` as its supporting fi
 
 ## Source tags
 
-In the review build, each block of text that comes from one line of an MDX file carries `data-src="<path from site/>:<line>"`, such as `data-src="src/content/docs/walkthrough.mdx:28"`. Tagged: `p`, `h2` to `h4`, `li`, `td` and `th`, including paragraphs written as a component's children, such as a `<MapFrame>` caption. Not tagged: code blocks, aside titles, a list item whose text is in paragraphs (the paragraphs are tagged), and text that `.astro` components render, such as the figures.
+In the review build, each block of text that comes from one line of an MDX file carries `data-src="<path from site/>:<line>"`, such as `data-src="src/content/docs/model.mdx:12"`. Tagged: `p`, `h2` to `h4`, `li`, `td` and `th`, including paragraphs written as a component's children, such as a `<MapFrame>` caption. Not tagged: code blocks, aside titles, a list item whose text is in paragraphs (the paragraphs are tagged), and text that `.astro` components render, such as the figures.
 
 Text from frontmatter carries a key instead of a line: the page title (`#title`), the lede (`#description`), and page 01's hero (`#hero.title`, `#hero.tagline`).
 
@@ -51,9 +51,9 @@ Each change is one document in the collection `review-changes`, with its id as t
 | --- | --- |
 | `id` | The document id. |
 | `kind` | `edit` or `note`. |
-| `page` | The site page's path, such as `/walkthrough/`. |
-| `file` | The page's MDX file, such as `src/content/docs/walkthrough.mdx`, or null outside the six pages. |
-| `src` | The element's tag, such as `src/content/docs/walkthrough.mdx:28` or `src/content/docs/index.mdx#hero.tagline`, or null for an element without one. |
+| `page` | The site page's path, such as `/model/`. |
+| `file` | The page's MDX file, such as `src/content/docs/model.mdx`, or null outside the five pages. |
+| `src` | The element's tag, such as `src/content/docs/model.mdx:12` or `src/content/docs/index.mdx#hero.tagline`, or null for an element without one. |
 | `before` | For an edit, and a note on tagged text: the whole source line, or the frontmatter value, as it was when the change was made. Otherwise null. |
 | `after` | For an edit: the whole replacement line, with its indentation and list or heading marker, or the new frontmatter value. Otherwise null. |
 | `note` | For a note: its text. Otherwise null. |

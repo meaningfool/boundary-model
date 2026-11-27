@@ -1,0 +1,242 @@
+---
+// Page 02: the Store, drawn one concept at a time, in the same grammar as the Store figure above
+// it. Each `step` draws one small picture: who uses the Store, through which interfaces, what they
+// can do, what that acts on, and the same pattern one level down.
+interface Props {
+  step: "consumers" | "interfaces" | "capabilities" | "resources" | "inside";
+}
+const { step } = Astro.props;
+const consumers = ["Shopper", "Fraud analyst", "Store manager"];
+---
+
+<figure class="ex not-content">
+  {
+    step === "consumers" && (
+      <svg viewBox="0 0 560 196" role="img" aria-label="Three consumers, the Shopper, the Fraud analyst and the Store manager, each with its own boundary to the same provider, the Store.">
+        <text class="k" x="230" y="14" text-anchor="middle">BOUNDARIES</text>
+        {consumers.map((name, i) => {
+          const y = 26 + i * 56;
+          return (
+            <g>
+              <rect class="box" x="0.5" y={y} width="140" height="44" rx="4" />
+              <text class="k" x="12" y={y + 17}>CONSUMER</text>
+              <text class="n" x="12" y={y + 34}>{name}</text>
+              <path class="line" d={`M141 ${y + 22} L230 ${y + 22}`} />
+              <line class="bnd" x1="230" y1={y + 4} x2="230" y2={y + 40} />
+              <path class="line" d={`M230 ${y + 22} L320 ${y + 22}`} />
+            </g>
+          );
+        })}
+        <rect class="frame" x="320" y="26" width="238" height="156" rx="4" />
+        <text class="k" x="336" y="46">PROVIDER</text>
+        <text class="n" x="336" y="66">Store</text>
+        <text class="s" x="336" y="84">Home goods, sold online</text>
+      </svg>
+    )
+  }
+  {
+    step === "interfaces" && (
+      <svg viewBox="0 0 560 132" role="img" aria-label="The Shopper reaches the Store through two interfaces, the web shop and the mobile app, both on one boundary.">
+        <rect class="box" x="0.5" y="44" width="140" height="44" rx="4" />
+        <text class="k" x="12" y="61">CONSUMER</text>
+        <text class="n" x="12" y="78">Shopper</text>
+        <path class="line" d="M141 66 C186 66 186 40 230 40" />
+        <path class="line" d="M141 66 C186 66 186 92 230 92" />
+        <line class="bnd" x1="230" y1="18" x2="230" y2="114" />
+        <circle class="dot" cx="230" cy="40" r="4.5" />
+        <circle class="dot" cx="230" cy="92" r="4.5" />
+        <text class="s" x="242" y="34">web shop</text>
+        <text class="s" x="242" y="86">mobile app</text>
+        <path class="line" d="M235 40 L320 40" />
+        <path class="line" d="M235 92 L320 92" />
+        <text class="k" x="230" y="128" text-anchor="middle">ONE BOUNDARY</text>
+        <rect class="frame" x="320" y="18" width="238" height="96" rx="4" />
+        <text class="k" x="336" y="38">PROVIDER</text>
+        <text class="n" x="336" y="58">Store</text>
+      </svg>
+    )
+  }
+  {
+    step === "capabilities" && (
+      <svg viewBox="0 0 600 168" role="img" aria-label="Across its boundary, the Shopper can Browse products, Place order and List past orders. Check stock is a step of Place order, not a capability.">
+        <rect class="box" x="0.5" y="80" width="120" height="44" rx="4" />
+        <text class="k" x="12" y="97">CONSUMER</text>
+        <text class="n" x="12" y="114">Shopper</text>
+        <path class="line" d="M121 102 L170 102" />
+        <line class="bnd" x1="170" y1="56" x2="170" y2="150" />
+        <path class="line" d="M170 102 C202 102 202 77 234 77" />
+        <path class="line" d="M170 102 L234 105" />
+        <path class="line" d="M170 102 C202 102 202 133 234 133" />
+        <rect class="frame" x="210" y="0.5" width="388" height="166" rx="4" />
+        <text class="k" x="226" y="20">PROVIDER</text>
+        <text class="n" x="226" y="40">Store</text>
+        <text class="k" x="236" y="60">CAPABILITIES</text>
+        <rect class="cap" x="234" y="66" width="140" height="22" rx="3" />
+        <text class="s strong" x="244" y="81">Browse products</text>
+        <rect class="cap" x="234" y="94" width="140" height="22" rx="3" />
+        <text class="s strong" x="244" y="109">Place order</text>
+        <rect class="cap" x="234" y="122" width="140" height="22" rx="3" />
+        <text class="s strong" x="244" y="137">List past orders</text>
+        <path class="link" d="M374 105 L414 105" />
+        <rect class="step" x="414" y="94" width="160" height="22" rx="3" />
+        <text class="s" x="424" y="109">Check stock</text>
+        <text class="k" x="414" y="88">A STEP OF IT, NOT A CAPABILITY</text>
+      </svg>
+    )
+  }
+  {
+    step === "resources" && (
+      <svg viewBox="0 0 600 170" role="img" aria-label="Inside the Store, Browse products observes Product, List past orders observes Order, and Place order produces an Order and mutates the Loyalty balance. Price and stock are properties of Product.">
+        <rect class="frame" x="0.5" y="0.5" width="598" height="168" rx="4" />
+        <text class="k" x="16" y="20">PROVIDER</text>
+        <text class="n" x="16" y="40">Store</text>
+        <text class="k" x="26" y="62">CAPABILITIES</text>
+        <text class="k" x="410" y="62">RESOURCES</text>
+        <rect class="cap" x="24" y="70" width="150" height="22" rx="3" />
+        <text class="s strong" x="34" y="85">Browse products</text>
+        <rect class="cap" x="24" y="104" width="150" height="22" rx="3" />
+        <text class="s strong" x="34" y="119">List past orders</text>
+        <rect class="cap" x="24" y="138" width="150" height="22" rx="3" />
+        <text class="s strong" x="34" y="153">Place order</text>
+        <path class="line" d="M174 81 L408 81" />
+        <path class="line" d="M174 115 L408 115" />
+        <path class="line" d="M174 149 C290 149 292 115 408 115" />
+        <path class="line" d="M174 149 L408 149" />
+        <text class="mode" x="291" y="77" text-anchor="middle">observes</text>
+        <text class="mode" x="291" y="111" text-anchor="middle">observes</text>
+        <text class="mode" x="262" y="139" text-anchor="middle">produces</text>
+        <text class="mode" x="360" y="145" text-anchor="middle">mutates</text>
+        <rect class="box" x="408" y="68" width="168" height="26" rx="3" />
+        <text class="s strong" x="418" y="85">Product</text>
+        <text class="r" x="474" y="85">price · stock</text>
+        <rect class="box" x="408" y="104" width="168" height="22" rx="3" />
+        <text class="s strong" x="418" y="119">Order</text>
+        <rect class="box" x="408" y="138" width="168" height="22" rx="3" />
+        <text class="s strong" x="418" y="153">Loyalty balance</text>
+      </svg>
+    )
+  }
+  {
+    step === "inside" && (
+      <svg viewBox="0 0 600 140" role="img" aria-label="Level 2, inside the Store: Storefront is the consumer of Payments, through one interface, the charges API, on an internal boundary. Payments offers Charge order, which produces a Charge.">
+        <text class="kb" x="0" y="12">LEVEL 2 · INSIDE THE STORE</text>
+        <rect class="box" x="0.5" y="44" width="130" height="44" rx="4" />
+        <text class="k" x="12" y="61">CONSUMER</text>
+        <text class="n" x="12" y="78">Storefront</text>
+        <path class="line" d="M131 66 L220 66" />
+        <line class="bnd" x1="220" y1="28" x2="220" y2="104" />
+        <circle class="dot" cx="220" cy="66" r="4.5" />
+        <text class="s" x="232" y="58">charges API</text>
+        <path class="line" d="M225 66 L300 66" />
+        <text class="k" x="220" y="120" text-anchor="middle">INTERNAL BOUNDARY</text>
+        <rect class="frame" x="300" y="22" width="298" height="88" rx="4" />
+        <text class="k" x="316" y="40">PROVIDER</text>
+        <text class="n" x="316" y="58">Payments</text>
+        <rect class="cap" x="330" y="70" width="120" height="22" rx="3" />
+        <text class="s strong" x="340" y="85">Charge order</text>
+        <path class="line" d="M450 81 L500 81" />
+        <text class="mode" x="475" y="77" text-anchor="middle">produces</text>
+        <rect class="box" x="500" y="70" width="84" height="22" rx="3" />
+        <text class="s strong" x="510" y="85">Charge</text>
+      </svg>
+    )
+  }
+</figure>
+
+<style>
+  .ex {
+    margin: 16px 0 0;
+    padding: 16px 16px 12px;
+    border: 1px solid var(--bm-line);
+    border-radius: 12px;
+    overflow-x: auto;
+  }
+  svg {
+    display: block;
+    width: 100%;
+    max-width: 600px;
+    min-width: 460px;
+    height: auto;
+    overflow: visible;
+  }
+  .box {
+    fill: var(--bm-bg);
+    stroke: var(--bm-line2);
+    stroke-width: 1;
+  }
+  .frame {
+    fill: none;
+    stroke: var(--bm-fg);
+    stroke-width: 1.4;
+  }
+  .cap {
+    fill: var(--bm-panel);
+    stroke: var(--bm-line2);
+    stroke-width: 1;
+  }
+  .step {
+    fill: none;
+    stroke: var(--bm-fg3);
+    stroke-width: 1;
+    stroke-dasharray: 4 3;
+  }
+  .line {
+    fill: none;
+    stroke: var(--bm-fg4);
+    stroke-width: 1;
+  }
+  .link {
+    fill: none;
+    stroke: var(--bm-fg3);
+    stroke-width: 1;
+    stroke-dasharray: 2 3;
+  }
+  .bnd {
+    stroke: var(--bm-fg);
+    stroke-width: 2.5;
+    stroke-linecap: round;
+  }
+  .dot {
+    fill: var(--bm-bg);
+    stroke: var(--bm-fg);
+    stroke-width: 1.5;
+  }
+  .k,
+  .kb {
+    fill: var(--bm-fg3);
+    font-family: var(--__sl-font-mono);
+    font-size: 8.5px;
+    letter-spacing: 0.08em;
+  }
+  .kb {
+    fill: var(--bm-fg);
+    font-size: 9px;
+  }
+  .n {
+    fill: var(--bm-fg);
+    font-family: var(--__sl-font);
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .s {
+    fill: var(--bm-fg2);
+    font-family: var(--__sl-font);
+    font-size: 11px;
+  }
+  .s.strong {
+    fill: var(--bm-fg);
+    font-weight: 500;
+  }
+  .r,
+  .mode {
+    fill: var(--bm-fg3);
+    font-family: var(--__sl-font-mono);
+    font-size: 9.5px;
+  }
+  .mode {
+    paint-order: stroke;
+    stroke: var(--bm-bg);
+    stroke-width: 4px;
+    stroke-linejoin: round;
+  }
+</style>

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// Draw the Store's maps for page 05, A walkthrough, into public/maps/store/. The renderer checks each
-// map first and draws nothing when a check fails, so a broken map stops the build.
+// Draw the Store's maps, made for the former page 05, A walkthrough, into public/maps/store/. No
+// page shows them now. The renderer checks each map first and draws nothing when a check fails, so
+// a broken map stops the build.
 //
 // Steps 2 to 8 teach Level 1 before any component, and add one consumer at a time, so they use maps
 // cut here from the full map instead of maps kept by hand: they cannot drift from it. Each cut keeps
