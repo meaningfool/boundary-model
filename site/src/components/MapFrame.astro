@@ -2,9 +2,11 @@
 // One live screen of a Store map from public/maps/store/, drawn by scripts/draw-maps.mjs. The
 // caption says what to look at or select; the reader can click through the map in place.
 //
-// A map screen is wider than the text column, so the frame draws it at its own width and scales it
-// down to fit, but never below 70%, where its text would get too small to read. What still does not
-// fit scrolls inside the frame. Without scripts, the frame shows the screen unscaled.
+// A map screen is wider than the text column. On wide screens the frame spreads beyond the column,
+// into the space beside it, while its caption keeps the column's width. The frame then draws the
+// map at the map's own width and scales it down to fit, but never below 70%, where its text would
+// get too small to read. What still does not fit scrolls inside the frame. Without scripts, the
+// frame shows the screen unscaled.
 interface Props {
   /** The drawn page, such as "step-05" or "map". */
   map: "step-02" | "step-03" | "step-05" | "map" | "after-gift-cards";
@@ -87,5 +89,17 @@ const src = `${import.meta.env.BASE_URL}maps/store/${map}.html#${screen}`;
     text-decoration: underline;
     text-decoration-color: var(--bm-line2);
     text-underline-offset: 3px;
+  }
+  /* Where the text column sits centred, the frame spreads evenly on both sides of it, up to 70rem
+     and never past the space between the sidebar and the window's edge. */
+  @media (min-width: 72rem) {
+    .map-frame {
+      --wide: min(70rem, 100vw - var(--sl-sidebar-width) - 4rem);
+      margin-inline: calc((100% - var(--wide)) / 2);
+    }
+    figcaption {
+      max-width: var(--sl-content-width);
+      margin-inline: auto;
+    }
   }
 </style>
