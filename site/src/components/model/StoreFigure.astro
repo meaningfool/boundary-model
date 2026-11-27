@@ -1,15 +1,18 @@
 ---
-// Page 02: one boundary of the Store, drawn, with a numbered key to the model's terms.
+// Page 02: one boundary of the Store, drawn, with a numbered key to the model's terms. Concept
+// names show as code, written with backticks in the descriptions.
+import { inline } from "../inline";
+
 const terms = [
-  ["Consumer", "The person or system that uses the provider to get something done."],
-  ["Interface", "The channel the consumer uses."],
-  ["Provider", "What the consumer believes it is using."],
-  ["Boundary", "Where the provider offers resources and capabilities to the consumer."],
-  ["Area", "Capabilities that serve one purpose, core or supporting."],
-  ["Capability", "Something the consumer can do, to get a result."],
-  ["Resource", "Something with a state the consumer cares about."],
-  ["Component", "A part of a provider with its own state or decisions."],
-  ["Outside service", "A service outside the system that a component calls."],
+  ["Consumer", "The person or system that uses the `provider` to get something done."],
+  ["Interface", "The channel the `consumer` uses."],
+  ["Provider", "What the `consumer` believes it is using."],
+  ["Boundary", "Where the `provider` offers `resources` and `capabilities` to the `consumer`."],
+  ["Area", "`Capabilities` that serve one purpose, `core` or `supporting`."],
+  ["Capability", "Something the `consumer` can do, to get a result."],
+  ["Resource", "Something with a state the `consumer` cares about."],
+  ["Component", "A part of a `provider` with its own state or decisions."],
+  ["Outside service", "A service outside the system that a `component` calls."],
 ];
 const markers = [
   [86, 131],
@@ -93,8 +96,10 @@ const markers = [
         <li>
           <span class="b">{i + 1}</span>
           <div>
-            <b>{name}</b>
-            <span>{about}</span>
+            <b>
+              <code>{name}</code>
+            </b>
+            <span set:html={inline(about)} />
           </div>
         </li>
       ))

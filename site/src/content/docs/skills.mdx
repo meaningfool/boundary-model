@@ -23,8 +23,8 @@ Ask in plain words, such as "map this repository's boundaries", or name the skil
 
 <Pair
   agent={[
-    "Reads the documentation and the code, one level at a time.",
-    "Checks every boundary against the code and cites the files behind it.",
+    "Reads the documentation and the code, one `level` at a time.",
+    "Checks every `boundary` against the code and cites the files behind it.",
     "Drafts the map in a working folder outside your repository, then offers a review.",
   ]}
   you={["Which system to map.", "What the agent may read.", "Where the map goes.", "Whether to start over when a map already exists."]}
@@ -34,9 +34,9 @@ Ask in plain words, such as "map this repository's boundaries", or name the skil
 
 <Pair
   agent={[
-    "Sends one image per screen, from the top level down.",
+    "Sends one image per screen, from the top `level` down.",
     "Checks each screen against the code before asking anything.",
-    "Asks at most five short questions per level, each with its suggestion.",
+    "Asks at most five short questions per `level`, each with its suggestion.",
     "Draws both versions when an answer would add, remove or move a part.",
   ]}
   you={["What the parts are called.", "Which parts matter.", "Whether the map reads clearly."]}
@@ -50,7 +50,7 @@ The reviewed map is written at its location only when the review ends.
   agent={[
     "Lists the files changed since the map's revision, sorted by the part of the map they touch.",
     "Reads why they changed, from commit messages and pull requests.",
-    "Works out what changed for each boundary, and keeps earlier decisions.",
+    "Works out what changed for each `boundary`, and keeps earlier decisions.",
   ]}
   you={["The changes, in a review of only what changed."]}
 />
@@ -61,7 +61,7 @@ The reviewed map is written at its location only when the review ends.
 
 <Pair
   agent={[
-    "Starts from the map and reads the code behind the boundaries the change touches.",
+    "Starts from the map and reads the code behind the `boundaries` the change touches.",
     "Asks one question at a time, the one that could change the shape most, with its recommended answer.",
     "Marks each change NEW, MODIFIED or REMOVED against what exists today.",
   ]}

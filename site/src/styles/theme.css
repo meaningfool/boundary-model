@@ -149,11 +149,16 @@ body {
   font-weight: 500;
 }
 
-/* A skill's name, linked to its SKILL.md. */
-.sl-markdown-content a.skill code {
-  border: 0;
-  padding: 0;
-  background: none;
+/* Concept and skill names are inline code, in the text and in the figures and widgets alike. The
+   figures sit outside Starlight's text styles, so they get the same look here. */
+:is(.ptabs, .flow, .cmodel, .fig, .pair, .jobs, .start) code:not(pre code) {
+  padding: 0.05em 0.3em;
+  border: 1px solid var(--bm-line);
+  border-radius: 4px;
+  background: var(--bm-panel);
+  color: var(--bm-fg);
+  font-family: var(--__sl-font-mono);
+  font-size: 0.86em;
 }
 
 /* Asides, without colour. */

@@ -1,10 +1,12 @@
 ---
-// Page 03: where to start, by what you have.
+// Page 03: where to start, by what you have. Skill names are code.
+import { inline } from "../inline";
+
 const starts = [
-  ["Nothing built yet", "shape-boundaries"],
-  ["Code, but no map", "extract-boundaries"],
-  ["Code with a map", "update-boundaries, or shape-boundaries"],
-  ["No map wanted", "slice, refine, to-issues"],
+  ["Nothing built yet", "`shape-boundaries`"],
+  ["Code, but no map", "`extract-boundaries`"],
+  ["Code with a map", "`update-boundaries`, or `shape-boundaries`"],
+  ["No map wanted", "`slice`, `refine`, `to-issues`"],
 ];
 ---
 
@@ -13,7 +15,7 @@ const starts = [
     starts.map(([when, skills]) => (
       <div>
         <b>{when}</b>
-        <span>{skills}</span>
+        <span set:html={inline(skills)} />
       </div>
     ))
   }

@@ -31,6 +31,7 @@ Open each file in a browser. They need no build.
 - **Page 01:** the headline "High-leverage conversations with your agent using a shared map of your system.", grey from "using". Then four problems shown one at a time, each with a sketch; one vertical flow from behavior changes to implementation details; and boundaries level by level, as a drill-down diagram. Page 01's flow names the skill behind each step: `shape-boundaries`, `slice`, `refine` and `to-issues`. This replaces the earlier rule that page 01 names no skill.
 - **The skills own the rules.** The docs explain them, link to them, and never state a rule a skill does not.
 - **Writing:** plain words, short sentences, active voice, sentence-case headings, no em dashes, no promotional words, and no hard-wrapped prose.
+- **Concept and skill names are inline code,** everywhere they appear: in text, headings, captions and figures. The concepts are those `use-boundary-model` defines, such as `consumer`, `provider`, `boundary`, `interface`, `capability`, `area` (`core area`, `supporting area`), `resource`, `property`, `relationship`, `component`, `outside service`, `output`, `representation`, `level` and `Level 1`, and the modes `observes`, `mutates`, `produces` and `reacts`. Phrases are marked whole: `external boundary`, `boundary change`, `boundary map`. Not marked: "boundary model" as the product's name, plain "map", the example's own names such as Shopper or Place order, and words inside a quoted prompt.
 
 ## Open questions
 
