@@ -1,17 +1,15 @@
 ---
 title: The boundary model
-description: The boundary model describes a system as the people and systems using it see it. This page explains its terms and the map that records them. The `use-boundary-model` skill holds the full definitions.
+description: The `boundary model` is a light-weight ontology to describe how people and systems interact. It provides agents with a map on how to map and describe behavioural changes.
 ---
 
 import StoreFigure from "../../components/model/StoreFigure.astro";
 
-## What a `boundary` lists
+## Main `boundary` concepts
 
-A `boundary` is the line across which a `provider` offers resources and capabilities to a `consumer`. There is one `boundary` for each `consumer` and `provider`, however many interfaces it has. Each `boundary` lists:
-
-- **Interfaces:** the channels the `consumer` uses, such as a web shop, a mobile app or an API.
-- **Capabilities:** what the `consumer` can do, to get a result. Each one works on resources, and says how: it `observes`, `mutates`, `produces` or `reacts`.
-- **Areas:** groups of capabilities that serve one purpose. The `core area` holds what the `consumer` comes for. Supporting areas hold what they would skip if they could, such as sign-in or settings.
-- **Resources:** things with a state the `consumer` cares about, such as an order. A `provider` lists each `resource` once, under one name.
+- **`boundary`**: where a `consumer` meets a `provider`. The `provider` offers its resources and capabilities to the `consumer` across it. There is one `boundary` for each `consumer` and `provider` pair.
+- **`interface`**: the channel the `consumer` uses to see resources and use capabilities, such as a web UI or a CLI.
+- **`capability`**: something the `consumer` can do with the `provider`'s resources, through one or more interfaces, to get a result.
+- **`resource`**: something with a state the `consumer` cares about, such as an order.
 
 <StoreFigure />

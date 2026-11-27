@@ -1,30 +1,14 @@
 ---
-// Page 02: one boundary of the Store, drawn, with a numbered key to the model's terms. Concept
-// names show as code, written with backticks in the descriptions.
-import { inline } from "../inline";
-
+// Page 02: one boundary of the Store, drawn, with a numbered key to the core concepts the page
+// defines above it. The key names them, as code, without definitions.
 const terms = [
-  ["Consumer", "The person or system that uses the `provider` to get something done."],
-  ["Interface", "The channel the `consumer` uses."],
-  ["Provider", "What the `consumer` believes it is using."],
-  ["Boundary", "Where the `provider` offers resources and capabilities to the `consumer`."],
-  ["Area", "Capabilities that serve one purpose, `core` or `supporting`."],
-  ["Capability", "Something the `consumer` can do, to get a result."],
-  ["Resource", "Something with a state the `consumer` cares about."],
-  ["Component", "A part of a `provider` with its own state or decisions."],
-  ["Outside service", "A service outside the system that a `component` calls."],
-];
-const markers = [
-  [86, 131],
-  [106, 120],
-  [120, 8],
-  [120, 230],
-  [362, 114],
-  [292, 177],
-  [446, 258],
-  [516, 210],
-  [666, 210],
-];
+  ["consumer", [86, 131]],
+  ["provider", [120, 8]],
+  ["boundary", [120, 230]],
+  ["interface", [106, 120]],
+  ["capability", [292, 177]],
+  ["resource", [446, 258]],
+] as const;
 ---
 
 <figure class="fig not-content">
@@ -79,7 +63,7 @@ const markers = [
       <text class="s-n" x="546" y="244">Card network</text>
       <text class="s-r" x="546" y="262">Card authorization</text>
       {
-        markers.map(([x, y], i) => (
+        terms.map(([, [x, y]], i) => (
           <g class="s-mk">
             <circle cx={x} cy={y} r="8" />
             <text x={x} y={y}>
@@ -92,15 +76,10 @@ const markers = [
   </div>
   <ol class="terms">
     {
-      terms.map(([name, about], i) => (
+      terms.map(([name], i) => (
         <li>
           <span class="b">{i + 1}</span>
-          <div>
-            <b>
-              <code>{name}</code>
-            </b>
-            <span set:html={inline(about)} />
-          </div>
+          <code>{name}</code>
         </li>
       ))
     }
@@ -192,46 +171,27 @@ const markers = [
     dominant-baseline: central;
   }
   .terms {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px 22px;
-    margin: 16px 0 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 20px;
+    margin: 14px 0 0;
     padding: 0;
     list-style: none;
   }
   .terms li {
-    display: grid;
-    grid-template-columns: 18px minmax(0, 1fr);
-    gap: 8px;
-    align-items: start;
+    display: flex;
+    gap: 7px;
+    align-items: center;
   }
   .terms .b {
     display: grid;
     place-items: center;
     width: 18px;
     height: 18px;
-    margin-top: 1px;
     border-radius: 50%;
     background: var(--bm-fg);
     color: var(--bm-bg);
     font-family: var(--__sl-font-mono);
     font-size: 10px;
-  }
-  .terms b {
-    display: block;
-    color: var(--bm-fg);
-    font-size: 13.5px;
-    font-weight: 600;
-  }
-  .terms div span {
-    display: block;
-    color: var(--bm-fg2);
-    font-size: 13px;
-    line-height: 1.5;
-  }
-  @media (max-width: 40rem) {
-    .terms {
-      grid-template-columns: minmax(0, 1fr);
-    }
   }
 </style>
