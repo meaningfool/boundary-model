@@ -28,7 +28,7 @@ Open each file in a browser. They need no build.
 - **Pages:** 01 What it is and why, which is the home page; 02 The boundary model; 03 How the skills work together; 04 Install; 05 A walkthrough; 06 In the wild. `site-draft.html` still shows the earlier single page 05, An example.
 - **05 A walkthrough:** a simple invented example, the Store, taught outside in and then followed through one change, gift cards, from its shape to the issues. The design is in `walkthrough/a-store/`. It stands on its own: the examples on pages 01 and 02 are not final and may change to match it.
 - **06 In the wild:** maps of real open-source projects, embedded as interactive pages, like `boundary-maps.html`. Nine draft maps exist so far, in `../maps/`.
-- **Page 01:** the headline "A shared map of your system, for you and your agent." Then four problems shown one at a time, each with a sketch; one vertical flow from behavior changes to implementation details; and boundaries level by level, as a drill-down diagram. Page 01 names no skill.
+- **Page 01:** the headline "High-leverage conversations with your agent using a shared map of your system.", grey from "using". Then four problems shown one at a time, each with a sketch; one vertical flow from behavior changes to implementation details; and boundaries level by level, as a drill-down diagram. Page 01 names no skill.
 - **The skills own the rules.** The docs explain them, link to them, and never state a rule a skill does not.
 - **Writing:** plain words, short sentences, active voice, sentence-case headings, no em dashes, no promotional words, and no hard-wrapped prose.
 
