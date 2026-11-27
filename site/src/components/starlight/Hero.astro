@@ -1,6 +1,8 @@
 ---
-// Page 01's headline, whose second part turns grey, then one solid button. The title may hold a
-// <span class="dim"> for the grey part.
+// Page 01's headline, whose second part turns grey, then one solid button and one dashed button.
+// The title may hold a <span class="dim"> for the grey part. An action with a `data-copy` attribute
+// becomes a button that copies that text, a prompt for your agent; its link is the fallback when
+// the browser refuses to copy.
 
 const { data } = Astro.locals.starlightRoute.entry;
 const { title = data.title, tagline, actions = [] } = data.hero ?? {};
@@ -12,15 +14,40 @@ const { title = data.title, tagline, actions = [] } = data.hero ?? {};
   {
     actions.length > 0 && (
       <div class="actions">
-        {actions.map((a) => (
-          <a class:list={["btn", a.variant !== "primary" && "btn-dash"]} href={a.link}>
-            {a.text}
-          </a>
-        ))}
+        {actions.map((a) =>
+          a.attrs?.["data-copy"] ? (
+            <button class="btn btn-dash" type="button" data-copy={String(a.attrs["data-copy"])} data-href={a.link}>
+              <span class="glyph" aria-hidden="true">
+                &gt;_
+              </span>
+              <span class="label">{a.text}</span>
+            </button>
+          ) : (
+            <a class="btn" href={a.link}>
+              {a.text}
+            </a>
+          ),
+        )}
       </div>
     )
   }
 </header>
+
+<script>
+  for (const button of document.querySelectorAll<HTMLButtonElement>(".hero [data-copy]")) {
+    const label = button.querySelector(".label");
+    const text = label?.textContent ?? "";
+    button.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(button.dataset.copy ?? "");
+        if (label) label.textContent = "Copied. Paste it to your agent.";
+        setTimeout(() => label && (label.textContent = text), 2400);
+      } catch {
+        if (button.dataset.href) location.href = button.dataset.href;
+      }
+    });
+  }
+</script>
 
 <style>
   .hero {
@@ -54,18 +81,34 @@ const { title = data.title, tagline, actions = [] } = data.hero ?? {};
   .btn {
     display: inline-flex;
     align-items: center;
+    gap: 10px;
     padding: 10px 18px;
+    border: 0;
     border-radius: 8px;
     background: var(--bm-inv-bg);
     color: var(--bm-inv-fg);
+    font: inherit;
     font-size: 14.4px;
     font-weight: 500;
     text-decoration: none;
+    cursor: pointer;
   }
   .btn-dash {
+    border: 1px dashed var(--bm-line2);
     background: transparent;
     color: var(--bm-fg2);
-    border: 1px dashed var(--bm-line2);
+  }
+  .btn-dash:hover {
+    color: var(--bm-fg);
+    border-color: var(--bm-fg3);
+  }
+  .glyph {
+    padding: 0 5px;
+    border: 1px solid var(--bm-line2);
+    border-radius: 5px;
+    color: var(--bm-fg3);
+    font-family: var(--__sl-font-mono);
+    font-size: 12px;
   }
   @media (max-width: 40rem) {
     h1 {

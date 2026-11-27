@@ -1,0 +1,117 @@
+---
+// Page 03: the two jobs most skills do, each as a chain from what you have to what you get. Each
+// skill's name links to its SKILL.md at the released version.
+const url = (name: string) => `https://github.com/meaningfool/boundary-model/blob/v${__VERSION__}/skills/${name}/SKILL.md`;
+---
+
+<div class="jobs not-content">
+  <div class="job">
+    <span class="klab">Keep the map</span>
+    <span class="jn">Your code</span>
+    <span class="je"><a href={url("extract-boundaries")}><code>extract-boundaries</code></a></span>
+    <span class="jn">Draft map</span>
+    <span class="je"><a href={url("review-boundaries")}><code>review-boundaries</code></a>, with you</span>
+    <span class="jn map">Boundary map</span>
+    <span class="je loop"><a href={url("update-boundaries")}><code>update-boundaries</code></a>, after changes land, then a review</span>
+  </div>
+  <div class="job">
+    <span class="klab">Plan a change</span>
+    <span class="jn map">Boundary map</span>
+    <span class="je"><a href={url("shape-boundaries")}><code>shape-boundaries</code></a></span>
+    <span class="jn">Boundary changes</span>
+    <span class="je"><a href={url("slice")}><code>slice</code></a>, then <a href={url("refine")}><code>refine</code></a></span>
+    <span class="jn">Slices and decisions</span>
+    <span class="je"><a href={url("to-issues")}><code>to-issues</code></a></span>
+    <span class="jn">GitHub issues</span>
+  </div>
+  <p class="jobs-foot"><a href={url("use-boundary-model")}><code>use-boundary-model</code></a> holds the model and the map format that the other skills load. <a href={url("visualize-boundaries")}><code>visualize-boundaries</code></a> draws the map whenever one of them needs it.</p>
+</div>
+
+<style>
+  .jobs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 18px;
+  }
+  .job {
+    display: grid;
+    align-content: start;
+    padding: 14px 16px 16px;
+    border: 1px solid var(--bm-line);
+    border-radius: 12px;
+  }
+  .klab {
+    display: block;
+    margin-bottom: 12px;
+    color: var(--bm-fg);
+    font-family: var(--__sl-font-mono);
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .jn {
+    padding: 6px 10px;
+    border: 1px solid var(--bm-line2);
+    border-radius: 6px;
+    background: var(--bm-bg);
+    color: var(--bm-fg);
+    font-size: 13.5px;
+    font-weight: 500;
+  }
+  .jn.map {
+    border-color: var(--bm-fg);
+  }
+  .je {
+    position: relative;
+    margin-left: 16px;
+    padding: 7px 0 7px 14px;
+    border-left: 1px solid var(--bm-fg4);
+    color: var(--bm-fg2);
+    font-size: 12.5px;
+    line-height: 1.45;
+  }
+  .je::after {
+    content: "";
+    position: absolute;
+    left: -4px;
+    bottom: -1px;
+    border: 3.5px solid transparent;
+    border-top: 5px solid var(--bm-fg4);
+    border-bottom: 0;
+  }
+  .je.loop {
+    margin-top: 8px;
+    border-left-style: dashed;
+  }
+  .je.loop::after {
+    display: none;
+  }
+  a {
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-color: var(--bm-line2);
+    text-underline-offset: 3px;
+  }
+  a:hover {
+    text-decoration-color: var(--bm-fg);
+  }
+  code {
+    color: var(--bm-fg);
+    font-family: var(--__sl-font-mono);
+    font-size: 0.92em;
+  }
+  .jobs-foot {
+    grid-column: 1 / -1;
+    margin: 0;
+    padding: 2px 2px 0;
+    color: var(--bm-fg2);
+    font-size: 13.5px;
+    line-height: 1.6;
+  }
+  @media (max-width: 40rem) {
+    .jobs {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

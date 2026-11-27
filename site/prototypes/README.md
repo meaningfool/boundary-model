@@ -17,7 +17,8 @@ Open each file in a browser. They need no build.
 
 - `site/` holds the Astro and Starlight site: the six pages in the numbered sidebar, the look and the navigation decided below, and a Worker configuration for Cloudflare.
 - Page 05, A walkthrough, is built from `walkthrough/a-store/design.md`, with a live map frame for each step. Its lede and its map captions are new text, written from the design's "On the map" notes.
-- Pages 01 to 04 and 06 are stubs that keep their sections and point at their drafts in `site-draft.html`.
+- Pages 01 to 04 are moved from `site-draft.html` with their text unchanged, after a check against the 0.2.0 skills and the README's install commands. Two short pieces are new: the prompt that page 01's "Install with your agent" button copies, and the last line of page 03, which points to the walkthrough.
+- Page 06 is a stub.
 - No deploy workflow yet: it needs the Cloudflare secrets that issue #7 lists under Before Starting.
 
 ## Decisions so far
@@ -35,7 +36,8 @@ Open each file in a browser. They need no build.
 
 - Step 11 of the walkthrough says the card network "shows up once Payments opens". The 0.2.0 renderer also draws it on the Store screen, in the column of outside services, so the sentence may need rewording.
 - A Level 2 screen of the full map is about 1,500 pixels wide. In the walkthrough's text column it shows at 70% and scrolls sideways inside its frame. Steps 10 and 11 open on Catalog and on Shipping partner instead, which fit.
-- The value proposition, and the line under the headline, are still to be written.
+- The value proposition, and the line under the headline, are still to be written. Page 01 shows the draft's line for now.
+- Pages 01 and 02 still use their own versions of the Store. Page 02's Storefront keeps products, where the walkthrough's Catalog does, and page 01 calls slices increments.
 - Whether the walkthrough's material is written by hand, like the README's Store map, or comes from running the skills on a small invented Store codebase. A real run makes every artifact on the page genuine output.
 - Which real maps page 06 shows, and which ones are reviewed first.
 - Pi's review was started at the top level, then paused on three questions. Are Pi's seven libraries separate Level 1 providers? The draft says yes, since each is its own npm product. Is Settings a resource, given that `use-boundary-model` asks to check that a resource is not a setting? And is Model response a resource, or the output of the capabilities that produce it?

@@ -1,0 +1,12 @@
+---
+// A link to a file in the repository at the released version, so the docs point at the text they
+// explain as it was released.
+interface Props {
+  path: string;
+}
+
+const { path } = Astro.props;
+const href = `https://github.com/meaningfool/boundary-model/blob/v${__VERSION__}/${path}`;
+---
+
+<a href={href}><slot /></a>

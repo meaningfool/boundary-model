@@ -213,3 +213,21 @@ starlight-toc li:has(> a[href="#_top"]) {
 :root[data-theme="light"] .sl-menu-button:has(~ :popover-open) {
   background-color: var(--bm-panel);
 }
+
+/* Page 01: each section starts below a hairline, like a landing page. */
+[data-has-hero] .sl-markdown-content .sl-heading-wrapper.level-h2 {
+  margin-top: 56px;
+  padding-top: 48px;
+  border-top: 1px solid var(--bm-line);
+}
+
+/* Numbered steps, without colour. */
+.sl-steps > li::before {
+  background: var(--bm-fg);
+  color: var(--bm-bg);
+  font-family: var(--__sl-font-mono);
+  box-shadow: none;
+}
+.sl-steps > li::after {
+  background: var(--bm-line2);
+}

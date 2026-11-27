@@ -3,24 +3,38 @@ title: What it is and why
 description: A shared map of your system, for you and your agent.
 hero:
   title: 'A shared map of your system, <span class="dim">for you and your agent.</span>'
+  tagline: Nine agent skills that take you from an idea to a spec, working from a boundary map of your system.
   actions:
     - text: Get started
       link: /install/
       variant: primary
+    - text: Install with your agent
+      link: /install/
+      variant: secondary
+      attrs:
+        data-copy: Install the boundary model skills from https://github.com/meaningfool/boundary-model, following the Install section of its README.
 ---
 
-:::note[Draft]
-The line under the headline and this page's sections are still drafts, in `site/prototypes/site-draft.html`. This page names no skill.
-:::
+import Flow from "../../components/home/Flow.astro";
+import Levels from "../../components/home/Levels.astro";
+import Problems from "../../components/home/Problems.astro";
 
 ## Without a shared map
 
-Four problems, shown one at a time, each with a sketch.
+A repository holds code, not the model you have in your head: who uses the system, for what, and which part is responsible for what. From the code alone, agents can write code, but they are not reliable coworkers on what to build.
+
+<Problems />
 
 ## Focus on behavior changes first, implementation details last
 
-One vertical flow, from behavior changes to implementation details.
+Each step works one level closer to the code. You agree on what changes for the people using the system before anyone decides how to build it.
+
+<Flow />
 
 ## Boundaries, level by level
 
-Boundaries level by level, as a drill-down diagram.
+A boundary is where a consumer meets a provider: what the provider offers, and through which interfaces. The first one sits between your users and your system. Open the system and the same pattern repeats inside it, between its components, one level down each time.
+
+<Levels />
+
+[The boundary model](/model/) covers the rest: what each boundary lists, how a provider opens into the next level, and the map that records it all.

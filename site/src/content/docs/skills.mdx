@@ -3,14 +3,90 @@ title: How the skills work together
 description: "Most of the nine skills do one of two jobs: keep a map of your system current, or plan a change on it. This page says what each skill does, and what you decide at each step."
 ---
 
-:::note[Draft]
-This page's draft is in `site/prototypes/site-draft.html`, and has not been moved here yet.
-:::
+import Jobs from "../../components/skills/Jobs.astro";
+import Pair from "../../components/skills/Pair.astro";
+import Start from "../../components/skills/Start.astro";
 
 ## Two jobs
 
+<Jobs />
+
 ## Where to start
+
+<Start />
+
+Ask in plain words, such as "map this repository's boundaries", or name the skill. The skills keep the map at `docs/boundary-map.json` by default.
 
 ## Keep the map
 
+### `extract-boundaries`: map a system
+
+<Pair
+  agent={[
+    "Reads the documentation and the code, one level at a time.",
+    "Checks every boundary against the code and cites the files behind it.",
+    "Drafts the map in a working folder outside your repository, then offers a review.",
+  ]}
+  you={["Which system to map.", "What the agent may read.", "Where the map goes.", "Whether to start over when a map already exists."]}
+/>
+
+### `review-boundaries`: review the map
+
+<Pair
+  agent={[
+    "Sends one image per screen, from the top level down.",
+    "Checks each screen against the code before asking anything.",
+    "Asks at most five short questions per level, each with its suggestion.",
+    "Draws both versions when an answer would add, remove or move a part.",
+  ]}
+  you={["What the parts are called.", "Which parts matter.", "Whether the map reads clearly."]}
+/>
+
+The reviewed map is written at its location only when the review ends.
+
+### `update-boundaries`: bring the map up to date
+
+<Pair
+  agent={[
+    "Lists the files changed since the map's revision, sorted by the part of the map they touch.",
+    "Reads why they changed, from commit messages and pull requests.",
+    "Works out what changed for each boundary, and keeps earlier decisions.",
+  ]}
+  you={["The changes, in a review of only what changed."]}
+/>
+
 ## Plan a change
+
+### `shape-boundaries`: shape a change
+
+<Pair
+  agent={[
+    "Starts from the map and reads the code behind the boundaries the change touches.",
+    "Asks one question at a time, the one that could change the shape most, with its recommended answer.",
+    "Marks each change NEW, MODIFIED or REMOVED against what exists today.",
+  ]}
+  you={["The answers.", "Whether the shape is complete.", "Which document records the decisions."]}
+/>
+
+### `slice`: divide the work
+
+<Pair
+  agent={["Proposes two or three ways to divide the work, at least one of them vertical.", "Names the slicing smells in each, and recommends one."]}
+  you={["The strategy."]}
+/>
+
+### `refine`: settle the details
+
+<Pair
+  agent={["Settles what the code and earlier decisions already answer.", "Asks each question that has a real tradeoff, one at a time, with its recommendation."]}
+  you={["Each tradeoff, until no open question would change an expected behavior or a design decision."]}
+/>
+
+### `to-issues`: write the issues
+
+<Pair
+  agent={["Looks for duplicate issues.", "Drafts every issue with its expected behavior and proof of done, then reviews the set."]}
+  you={["How the issues are grouped: under an existing parent, under a new parent, or standalone.", "Whether to publish them."]}
+/>
+
+[A walkthrough](/walkthrough/) follows one change through these four skills, on an invented store.

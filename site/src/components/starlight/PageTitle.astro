@@ -1,5 +1,7 @@
 ---
-// The page's number from the sidebar above its title, and its description as the lede.
+// The page's number from the sidebar above its title, and its description as the lede, where
+// `code` spans show as code.
+import { inline } from "../inline";
 const { entry, sidebar } = Astro.locals.starlightRoute;
 const pages = sidebar.filter((e) => e.type === "link");
 const index = pages.findIndex((e) => e.isCurrent);
@@ -7,7 +9,7 @@ const index = pages.findIndex((e) => e.isCurrent);
 
 {index >= 0 && <p class="eyebrow">{String(index + 1).padStart(2, "0")}</p>}
 <h1 id="_top">{entry.data.title}</h1>
-{entry.data.description && <p class="lede">{entry.data.description}</p>}
+{entry.data.description && <p class="lede" set:html={inline(entry.data.description)} />}
 
 <style>
   .eyebrow {
@@ -24,6 +26,11 @@ const index = pages.findIndex((e) => e.isCurrent);
     font-weight: 600;
     letter-spacing: -0.025em;
     line-height: 1.2;
+  }
+  .lede :global(code) {
+    color: var(--bm-fg);
+    font-family: var(--__sl-font-mono);
+    font-size: 0.86em;
   }
   .lede {
     margin: 14px 0 0;

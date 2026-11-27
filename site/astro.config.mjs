@@ -50,7 +50,7 @@ export default defineConfig({
           return theme;
         },
         useStarlightUiThemeColors: true,
-        defaultProps: { wrap: true },
+        defaultProps: { wrap: true, frame: "code" },
         styleOverrides: {
           borderRadius: "10px",
           borderColor: "var(--bm-line)",

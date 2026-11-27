@@ -1,0 +1,408 @@
+---
+// Page 01: one vertical flow from a tangled request to issues, each step one level closer to the
+// code. The scribble beside the request is drawn here, from a fixed seed, so it never changes.
+let seed = 7;
+const rnd = () => {
+  seed = (seed * 16807) % 2147483647;
+  return (seed - 1) / 2147483646;
+};
+const pts = Array.from({ length: 46 }, () => {
+  const a = rnd() * Math.PI * 2;
+  const r = 18 + rnd() * 50;
+  return [Math.cos(a) * r, Math.sin(a) * r];
+});
+const f = (n: number) => n.toFixed(1);
+let tangle = `M${f(pts[0][0])} ${f(pts[0][1])}`;
+for (let i = 1; i < pts.length - 1; i++) {
+  const [x, y] = pts[i];
+  const [nx, ny] = pts[i + 1];
+  tangle += ` Q${f(x)} ${f(y)} ${f((x + nx) / 2)} ${f((y + ny) / 2)}`;
+}
+tangle += " Q70 30 78 62";
+---
+
+<div class="flow not-content">
+  <span class="axis top">Behavior</span>
+  <ol>
+    <li class="fstep">
+      <span class="fdot open" aria-hidden="true"></span>
+      <h3>Start from your intended changes</h3>
+      <p class="fsub">A request in your own words, with several changes tangled together.</p>
+      <div class="fvis f-request">
+        <svg viewBox="-80 -80 160 160" aria-hidden="true"><path d={tangle}></path></svg>
+        <p>"Shoppers should be able to pay with gift cards and see what's left on them. In the app too. And can they pay part of an order with a card?"</p>
+      </div>
+    </li>
+    <li class="fstep">
+      <span class="fdot" aria-hidden="true">1</span>
+      <h3>Clarify the behavior changes, from the outside in</h3>
+      <p class="fsub">One item for each change in what people can do with the system, marked against the map. Questions about details wait.</p>
+      <div class="fvis">
+        <div class="cards2">
+          <div class="card"><div class="t"><span class="tag">MODIFIED</span>Place order</div><div class="s">Shopper ↔ Store · web shop, mobile app</div></div>
+          <div class="card"><div class="t"><span class="tag">NEW</span>See gift card balance</div><div class="s">Shopper ↔ Store · observes Gift card</div></div>
+          <div class="card"><div class="t"><span class="tag">MODIFIED</span>Charge order</div><div class="s">Storefront ↔ Payments · mutates Gift card</div></div>
+          <div class="card"><div class="t"><span class="tag">NEW</span>Gift card</div><div class="s">Resource kept by Payments</div></div>
+        </div>
+        <div class="tray">
+          <span class="klab">Details, for later</span>
+          <span class="chip">Can a gift card pay part of an order?</span>
+          <span class="chip">What does an expired card show?</span>
+        </div>
+      </div>
+    </li>
+    <li class="fstep">
+      <span class="fdot" aria-hidden="true">2</span>
+      <h3>Group the changes into increments you can observe</h3>
+      <p class="fsub">A change too big for one increment is split, here by interface.</p>
+      <div class="fvis slices">
+        <div class="sframe">
+          <span class="klab">Increment 1 · Pay on the web</span>
+          <div class="mcard"><span class="tag">NEW</span>Gift card</div>
+          <div class="mcard"><span class="tag">MODIFIED</span>Charge order</div>
+          <div class="mcard"><span class="tag cut">SPLIT</span>Place order<small>web shop</small></div>
+        </div>
+        <div class="sframe">
+          <span class="klab">Increment 2 · See the balance</span>
+          <div class="mcard"><span class="tag">NEW</span>See gift card balance</div>
+        </div>
+        <div class="sframe">
+          <span class="klab">Increment 3 · Pay in the app</span>
+          <div class="mcard"><span class="tag cut">SPLIT</span>Place order<small>mobile app</small></div>
+        </div>
+      </div>
+    </li>
+    <li class="fstep">
+      <span class="fdot" aria-hidden="true">3</span>
+      <h3>Settle the details of each increment</h3>
+      <p class="fsub">Its exact expected behavior and its design decisions, starting from the questions set aside earlier.</p>
+      <div class="fvis refined">
+        <span class="klab">Increment 1 · Pay on the web</span>
+        <div>
+          <span class="klab">Expected behavior</span>
+          <ul>
+            <li>A shopper pays for an order with a gift card in the web shop.</li>
+            <li>The gift card's balance goes down by the amount paid.</li>
+          </ul>
+        </div>
+        <div>
+          <span class="klab">Design decisions</span>
+          <ul>
+            <li>A gift card can pay part of an order, and a card pays the rest. <span class="from">from details</span></li>
+            <li>Each gift card's balance is kept as a list of adjustments.</li>
+          </ul>
+        </div>
+      </div>
+    </li>
+    <li class="fstep">
+      <span class="fdot" aria-hidden="true">4</span>
+      <h3>Turn each increment into an issue</h3>
+      <p class="fsub">Each issue carries its expected behavior and its proof of done, so an agent can build from it.</p>
+      <div class="fvis issues">
+        <div class="icard"><span class="st"><i></i>Issue</span><b>Pay with a gift card on the web</b><p>Proof of done: pay an order with a gift card in the web shop and see its balance go down.</p></div>
+        <div class="icard"><span class="st"><i></i>Issue</span><b>See a gift card's balance</b><p>Proof of done: open a gift card and see what is left on it.</p></div>
+        <div class="icard"><span class="st"><i></i>Issue</span><b>Pay with a gift card in the app</b><p>Proof of done: pay an order with a gift card in the mobile app.</p></div>
+      </div>
+    </li>
+  </ol>
+  <span class="axis bottom">Implementation details</span>
+</div>
+
+<style>
+  .flow {
+    position: relative;
+    margin-top: 28px;
+    padding-left: 36px;
+  }
+  .flow::before {
+    content: "";
+    position: absolute;
+    left: 10px;
+    top: 26px;
+    bottom: 26px;
+    width: 2px;
+    background: linear-gradient(var(--bm-line2), var(--bm-fg));
+  }
+  ol,
+  ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  p {
+    margin: 0;
+  }
+  .axis {
+    display: block;
+    margin-left: -36px;
+    color: var(--bm-fg3);
+    font-family: var(--__sl-font-mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .axis.top {
+    margin-bottom: 18px;
+  }
+  .axis.bottom {
+    margin-top: 2px;
+  }
+  .fstep {
+    position: relative;
+    padding-bottom: 26px;
+  }
+  .fdot {
+    position: absolute;
+    left: -36px;
+    top: 1px;
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--bm-fg);
+    color: var(--bm-bg);
+    font-family: var(--__sl-font-mono);
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .fdot.open {
+    border: 1.5px solid var(--bm-fg3);
+    background: var(--bm-bg);
+  }
+  h3 {
+    margin: 0;
+    color: var(--bm-fg);
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 1.4;
+  }
+  .fsub {
+    max-width: 600px;
+    margin-top: 4px;
+    color: var(--bm-fg2);
+    font-size: 14.5px;
+    line-height: 1.6;
+  }
+  .fvis {
+    margin-top: 10px;
+  }
+  .klab {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--bm-fg3);
+    font-family: var(--__sl-font-mono);
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .tag {
+    display: inline-block;
+    margin-right: 6px;
+    padding: 0 4px;
+    border: 1px solid var(--bm-line2);
+    border-radius: 3px;
+    color: var(--bm-fg);
+    font-family: var(--__sl-font-mono);
+    font-size: 9.5px;
+    letter-spacing: 0.05em;
+    line-height: 14px;
+    vertical-align: 1px;
+  }
+  .tag.cut {
+    border-style: dashed;
+    color: var(--bm-fg2);
+  }
+  .f-request {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 10px 16px;
+    border: 1px solid var(--bm-line);
+    border-radius: 10px;
+  }
+  .f-request svg {
+    flex: none;
+    width: 70px;
+    height: 70px;
+    overflow: visible;
+  }
+  .f-request path {
+    fill: none;
+    stroke: var(--bm-fg);
+    stroke-width: 1.2;
+    stroke-linecap: round;
+  }
+  .f-request p {
+    color: var(--bm-fg2);
+    font-size: 14.5px;
+    line-height: 1.6;
+  }
+  .cards2 {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .card {
+    min-width: 0;
+    padding: 6px 10px;
+    border: 1px solid var(--bm-line2);
+    border-radius: 6px;
+    background: var(--bm-bg);
+  }
+  .card .t {
+    color: var(--bm-fg);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 18px;
+  }
+  .card .s {
+    color: var(--bm-fg3);
+    font-family: var(--__sl-font-mono);
+    font-size: 10.5px;
+    line-height: 16px;
+  }
+  .tray {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+    margin-top: 8px;
+    padding: 8px 10px;
+    border: 1px dashed var(--bm-line2);
+    border-radius: 8px;
+  }
+  .tray .klab {
+    margin: 0 4px 0 0;
+  }
+  .chip {
+    padding: 1px 10px;
+    border: 1px dashed var(--bm-line2);
+    border-radius: 11px;
+    color: var(--bm-fg2);
+    font-size: 12px;
+    line-height: 18px;
+  }
+  .slices {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    align-items: start;
+  }
+  .sframe {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+    padding: 8px;
+    border: 1px solid var(--bm-fg3);
+    border-radius: 8px;
+  }
+  .sframe > .klab {
+    margin: 0 0 2px 2px;
+    color: var(--bm-fg2);
+  }
+  .mcard {
+    padding: 4px 7px;
+    border: 1px solid var(--bm-line2);
+    border-radius: 5px;
+    background: var(--bm-bg);
+    color: var(--bm-fg);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.45;
+  }
+  .mcard small {
+    display: block;
+    color: var(--bm-fg3);
+    font-family: var(--__sl-font-mono);
+    font-size: 10px;
+    font-weight: 400;
+  }
+  .refined {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 10px 18px;
+    padding: 10px 12px 12px;
+    border: 1px solid var(--bm-fg3);
+    border-radius: 8px;
+  }
+  .refined > .klab {
+    grid-column: 1 / -1;
+    margin: 0;
+    color: var(--bm-fg2);
+  }
+  .refined li {
+    position: relative;
+    margin-top: 4px;
+    padding-left: 12px;
+    color: var(--bm-fg);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .refined li::before {
+    content: "";
+    position: absolute;
+    left: 1px;
+    top: 0.7em;
+    width: 5px;
+    height: 1px;
+    background: var(--bm-fg3);
+  }
+  .from {
+    color: var(--bm-fg3);
+    font-family: var(--__sl-font-mono);
+    font-size: 10px;
+  }
+  .issues {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .icard {
+    display: grid;
+    align-content: start;
+    gap: 6px;
+    min-width: 0;
+    padding: 9px 11px 11px;
+    border: 1px solid var(--bm-line2);
+    border-radius: 8px;
+  }
+  .icard .st {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--bm-fg3);
+    font-family: var(--__sl-font-mono);
+    font-size: 10px;
+  }
+  .icard .st i {
+    width: 9px;
+    height: 9px;
+    border: 1.5px solid var(--bm-fg3);
+    border-radius: 50%;
+  }
+  .icard b {
+    color: var(--bm-fg);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.35;
+  }
+  .icard p {
+    color: var(--bm-fg2);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  @media (max-width: 40rem) {
+    .cards2,
+    .slices,
+    .issues,
+    .refined {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .f-request {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+  }
+</style>

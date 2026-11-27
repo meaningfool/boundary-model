@@ -1,0 +1,57 @@
+---
+// Page 03: where to start, by what you have.
+const starts = [
+  ["Nothing built yet", "shape-boundaries"],
+  ["Code, but no map", "extract-boundaries"],
+  ["Code with a map", "update-boundaries, or shape-boundaries"],
+  ["No map wanted", "slice, refine, to-issues"],
+];
+---
+
+<div class="start not-content">
+  {
+    starts.map(([when, skills]) => (
+      <div>
+        <b>{when}</b>
+        <span>{skills}</span>
+      </div>
+    ))
+  }
+</div>
+
+<style>
+  .start {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-top: 16px;
+    border-top: 1px solid var(--bm-line);
+    border-left: 1px solid var(--bm-line);
+  }
+  .start > div {
+    padding: 14px 16px;
+    border-right: 1px solid var(--bm-line);
+    border-bottom: 1px solid var(--bm-line);
+  }
+  b {
+    display: block;
+    color: var(--bm-fg);
+    font-size: 14px;
+    font-weight: 500;
+  }
+  span {
+    display: block;
+    margin-top: 6px;
+    color: var(--bm-fg);
+    font-family: var(--__sl-font-mono);
+    font-size: 12px;
+  }
+  span::before {
+    content: "\2192\00a0";
+    color: var(--bm-fg4);
+  }
+  @media (max-width: 40rem) {
+    .start {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

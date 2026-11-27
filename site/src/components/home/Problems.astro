@@ -1,0 +1,346 @@
+---
+// Page 01: four problems, shown one at a time, each with a sketch and what changes with the skills.
+---
+
+<bm-tabs class="ptabs not-content">
+  <div role="tablist" aria-label="Problems">
+    <button role="tab" type="button" id="p-tab-1" aria-controls="p-panel-1" aria-selected="true">Agents go deep before they go wide.</button>
+    <button role="tab" type="button" id="p-tab-2" aria-controls="p-panel-2" aria-selected="false" tabindex="-1">Behavior changes get drawn into implementation details.</button>
+    <button role="tab" type="button" id="p-tab-3" aria-controls="p-panel-3" aria-selected="false" tabindex="-1">Agents reinvent concepts between sessions.</button>
+    <button role="tab" type="button" id="p-tab-4" aria-controls="p-panel-4" aria-selected="false" tabindex="-1">The code's structure drifts from your mental model.</button>
+  </div>
+
+  <div class="ppanel" role="tabpanel" id="p-panel-1" aria-labelledby="p-tab-1">
+    <p>Ask for a change and an agent dives into the first part it sees, down to schemas and error messages, while the rest of the change is still unclear.</p>
+    <div class="sk" aria-hidden="true">
+      <div class="sk-root">Pay with gift cards</div>
+      <div class="sk-row">
+        <div class="sk-col">
+          <div class="sk-node">Place order</div>
+          <div class="sk-deep">gift_cards table</div>
+          <div class="sk-deep">POST /orders</div>
+          <div class="sk-deep">error codes</div>
+        </div>
+        <div class="sk-col"><div class="sk-node off">Balance?</div></div>
+        <div class="sk-col"><div class="sk-node off">Charges?</div></div>
+        <div class="sk-col"><div class="sk-node off">Mobile app?</div></div>
+      </div>
+    </div>
+    <p class="skcap">Three levels down on one part. The other three are still open.</p>
+    <p class="pfix"><span class="klab">With the skills</span>Every behavior change is laid out first. The details wait until the whole change is agreed.</p>
+  </div>
+
+  <div class="ppanel" role="tabpanel" id="p-panel-2" aria-labelledby="p-tab-2" hidden>
+    <p>You want to agree on what people will be able to do. The conversation turns to tables, endpoints and files before you have.</p>
+    <div class="sk sk-talk" aria-hidden="true">
+      <p><span class="who">You</span>Shoppers should be able to pay with gift cards.</p>
+      <p class="ag" style="--i: 1"><span class="who">Agent</span>I'll add a <code>gift_cards</code> table with a balance column.</p>
+      <p class="ag" style="--i: 2"><span class="who">Agent</span>Then a <code>POST /gift-cards/redeem</code> endpoint.</p>
+      <p class="ag" style="--i: 3"><span class="who">Agent</span>And split the amount in <code>charge.ts</code>.</p>
+    </div>
+    <p class="skcap">What shoppers can do was never agreed. The talk moved to how.</p>
+    <p class="pfix"><span class="klab">With the skills</span>Each change is stated as what changes for the people using the system, marked against the map, and you confirm it before any code.</p>
+  </div>
+
+  <div class="ppanel" role="tabpanel" id="p-panel-3" aria-labelledby="p-tab-3" hidden>
+    <p>One session says gift card, the next says voucher, the one after that adds a prepaid balance. Nothing holds the names you agreed on.</p>
+    <div class="sk sk-sessions" aria-hidden="true">
+      <div><span class="klab">Session 1</span><span class="chip2">Gift card</span></div>
+      <div><span class="klab">Session 2</span><span class="chip2">Voucher</span></div>
+      <div><span class="klab">Session 3</span><span class="chip2">Prepaid balance</span></div>
+    </div>
+    <p class="skcap">One concept, three names.</p>
+    <p class="pfix"><span class="klab">With the skills</span>You settle the names when you review the map. Every change is then planned in those names, and fuzzy words get questioned.</p>
+  </div>
+
+  <div class="ppanel" role="tabpanel" id="p-panel-4" aria-labelledby="p-tab-4" hidden>
+    <p>The parts you have in mind stop lining up with the folders and services in the code, and nobody notices until a change gets hard.</p>
+    <div class="sk" aria-hidden="true">
+      <svg class="sk-svg" viewBox="0 0 380 140">
+        <text class="m-k" x="0" y="12">IN YOUR HEAD</text>
+        <text class="m-k" x="240" y="12">IN THE CODE</text>
+        <path class="m-line" d="M121 47 C180 47 180 38 240 38"></path>
+        <path class="m-line" d="M121 47 C180 47 180 76 240 76"></path>
+        <path class="m-line" d="M121 47 C180 47 180 114 240 114"></path>
+        <path class="m-line" d="M121 107 C180 107 180 76 240 76"></path>
+        <path class="m-line" d="M121 107 C180 107 180 114 240 114"></path>
+        <rect class="m-hi" x="0.5" y="32" width="120" height="30" rx="4"></rect>
+        <text class="m-n" x="12" y="51">Storefront</text>
+        <rect class="m-hi" x="0.5" y="92" width="120" height="30" rx="4"></rect>
+        <text class="m-n" x="12" y="111">Payments</text>
+        <rect class="m-in" x="240" y="24" width="139" height="28" rx="4"></rect>
+        <text class="m-c" x="252" y="42">src/shop/</text>
+        <rect class="m-in" x="240" y="62" width="139" height="28" rx="4"></rect>
+        <text class="m-c" x="252" y="80">src/checkout/</text>
+        <rect class="m-in" x="240" y="100" width="139" height="28" rx="4"></rect>
+        <text class="m-c" x="252" y="118">src/billing/</text>
+      </svg>
+    </div>
+    <p class="skcap">Two parts in your head, three folders in the code, and no clean line between them.</p>
+    <p class="pfix"><span class="klab">With the skills</span>The map cites the code behind each boundary. Updating it shows what changed in the code since the last review.</p>
+  </div>
+</bm-tabs>
+
+<script>
+  // Shows one panel at a time. Arrow keys move between tabs, as in any tab list.
+  class Tabs extends HTMLElement {
+    connectedCallback() {
+      const tabs = [...this.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
+      const select = (tab: HTMLButtonElement) => {
+        for (const t of tabs) {
+          const on = t === tab;
+          t.setAttribute("aria-selected", String(on));
+          t.tabIndex = on ? 0 : -1;
+          const panel = this.querySelector<HTMLElement>(`#${t.getAttribute("aria-controls")}`);
+          if (panel) panel.hidden = !on;
+        }
+      };
+      for (const [i, tab] of tabs.entries()) {
+        tab.addEventListener("click", () => select(tab));
+        tab.addEventListener("keydown", (e) => {
+          const step = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[e.key];
+          if (!step) return;
+          e.preventDefault();
+          const next = tabs[(i + step + tabs.length) % tabs.length];
+          select(next);
+          next.focus();
+        });
+      }
+    }
+  }
+  customElements.define("bm-tabs", Tabs);
+</script>
+
+<style>
+  .ptabs {
+    display: grid;
+    grid-template-columns: 210px minmax(0, 1fr);
+    margin-top: 24px;
+    border: 1px solid var(--bm-line);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  [role="tablist"] {
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--bm-line);
+    background: var(--bm-panel);
+  }
+  [role="tab"] {
+    padding: 14px 16px;
+    border: 0;
+    border-bottom: 1px solid var(--bm-line);
+    background: transparent;
+    color: var(--bm-fg3);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.4;
+    text-align: left;
+    cursor: pointer;
+  }
+  [role="tab"]:last-child {
+    border-bottom: 0;
+  }
+  [role="tab"][aria-selected="true"] {
+    color: var(--bm-fg);
+    background: var(--bm-bg);
+    box-shadow: inset 2px 0 0 var(--bm-fg);
+  }
+  .ppanel {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+    padding: 18px 20px;
+  }
+  .ppanel[hidden] {
+    display: none;
+  }
+  .ppanel > p {
+    margin: 0;
+    color: var(--bm-fg2);
+    font-size: 14.5px;
+    line-height: 1.6;
+  }
+  .ppanel .skcap {
+    margin-top: -6px;
+    color: var(--bm-fg3);
+    font-family: var(--__sl-font-mono);
+    font-size: 11px;
+    line-height: 1.5;
+  }
+  .ppanel .pfix {
+    padding-top: 12px;
+    border-top: 1px dashed var(--bm-line2);
+    color: var(--bm-fg);
+    font-size: 13.5px;
+  }
+  .klab {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--bm-fg3);
+    font-family: var(--__sl-font-mono);
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .sk {
+    padding: 14px;
+    border: 1px solid var(--bm-line);
+    border-radius: 8px;
+    background: var(--bm-panel);
+  }
+  .sk-root {
+    width: max-content;
+    max-width: 100%;
+    margin: 0 auto 12px;
+    padding: 3px 10px;
+    border: 1px solid var(--bm-fg3);
+    border-radius: 5px;
+    background: var(--bm-bg);
+    color: var(--bm-fg);
+    font-size: 12.5px;
+    font-weight: 500;
+  }
+  .sk-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.8fr) repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .sk-col {
+    display: grid;
+    gap: 4px;
+    align-content: start;
+    min-width: 0;
+  }
+  .sk-node {
+    overflow: hidden;
+    padding: 3px 6px;
+    border: 1px solid var(--bm-fg3);
+    border-radius: 5px;
+    background: var(--bm-bg);
+    color: var(--bm-fg);
+    font-size: 11.5px;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .sk-node.off {
+    border-style: dashed;
+    border-color: var(--bm-line2);
+    background: transparent;
+    color: var(--bm-fg4);
+  }
+  .sk-deep {
+    overflow: hidden;
+    margin-left: 10px;
+    padding: 2px 0 2px 8px;
+    border-left: 1px solid var(--bm-fg3);
+    color: var(--bm-fg);
+    font-family: var(--__sl-font-mono);
+    font-size: 10.5px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .sk-talk p {
+    margin: 0;
+    color: var(--bm-fg);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .sk-talk .ag {
+    margin-top: 6px;
+    margin-left: calc(var(--i) * 18px);
+    color: var(--bm-fg2);
+  }
+  .sk-talk .who {
+    margin-right: 8px;
+    color: var(--bm-fg3);
+    font-family: var(--__sl-font-mono);
+    font-size: 10px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .sk-talk code {
+    color: var(--bm-fg);
+    font-family: var(--__sl-font-mono);
+    font-size: 11.5px;
+  }
+  .sk-sessions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .sk-sessions > div {
+    display: grid;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--bm-line2);
+    border-radius: 6px;
+    background: var(--bm-bg);
+  }
+  .chip2 {
+    justify-self: start;
+    padding: 1px 9px;
+    border: 1px dashed var(--bm-fg3);
+    border-radius: 10px;
+    color: var(--bm-fg);
+    font-size: 12.5px;
+    font-weight: 500;
+  }
+  .sk-svg {
+    display: block;
+    width: 100%;
+    max-width: 420px;
+    height: auto;
+    margin: 0 auto;
+  }
+  .m-k {
+    fill: var(--bm-fg3);
+    font-family: var(--__sl-font-mono);
+    font-size: 8.5px;
+    letter-spacing: 0.08em;
+  }
+  .m-n {
+    fill: var(--bm-fg);
+    font-family: var(--__sl-font);
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+  .m-c {
+    fill: var(--bm-fg2);
+    font-family: var(--__sl-font-mono);
+    font-size: 10px;
+  }
+  .m-line {
+    fill: none;
+    stroke: var(--bm-fg4);
+    stroke-width: 1;
+  }
+  .m-hi {
+    fill: var(--bm-bg);
+    stroke: var(--bm-fg3);
+    stroke-width: 1.2;
+  }
+  .m-in {
+    fill: var(--bm-panel);
+    stroke: var(--bm-line2);
+    stroke-width: 1;
+  }
+  @media (max-width: 40rem) {
+    .ptabs {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    [role="tablist"] {
+      border-right: 0;
+      border-bottom: 1px solid var(--bm-line);
+    }
+    .sk-row {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .sk-sessions {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

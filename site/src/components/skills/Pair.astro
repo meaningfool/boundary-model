@@ -1,0 +1,89 @@
+---
+// Page 03: what the agent does in one skill, beside what you decide. Items may hold `code` spans.
+import { inline } from "../inline";
+
+interface Props {
+  agent: string[];
+  you: string[];
+}
+
+const { agent, you } = Astro.props;
+---
+
+<div class="pair not-content">
+  <div>
+    <span class="klab">The agent</span>
+    <ul>{agent.map((item) => <li set:html={inline(item)} />)}</ul>
+  </div>
+  <div class="you">
+    <span class="klab">You decide</span>
+    <ul>{you.map((item) => <li set:html={inline(item)} />)}</ul>
+  </div>
+</div>
+
+<style>
+  .pair {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    margin-top: 12px;
+    border: 1px solid var(--bm-line);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .pair > div {
+    min-width: 0;
+    padding: 12px 14px 14px;
+  }
+  .pair > div + div {
+    border-left: 1px solid var(--bm-line);
+    background: var(--bm-panel);
+  }
+  .klab {
+    display: block;
+    color: var(--bm-fg3);
+    font-family: var(--__sl-font-mono);
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  ul {
+    display: grid;
+    gap: 6px;
+    margin: 6px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  li {
+    position: relative;
+    padding-left: 16px;
+    color: var(--bm-fg2);
+    font-size: 14px;
+    line-height: 1.55;
+  }
+  .you li {
+    color: var(--bm-fg);
+  }
+  li::before {
+    content: "";
+    position: absolute;
+    left: 2px;
+    top: 0.8em;
+    width: 6px;
+    height: 1px;
+    background: var(--bm-fg3);
+  }
+  li :global(code) {
+    color: var(--bm-fg);
+    font-family: var(--__sl-font-mono);
+    font-size: 0.88em;
+  }
+  @media (max-width: 40rem) {
+    .pair {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .pair > div + div {
+      border-top: 1px solid var(--bm-line);
+      border-left: 0;
+    }
+  }
+</style>

@@ -15,6 +15,7 @@ npm run dev
 
 - `src/content/docs/`: one MDX file per page. The sidebar's order is in `astro.config.mjs`.
 - `src/components/starlight/`: Starlight's components that the site replaces: the numbered sidebar, the page title, the home page's headline, and no theme switch.
+- `src/components/`: the figures of each page, in a folder per page (`home/`, `model/`, `skills/`), and page 05's map frame and sketch.
 - `src/styles/theme.css`: the colours, type and spacing, for light and dark.
 - `maps/store/`: the Store, the invented system of page 05. `scripts/draw-maps.mjs` draws its maps into `public/maps/store/`, which Git ignores. Edit the map, never the drawn pages.
 - `maps/`: the other folders hold draft maps of open-source projects, for page 06. See `maps/README.md`.
