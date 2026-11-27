@@ -40,6 +40,6 @@ Title: "Problems without a shared map"
 ## Problem 3
 
 - Tab: The code's structure does not match your mental model.
-- Text: You agreed on a model, but the agent did not mirror it in code. Nobody checked. The source of truth is has drifted from your understanding.
+- Text: You agreed on a model, but the agent did not mirror it in code. Nobody checked. The source of truth has drifted from your understanding.
 - Sketch: In your head: Storefront, Payments. In the code: src/shop/, src/checkout/, src/billing/. Lines cross between them.
 - With the skills: The agent detects discrepancies between the shared map and the code base, allowing you to realign when drift is detected.

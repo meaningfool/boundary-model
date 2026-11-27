@@ -1,17 +1,18 @@
 ---
-// Page 01: four problems, shown one at a time, each with a sketch and what changes with the skills.
+// Page 01: three problems without a shared map, shown one at a time under the widget's title,
+// each with a sketch and what changes with the skills.
 ---
 
 <bm-tabs class="ptabs not-content">
-  <div role="tablist" aria-label="Problems">
+  <p class="ptitle" id="p-title">Problems without a shared map</p>
+  <div role="tablist" aria-labelledby="p-title">
     <button role="tab" type="button" id="p-tab-1" aria-controls="p-panel-1" aria-selected="true">Agents go deep before they go wide.</button>
-    <button role="tab" type="button" id="p-tab-2" aria-controls="p-panel-2" aria-selected="false" tabindex="-1">Behavior changes get drawn into implementation details.</button>
-    <button role="tab" type="button" id="p-tab-3" aria-controls="p-panel-3" aria-selected="false" tabindex="-1">Agents reinvent concepts between sessions.</button>
-    <button role="tab" type="button" id="p-tab-4" aria-controls="p-panel-4" aria-selected="false" tabindex="-1">The code's structure drifts from your mental model.</button>
+    <button role="tab" type="button" id="p-tab-2" aria-controls="p-panel-2" aria-selected="false" tabindex="-1">Agents reinvent concepts between sessions.</button>
+    <button role="tab" type="button" id="p-tab-3" aria-controls="p-panel-3" aria-selected="false" tabindex="-1">The code's structure does not match your mental model.</button>
   </div>
 
   <div class="ppanel" role="tabpanel" id="p-panel-1" aria-labelledby="p-tab-1">
-    <p>Ask for a change and an agent dives into the first part it sees, down to schemas and error messages, while the rest of the change is still unclear.</p>
+    <p>High-leverage questions sit at the top of the decision tree. Agents get drawn into implementation details, losing sight of the behavior changes.</p>
     <div class="sk" aria-hidden="true">
       <div class="sk-root">Pay with gift cards</div>
       <div class="sk-row">
@@ -26,35 +27,21 @@
         <div class="sk-col"><div class="sk-node off">Mobile app?</div></div>
       </div>
     </div>
-    <p class="skcap">Three levels down on one part. The other three are still open.</p>
-    <p class="pfix"><span class="klab">With the skills</span>Every behavior change is laid out first. The details wait until the whole change is agreed.</p>
+    <p class="pfix"><span class="klab">With the skills</span>Boundary changes are laid out first, from outside in during the shaping phase. The details are refined later.</p>
   </div>
 
   <div class="ppanel" role="tabpanel" id="p-panel-2" aria-labelledby="p-tab-2" hidden>
-    <p>You want to agree on what people will be able to do. The conversation turns to tables, endpoints and files before you have.</p>
-    <div class="sk sk-talk" aria-hidden="true">
-      <p><span class="who">You</span>Shoppers should be able to pay with gift cards.</p>
-      <p class="ag" style="--i: 1"><span class="who">Agent</span>I'll add a <code>gift_cards</code> table with a balance column.</p>
-      <p class="ag" style="--i: 2"><span class="who">Agent</span>Then a <code>POST /gift-cards/redeem</code> endpoint.</p>
-      <p class="ag" style="--i: 3"><span class="who">Agent</span>And split the amount in <code>charge.ts</code>.</p>
-    </div>
-    <p class="skcap">What shoppers can do was never agreed. The talk moved to how.</p>
-    <p class="pfix"><span class="klab">With the skills</span>Each change is stated as what changes for the people using the system, marked against the map, and you confirm it before any code.</p>
-  </div>
-
-  <div class="ppanel" role="tabpanel" id="p-panel-3" aria-labelledby="p-tab-3" hidden>
     <p>One session says gift card, the next says voucher, the one after that adds a prepaid balance. Nothing holds the names you agreed on.</p>
     <div class="sk sk-sessions" aria-hidden="true">
       <div><span class="klab">Session 1</span><span class="chip2">Gift card</span></div>
       <div><span class="klab">Session 2</span><span class="chip2">Voucher</span></div>
       <div><span class="klab">Session 3</span><span class="chip2">Prepaid balance</span></div>
     </div>
-    <p class="skcap">One concept, three names.</p>
-    <p class="pfix"><span class="klab">With the skills</span>You settle the names when you review the map. Every change is then planned in those names, and fuzzy words get questioned.</p>
+    <p class="pfix"><span class="klab">With the skills</span>Concepts are settled in the map. Every change is then planned in those names, and fuzzy words get questioned.</p>
   </div>
 
-  <div class="ppanel" role="tabpanel" id="p-panel-4" aria-labelledby="p-tab-4" hidden>
-    <p>The parts you have in mind stop lining up with the folders and services in the code, and nobody notices until a change gets hard.</p>
+  <div class="ppanel" role="tabpanel" id="p-panel-3" aria-labelledby="p-tab-3" hidden>
+    <p>You agreed on a model, but the agent did not mirror it in code. Nobody checked. The source of truth has drifted from your understanding.</p>
     <div class="sk" aria-hidden="true">
       <svg class="sk-svg" viewBox="0 0 380 140">
         <text class="m-k" x="0" y="12">IN YOUR HEAD</text>
@@ -76,8 +63,7 @@
         <text class="m-c" x="252" y="118">src/billing/</text>
       </svg>
     </div>
-    <p class="skcap">Two parts in your head, three folders in the code, and no clean line between them.</p>
-    <p class="pfix"><span class="klab">With the skills</span>The map cites the code behind each boundary. Updating it shows what changed in the code since the last review.</p>
+    <p class="pfix"><span class="klab">With the skills</span>The agent detects discrepancies between the shared map and the code base, allowing you to realign when drift is detected.</p>
   </div>
 </bm-tabs>
 
@@ -119,6 +105,16 @@
     border: 1px solid var(--bm-line);
     border-radius: 12px;
     overflow: hidden;
+  }
+  .ptitle {
+    grid-column: 1 / -1;
+    margin: 0;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--bm-line);
+    color: var(--bm-fg);
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
   }
   [role="tablist"] {
     display: flex;
@@ -162,13 +158,6 @@
     color: var(--bm-fg2);
     font-size: 14.5px;
     line-height: 1.6;
-  }
-  .ppanel .skcap {
-    margin-top: -6px;
-    color: var(--bm-fg3);
-    font-family: var(--__sl-font-mono);
-    font-size: 11px;
-    line-height: 1.5;
   }
   .ppanel .pfix {
     padding-top: 12px;
@@ -242,30 +231,6 @@
     font-size: 10.5px;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-  .sk-talk p {
-    margin: 0;
-    color: var(--bm-fg);
-    font-size: 13px;
-    line-height: 1.5;
-  }
-  .sk-talk .ag {
-    margin-top: 6px;
-    margin-left: calc(var(--i) * 18px);
-    color: var(--bm-fg2);
-  }
-  .sk-talk .who {
-    margin-right: 8px;
-    color: var(--bm-fg3);
-    font-family: var(--__sl-font-mono);
-    font-size: 10px;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-  }
-  .sk-talk code {
-    color: var(--bm-fg);
-    font-family: var(--__sl-font-mono);
-    font-size: 11.5px;
   }
   .sk-sessions {
     display: grid;
